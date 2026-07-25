@@ -1,0 +1,320 @@
+# ComfyUI model bake-off set
+
+Box: Vast RTX PRO 6000 Blackwell (96 GB VRAM, cc 12.0, driver 595.71.05),
+torch 2.10.0+cu130, ComfyUI **0.28.0** at `/workspace/ComfyUI`.
+
+Everything here was downloaded **directly over HTTPS, no git**, from repos that
+return HTTP 200 **anonymously** (no HuggingFace token is configured on this box).
+Every file was byte-verified against the remote `x-linked-size` header.
+
+```
+/workspace/models-setup/
+  download_models.sh      re-runnable downloader (every URL -> exact folder)
+  validate_image.py       Qwen2.5-VL guard -> JSON verdict
+  MODELS.md               this file
+  lib/fetch.sh            disk-safe, size-verifying fetch helper
+  lib/verify.sh           re-verify everything on disk vs remote
+  workflows/*.api.json    one API-format workflow per model
+  logs/m_*.tsv            per-file download manifest (url, bytes, status)
+```
+
+---
+
+## 1. What is installed
+
+> **CURRENT STATE (updated).** Sections 1-7 below document the original video
+> bake-off inventory and are kept for the licence/trap notes, which remain
+> accurate. Since then the box was retargeted at the reel pipeline:
+> **REMOVED** - HiDream-I1 + E1.1, HunyuanVideo, Mochi 1, LTX-Video 0.9.8, and the
+> orphaned `t5xxl_fp8` / `clip_l` / `ae` encoders.
+> **ADDED** - Qwen-Image-2512, Qwen-Image-Edit-2511, BiRefNet, 4x-UltraSharp,
+> Qwen2.5-32B-Instruct-FP8 (brain).
+> **KEPT** - Wan 2.2 I2V (bake-off winner), LTX-2.3 (benched), Qwen2.5-VL-7B.
+> See **section 8** for the live pipeline inventory.
+
+All sizes below are **measured on disk**, and every file was byte-verified
+against the remote `x-linked-size` (26/26 exact, 0 mismatches) and had its
+safetensors header parsed to confirm real tensor data (27/27 valid).
+
+| Model | Role | Size | Folder(s) under `ComfyUI/models/` | License | Workflow |
+|---|---|---:|---|---|---|
+| **HiDream-I1-Full** fp8 | Image (flagship) | 27.82 GB | `diffusion_models/`, `text_encoders/` | **MIT** (weights) | `hidream_i1_full_t2i.api.json`, `hidream_i1_full_uhd.api.json` |
+| **HiDream-E1.1** fp8 | Image editing | 17.11 GB | `diffusion_models/` | **MIT** (weights) | `hidream_e1_1_edit.api.json` |
+| **Wan 2.2 I2V 14B** fp8 | Video (main) | 38.03 GB | `diffusion_models/`, `text_encoders/`, `vae/`, `loras/` | **Apache-2.0** | `wan22_i2v_14B.api.json` |
+| **LTX-Video 13B 0.9.8** fp8 | Video (fast/volume) | 15.69 GB | `checkpoints/` | LTXV Open Weights 0.X | `ltx098_t2v.api.json`, `ltx098_i2v.api.json` |
+| **LTX-2.3 22B** fp8 | Video (newest, +audio) | 42.96 GB | `checkpoints/`, `text_encoders/`, `latent_upscale_models/`, `loras/` | LTX-2 Community | `ltx23_t2v.api.json`, `ltx23_i2v.api.json` |
+| **HunyuanVideo** 720p fp8 | Video (premium) | 22.77 GB | `diffusion_models/`, `text_encoders/`, `vae/` | Tencent Community (**restricted**) | `hunyuanvideo_t2v.api.json` |
+| **Mochi 1 preview** fp8 | Video | 10.95 GB | `diffusion_models/`, `vae/` | **Apache-2.0** | `mochi1_t2v.api.json` |
+| **Qwen2.5-VL-7B-Instruct** | Vision guard / validator | 16.60 GB | `/workspace/models/qwen2.5-vl/` (not a ComfyUI model) | **Apache-2.0** | `validate_image.py` |
+| *shared encoders + VAE* | — | 5.74 GB | `text_encoders/`, `vae/` | Apache-2.0 / BFL | — |
+| *4x-UltraSharp* (upscaler) | UHD upscaling | 0.07 GB | `upscale_models/` | permissive (ESRGAN) | used by `hidream_i1_full_uhd` |
+
+**Total on disk: 197.73 GB.**
+
+The HiDream-I1-Full row includes its three exclusive encoders (clip_l_hidream,
+clip_g_hidream, llama_3.1_8b); the model file alone is 17.11 GB. E1.1 reuses
+those same encoders, which is why its row is just the 17.11 GB edit model.
+
+**FLUX.1-dev was dropped at your request.** It is still wired up in the
+downloader and can be added any time with `./download_models.sh flux`
+(11.90 GB, split fp8 build from the ungated `Kijai/flux-fp8`). Note its licence
+is **non-commercial** — HiDream-I1-Full is the commercial-safe replacement, which
+is why it is the flagship image model here.
+
+---
+
+## 2. Shared encoders (deduped)
+
+These are downloaded **once** and referenced by several models. Dedupe was
+confirmed by SHA256/byte-size equality across the source repos, not assumed.
+
+| File | Bytes | Folder | Shared by |
+|---|---:|---|---|
+| `t5xxl_fp8_e4m3fn_scaled.safetensors` | 5,157,348,688 | `text_encoders/` | HiDream I1 + E1.1, LTX-0.9.8, Mochi |
+| `clip_l.safetensors` | 246,144,152 | `text_encoders/` | HunyuanVideo |
+| `ae.safetensors` | 335,304,388 | `vae/` | HiDream I1 + E1.1 (and FLUX if re-enabled) |
+
+`t5xxl_fp8_e4m3fn_scaled.safetensors` is byte-identical (SHA256
+`a498f048…557a`) across `comfyanonymous/flux_text_encoders`,
+`Comfy-Org/HiDream-I1_ComfyUI` and `Comfy-Org/mochi_preview_repackaged`.
+`ae.safetensors` is identical across the Lumina and HiDream repos.
+
+**Not shareable, despite the names:**
+- `clip_l_hidream.safetensors` (247,586,528 B) is **Long-CLIP-L** and is a
+  different file from `clip_l.safetensors` (246,144,152 B). Same for
+  `clip_g_hidream`. Substituting them will silently degrade HiDream.
+- LTX-2.3 uses a **Gemma-3-12B** text encoder, not T5 — it shares nothing.
+- Wan 2.2 uses **UMT5-XXL**, not T5 — it shares nothing.
+
+### One deliberate deviation from the official templates
+ComfyUI's LTX-0.9.8 and Mochi templates default to **`t5xxl_fp16`** (9.79 GB).
+We use the **fp8 scaled** T5 for both instead. It is the same T5-XXL, is
+published by Comfy-Org for both models, and saves 9.79 GB — which is what let
+the full set fit. If LTX prompt adherence ever looks weak, run
+`./download_models.sh t5fp16` and change that workflow's `CLIPLoader.clip_name`
+to `t5xxl_fp16.safetensors`.
+
+---
+
+## 3. Licence notes worth reading before commercial use
+
+- **HiDream I1 / E1.1 — MIT on the transformer weights**, and the I1 card states
+  outputs are free for commercial use. But the stack **cannot run without**
+  `llama_3.1_8b_instruct_fp8_scaled`, which is under the **Llama 3.1 Community
+  License** (700M-MAU threshold, "Built with Llama" attribution). The VAE and T5
+  are Apache-2.0. So "MIT" covers the model but not the whole pipeline.
+- **HunyuanVideo — Tencent Hunyuan Community License. Read this one.** The grant
+  is explicitly limited to a "Territory" that **excludes the EU, the UK and South
+  Korea**. If your output or service reaches users there, you are outside the
+  licence entirely. There is also a 100M-MAU ceiling above which you must obtain
+  a separate licence from Tencent.
+- **LTX-Video 0.9.8 / LTX-2.3** — both carry a **$10M annual revenue threshold**
+  above which a paid commercial licence from Lightricks is required. Below it,
+  commercial use is permitted. LTX-2.3's Gemma encoder adds Google's Gemma Terms.
+- **Wan 2.2, Mochi 1, Qwen2.5-VL — Apache-2.0.** No territorial or MAU limits.
+  These are the unambiguously clean ones.
+- **FLUX.1-dev (not installed)** — non-commercial only.
+
+---
+
+## 4. Traps that are already handled
+
+These are baked into `download_models.sh` and the saved workflows — listed so
+they don't get reintroduced.
+
+1. **Wan 2.2 VAE.** The 14B I2V models need `wan_2.1_vae.safetensors`
+   (253,815,318 B). `wan2.2_vae.safetensors` is for the **5B TI2V** model only
+   (48-channel vs 16-channel latent) and will not work. The 2.2 VAE is not
+   downloaded at all.
+2. **`UNETLoader.weight_dtype`.** It is an `advanced` (hidden) widget that
+   defaults to `"default"`, i.e. full precision. Every workflow here either
+   loads a genuinely pre-quantized fp8 file with `"default"` (correct), or pins
+   `fp8_e4m3fn` explicitly. If you re-enable FLUX, its diffusion model **must**
+   be loaded with `weight_dtype="fp8_e4m3fn"` or it loads bf16 and OOMs.
+3. **LTX's paid cloud nodes.** ComfyUI 0.28.0 ships `api_ltxv_text_to_video.json`
+   and `api_ltxv_image_to_video.json`, whose only real node is
+   `LtxvApiTextToVideo` / `LtxvApiImageToVideo` — these bill LTX Studio credits
+   and do **zero** local compute. Lightricks' own `example_workflows/2.3/*.json`
+   are also compromised: they use `GemmaAPITextEncode`, which POSTs to
+   `api.ltx.video` for conditioning. **Every workflow saved here is 100% local**
+   and the validator hard-fails on any node whose class name contains `Api`.
+   The same applies to the `Wan*Api` node family.
+4. **FLUX gating.** `black-forest-labs/FLUX.1-dev` is gated (401 anonymously),
+   and so is `Comfy-Org/Flux_Dev_ComfyUI_Repackaged` — the mirror most guides
+   recommend is *not* actually ungated. The downloader uses `Kijai/flux-fp8`.
+5. **No fp8 published for some models.** HiDream-E1.1 and HunyuanVideo have no
+   official fp8 build. We use a community fp8 repack for E1.1 (17.11 GB instead
+   of 34.21 GB) and Kijai's fp8 for HunyuanVideo (13.19 GB instead of 25.64 GB).
+   Both halve the disk cost; both are loaded with `weight_dtype="default"`
+   because they are already quantized.
+6. **Frame counts are quantized per model** and are silently floored if wrong:
+   Wan/LTX `length` must be `4n+1` (81, 97…), Hunyuan `4n+1` (73),
+   Mochi `6n+1` (37). LTX-2.3 additionally needs width/height divisible by 32.
+
+---
+
+## 5. Re-running and verifying
+
+```bash
+cd /workspace/models-setup
+
+./download_models.sh                 # everything (skips what is already complete)
+./download_models.sh wan22 hunyuan   # just those families
+MIN_FREE_GB=20 ./download_models.sh  # raise the disk floor
+
+bash lib/verify.sh                   # re-check every file on disk vs remote size
+python workflows/_validate_workflows.py   # structural check, runs nothing
+```
+
+`download_models.sh` is idempotent: a file whose local size already equals the
+remote size is skipped, a partial file resumes, and any download that would take
+free space below `MIN_FREE_GB` (default 12 GiB) is aborted rather than filling
+the disk.
+
+---
+
+## 6. Running a model
+
+Every workflow is API-format, so it goes straight to ComfyUI's `/prompt`
+endpoint. `run_and_upload.py` queues it, waits, and reports the output file:
+
+```bash
+cd /workspace/models-setup
+/venv/main/bin/python run_and_upload.py workflows/<name>.api.json --no-upload
+```
+
+Per model:
+
+```bash
+# images
+python run_and_upload.py workflows/hidream_i1_full_t2i.api.json --no-upload
+python run_and_upload.py workflows/hidream_i1_full_uhd.api.json  --no-upload   # 3840x2160
+python run_and_upload.py workflows/hidream_e1_1_edit.api.json    --no-upload   # needs an input image
+
+# video
+python run_and_upload.py workflows/wan22_i2v_14B.api.json    --no-upload
+python run_and_upload.py workflows/ltx098_t2v.api.json       --no-upload
+python run_and_upload.py workflows/ltx098_i2v.api.json       --no-upload
+python run_and_upload.py workflows/ltx23_t2v.api.json        --no-upload
+python run_and_upload.py workflows/ltx23_i2v.api.json        --no-upload
+python run_and_upload.py workflows/hunyuanvideo_t2v.api.json --no-upload
+python run_and_upload.py workflows/mochi1_t2v.api.json       --no-upload
+```
+
+The i2v / edit workflows default to ComfyUI's bundled `input/example.png`. To
+use your own, drop it in `/workspace/ComfyUI/input/` and change the `LoadImage`
+node's `image` field.
+
+### Vision guard
+
+```bash
+/venv/main/bin/python validate_image.py /workspace/ComfyUI/output/<file>.png
+```
+Prints a JSON verdict (branding / modesty / quality) and exits non-zero if any
+check fails, so it can gate a pipeline directly:
+```bash
+python validate_image.py out.png >/dev/null && echo SHIP || echo REJECT
+```
+
+**Dependency:** requires `accelerate` (installed). Despite the common claim that
+a single-device `device_map="cuda:0"` avoids it, transformers 5.14.0 raises
+`ValueError: Using a device_map ... requires accelerate` regardless. Installed
+with `/venv/main/bin/uv pip install accelerate`.
+
+**Calibration caveat — verified, not theoretical.** On its first real run against
+the HiDream UHD landscape the guard returned `branding.pass=false` with
+`"detected": ["landscape photography"], "notes": "Watermark present."` on an
+image containing **no watermark and no branding**. It also returned
+`quality.issues` as a *string* where the prompt asks for a list. So:
+- treat `branding.pass=false` as "needs a human look", not as proof of branding;
+- do not parse `issues`/`detected` assuming a list type;
+- the strictness is deliberate ("when uncertain, fail") but it does over-trigger.
+Loosen the branding rule in `PROMPT` if the false-positive rate is too high for
+your volume.
+
+### Uploading to MinIO
+
+The `staging-storage.runkarobar.com` endpoint sits behind a **bucket-scoped
+nginx** that rewrites `/<key>` -> `/<bucket>/<key>`. Standard S3 clients sign
+the path they transmit, so the signature is computed over the pre-rewrite path
+while MinIO verifies the post-rewrite one — **both the `minio` Python SDK and
+`mc` fail here with `SignatureDoesNotMatch`, regardless of credentials.**
+
+`minio_upload.py` handles it by transmitting `/<key>` while signing
+`/<bucket>/<key>`:
+
+```bash
+export MINIO_ENDPOINT=staging-storage.runkarobar.com
+export MINIO_ACCESS_KEY=runkarobar
+export MINIO_SECRET_KEY=...            # keep out of shell history
+export MINIO_BUCKET=runkarobar
+
+python minio_upload.py out.png            --prefix images
+python minio_upload.py reel.mp4           --prefix reels
+```
+Public URLs carry **no bucket segment**: `https://<host>/<prefix>/<file>`.
+
+---
+
+## 7. Persistence warning
+
+> **This instance has no persistent volume.** `vast-capabilities` reports
+> `workspace_is_volume: false`, so `/workspace` is ordinary container storage.
+> It survives stop/start but a **recycle or destroy wipes all ~198 GB**. Keep
+> this directory (it is small) to rebuild from scratch.
+
+---
+
+## 8. Reel pipeline (reelkit/) — models and stages
+
+The self-contained reel pipeline lives in `/workspace/reelkit`. One HTTP call in,
+one finished vertical reel out; everything runs on this box.
+
+### Models it uses
+
+| Model | Role | Location | Size |
+|---|---|---|---:|
+| **Qwen2.5-32B-Instruct-FP8-dynamic** | Stage 0 brain — writes the storyboard | `/workspace/models/brain/` | 34.3 GB |
+| **Qwen2.5-VL-7B-Instruct** | product captions for the brain + Stage 2b OCR guard | `/workspace/models/qwen2.5-vl/` | 16.6 GB |
+| **Qwen-Image-2512** fp8 | Stage 1 scene generation (text-to-image) | `ComfyUI/models/diffusion_models/` | 20.4 GB |
+| **Qwen-Image-Edit-2511** fp8mixed | instruction editing (scene work outside the pipeline) | `ComfyUI/models/diffusion_models/` | 20.5 GB |
+| **Wan 2.2 I2V 14B** fp8 + LightX2V | Stage 2 motion + energy plates | `ComfyUI/models/diffusion_models/` | 38.0 GB |
+| **BiRefNet** | Stage 1 product segmentation | `ComfyUI/models/background_removal/` | 0.44 GB |
+| ElevenLabs (`eleven_multilingual_v2`) | Stage 3 voiceover | remote API | — |
+
+Added for this pipeline: `Qwen2.5-32B-Instruct-FP8-dynamic` (installed via
+`download_models.sh brain`), plus `compressed-tensors`, `fastapi`, `uvicorn`,
+`accelerate` in `/venv/main`.
+
+Removed to make room (all lost the video bake-off and are unused by the pipeline):
+HunyuanVideo, Mochi 1, LTX-Video 0.9.8, HiDream-I1/E1.1, and the orphaned
+`t5xxl_fp8`, `clip_l` and `ae` encoders. LTX-2.3 is kept but benched.
+
+### Stages
+
+| Stage | File | What it does |
+|---|---|---|
+| 0 | `brain.py` | Qwen2.5-32B writes the storyboard JSON (schema-validated, 3 retries). Sees the product via Qwen2.5-VL captions. Unloaded before image models load. |
+| 1 | `compose.py` | `compose_animate`: BiRefNet segment → Qwen-Image scene → PIL composite of the REAL product pixels → PIL colour harmonise + contact shadow. `generate_animate`: direct generation. **No diffusion pass ever touches the product.** |
+| 2 | `animate.py` | Ken-Burns (`zoompan`) driven by the brain's structured `kenburns` numbers for product scenes; Wan 2.2 I2V for scene shots; `energy` rendered on pure black and screen-blended. |
+| 2b | `animate.guard_composite` | OCR-diff via `validate_image.py` — label tokens from the composite vs the source product. Fail → re-composite. |
+| 3 | `voiceover.py` | ElevenLabs TTS per scene, real durations via ffprobe. **Voiceover only — never music.** |
+| 4 | `assemble.py` | Fit clips to VO, fade/cut transitions, continuous VO track, optional burned captions, 1080p + 720p, 30fps, yuv420p, faststart. |
+| 5 | `make_reel.py` | Orchestrates 0→4, uploads via `minio_upload.py`, returns the Result JSON. |
+| 6 | `server.py` | FastAPI: `POST /make-reel`, `GET /health`, port 8189. |
+
+### Secrets
+
+All in `/workspace/.env` (mode 600), never in source: `ELEVEN_API_KEY`,
+`MINIO_ENDPOINT`, `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`, `MINIO_BUCKET`.
+The ElevenLabs key is IP-restricted — this box (`198.53.64.194`) is allowlisted.
+
+### Run it
+
+```bash
+cd /workspace/reelkit
+python make_reel.py                 # direct, uses the built-in demo request
+python server.py                    # API on :8189
+curl -X POST localhost:8189/make-reel -H 'Content-Type: application/json' \
+     --data-binary @work/api_req.json
+```

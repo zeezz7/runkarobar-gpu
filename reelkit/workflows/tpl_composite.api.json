@@ -1,0 +1,106 @@
+{
+  "1": {
+    "class_type": "LoadImage",
+    "inputs": { "image": "dress_src.jpg" }
+  },
+  "2": {
+    "class_type": "LoadBackgroundRemovalModel",
+    "inputs": { "bg_removal_name": "birefnet.safetensors" }
+  },
+  "3": {
+    "class_type": "RemoveBackground",
+    "inputs": { "bg_removal_model": ["2", 0], "image": ["1", 0] }
+  },
+  "4": {
+    "class_type": "GrowMask",
+    "inputs": { "mask": ["3", 0], "expand": -2, "tapered_corners": true }
+  },
+  "5": {
+    "class_type": "FeatherMask",
+    "inputs": { "mask": ["4", 0], "left": 2, "top": 2, "right": 2, "bottom": 2 }
+  },
+
+  "10": {
+    "class_type": "UNETLoader",
+    "inputs": { "unet_name": "hidream_i1_full_fp8.safetensors", "weight_dtype": "default" }
+  },
+  "11": {
+    "class_type": "ModelSamplingSD3",
+    "inputs": { "shift": 3, "model": ["10", 0] }
+  },
+  "12": {
+    "class_type": "QuadrupleCLIPLoader",
+    "inputs": {
+      "clip_name1": "clip_l_hidream.safetensors",
+      "clip_name2": "clip_g_hidream.safetensors",
+      "clip_name3": "t5xxl_fp8_e4m3fn_scaled.safetensors",
+      "clip_name4": "llama_3.1_8b_instruct_fp8_scaled.safetensors"
+    }
+  },
+  "13": {
+    "class_type": "VAELoader",
+    "inputs": { "vae_name": "ae.safetensors" }
+  },
+  "14": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": ["12", 0],
+      "text": "An empty professional photography studio backdrop. Seamless light warm grey paper sweep curving from wall to floor, soft diffused key light from the upper left, gentle falloff into the corners, a subtle soft shadow gradient across the floor, clean and minimal, high-end fashion editorial lighting, photorealistic, no people, no objects, no furniture."
+    }
+  },
+  "15": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": ["12", 0],
+      "text": "people, person, mannequin, furniture, plant, mirror, window, clutter, text, logo, watermark, harsh shadows, busy pattern, vignette, low quality"
+    }
+  },
+  "16": {
+    "class_type": "EmptySD3LatentImage",
+    "inputs": { "width": 768, "height": 1376, "batch_size": 1 }
+  },
+  "17": {
+    "class_type": "KSampler",
+    "inputs": {
+      "model": ["11", 0],
+      "positive": ["14", 0],
+      "negative": ["15", 0],
+      "latent_image": ["16", 0],
+      "seed": 20260725,
+      "steps": 50,
+      "cfg": 5,
+      "sampler_name": "uni_pc",
+      "scheduler": "simple",
+      "denoise": 1
+    }
+  },
+  "18": {
+    "class_type": "VAEDecode",
+    "inputs": { "samples": ["17", 0], "vae": ["13", 0] }
+  },
+
+  "20": {
+    "class_type": "ImageCompositeMasked",
+    "inputs": {
+      "destination": ["18", 0],
+      "source": ["1", 0],
+      "x": 0,
+      "y": 0,
+      "resize_source": false,
+      "mask": ["5", 0]
+    }
+  },
+  "21": {
+    "class_type": "SaveImage",
+    "inputs": { "images": ["20", 0], "filename_prefix": "dress_composite" }
+  },
+
+  "30": {
+    "class_type": "MaskToImage",
+    "inputs": { "mask": ["5", 0] }
+  },
+  "31": {
+    "class_type": "SaveImage",
+    "inputs": { "images": ["30", 0], "filename_prefix": "dress_mask" }
+  }
+}

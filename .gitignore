@@ -1,0 +1,44 @@
+# ---------------------------------------------------------------- SECRETS
+# Never commit. Holds ELEVEN_API_KEY and the MinIO credentials.
+.env
+*.env
+!.env.example
+*.pem
+*.key
+id_rsa*
+
+# ------------------------------------------------------------ model weights
+# Multi-GB binaries - rebuild with download_models.sh instead.
+models/
+ComfyUI/
+*.safetensors
+*.ckpt
+*.pth
+*.bin
+*.gguf
+
+# -------------------------------------------------------- generated outputs
+reelkit/work/
+models-setup/logs/
+models-setup/workflows/run_*.api.json
+bakeoff/
+*.mp4
+*.webm
+*.mp3
+*.wav
+*.srt
+*.png
+*.jpg
+*.jpeg
+
+# ------------------------------------------------------------------ python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# ------------------------------------------------------ box-local scratch
+.hf_home/
+.venv-backups/
+.sync_*.lock
+.cache/
