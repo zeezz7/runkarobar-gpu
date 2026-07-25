@@ -1,0 +1,4 @@
+# Runtime deps for make_reel.py. ComfyUI, torch and ffmpeg come from the
+# Vast.ai image and are intentionally not pinned here.
+minio>=7.2
+requests>=2.31

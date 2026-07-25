@@ -9,10 +9,53 @@ weights and no generated media are committed; `download_models.sh` rebuilds the
 
 | Path | What it is |
 |---|---|
+| `make_reel.py` | **Product image in, finished vertical reel out**, uploaded to MinIO |
+| `reelkit/` | Helpers: ComfyUI client, graph builders, framing, ffmpeg, storage |
 | `setup.sh` | One-shot bootstrap: downloads models, installs workflows |
 | `download_models.sh` | Idempotent, size-verified model downloader (`ltx` / `flux` / `wan` / `all`) |
 | `MODELS.md` | Exact files + folders, settings, measured VRAM/render times, and the traps |
 | `workflows/` | API-format ComfyUI workflows, all executed and confirmed working |
+
+## Making a reel
+
+```bash
+pip install -r requirements.txt
+export MINIO_ENDPOINT=staging-storage.runkarobar.com   # host only, no scheme
+export MINIO_ACCESS_KEY=... MINIO_SECRET_KEY=... MINIO_BUCKET=runkarobar
+
+python make_reel.py samples/product.png            # LTX only,  ~5.8 min
+python make_reel.py samples/product.png --hero     # + Wan shot, ~10 min
+```
+
+Prints the public URL on success; exits non-zero on any failure.
+
+| Stage | What it does | Time |
+|---|---|---|
+| FLUX img2img | one clean product hero still, denoise 0.40 so branding survives | ~15–30 s |
+| LTX i2v ×3 | three 5.04 s scenes at 576×1024 | ~110 s each |
+| Wan i2v ×1 | optional money shot, 432×768, `--hero` only | ~225 s |
+| ffmpeg | 1080×1920, cross-fades + fade in/out, **silent** | ~5 s |
+| MinIO | `reels/<timestamp>.mp4`, verified publicly readable | ~4 s |
+
+Output is 14.1 s without `--hero`, 18.7 s with it.
+
+### Two things learned the hard way
+
+**Scene variety comes from framing, not from the video model.** LTX only keeps a
+product faithful at guide `strength=1.0`, which yields little camera movement. Dropping
+to the stock template's `0.15` measures as *more* motion but achieves it by letting the
+product drift out of frame and inventing a replacement object — useless for an ad. So
+`strength` stays at 1.0 and `SCENES` varies the crop of the hero still per scene
+(`zoom`/`anchor`), which is deterministic and never risks the product's identity.
+
+**The MinIO endpoint is behind a bucket-scoped nginx proxy.** It rewrites `/<key>` to
+`/<bucket>/<key>`, so the host root *is* the bucket. The `minio` SDK cannot be used
+against it as-is: the SDK sends `/<bucket>/<key>`, the proxy makes that
+`/<bucket>/<bucket>/<key>`, and since SigV4 signs the pre-rewrite path every request
+fails `SignatureDoesNotMatch` even with correct credentials. `reelkit/storage.py`
+detects the layout at runtime and uses the SDK for standard endpoints, or signs the
+post-rewrite path for this one. Public URLs here are
+`https://<endpoint>/reels/<name>.mp4` — **no bucket segment**.
 
 ## Quick start
 

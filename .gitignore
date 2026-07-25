@@ -39,3 +39,7 @@ CLAUDE.md
 .venv-backups/
 .sync_*.lock
 .env
+
+# pipeline scratch
+reels_out/
+samples/
