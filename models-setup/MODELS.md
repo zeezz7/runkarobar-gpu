@@ -22,50 +22,46 @@ Every file was byte-verified against the remote `x-linked-size` header.
 
 ## 1. What is installed
 
-> **CURRENT STATE (updated 2026-07-26).** Sections 1-7 below document the original
-> video bake-off inventory and are kept **only** for the licence/trap notes, which
-> remain accurate. They **no longer reflect what is on disk.** Since then the box
-> was retargeted at the reel pipeline:
+> **CURRENT STATE (updated 2026-07-26).** **Section 1 below is the current installed
+> set.** Sections 2-7 keep the original bake-off's licence / trap / dedup notes for
+> reference — some mention models that have since been removed, but the notes
+> themselves remain accurate. Section 8 is the live pipeline stage map.
 > **REMOVED** - HiDream-I1-Full + HiDream-E1.1, LTX-Video 0.9.8, LTX-2.3, Mochi 1,
 > and the orphaned `t5xxl_fp8` / `clip_l` / `ae` encoders.
-> **ADDED** - Qwen-Image-2512, Qwen-Image-Edit-2511, BiRefNet, 4x-UltraSharp,
-> the Qwen2.5-Instruct brain, and **HunyuanVideo I2V** (image+text -> video — the
-> alternative video engine alongside Wan).
+> **ADDED** - Qwen-Image-2512, Qwen-Image-Edit-2511, **HunyuanVideo I2V**, BiRefNet,
+> 4x-UltraSharp, and the Qwen2.5-Instruct brain.
 > **KEPT** - Wan 2.2 I2V + LightX2V (default video engine), Qwen2.5-VL-7B.
-> See **section 8** for the live pipeline inventory — that is the source of truth.
 
-All sizes below are **measured on disk**, and every file was byte-verified
-against the remote `x-linked-size` (26/26 exact, 0 mismatches) and had its
-safetensors header parsed to confirm real tensor data (27/27 valid).
+Per-row sizes are **measured on disk** (byte-verified against the remote
+`x-linked-size`). Run `bash lib/verify.sh` to re-check on any box.
 
-| Model | Role | Size | Folder(s) under `ComfyUI/models/` | License | Workflow |
+| Model | Role | Size | Folder | License | Workflow |
 |---|---|---:|---|---|---|
-| **HiDream-I1-Full** fp8 | Image (flagship) | 27.82 GB | `diffusion_models/`, `text_encoders/` | **MIT** (weights) | `hidream_i1_full_t2i.api.json`, `hidream_i1_full_uhd.api.json` |
-| **HiDream-E1.1** fp8 | Image editing | 17.11 GB | `diffusion_models/` | **MIT** (weights) | `hidream_e1_1_edit.api.json` |
-| **Wan 2.2 I2V 14B** fp8 | Video (main) | 38.03 GB | `diffusion_models/`, `text_encoders/`, `vae/`, `loras/` | **Apache-2.0** | `wan22_i2v_14B.api.json` |
-| **LTX-Video 13B 0.9.8** fp8 | Video (fast/volume) | 15.69 GB | `checkpoints/` | LTXV Open Weights 0.X | `ltx098_t2v.api.json`, `ltx098_i2v.api.json` |
-| **LTX-2.3 22B** fp8 | Video (newest, +audio) | 42.96 GB | `checkpoints/`, `text_encoders/`, `latent_upscale_models/`, `loras/` | LTX-2 Community | `ltx23_t2v.api.json`, `ltx23_i2v.api.json` |
-| **HunyuanVideo** 720p fp8 | Video (premium) | 22.77 GB | `diffusion_models/`, `text_encoders/`, `vae/` | Tencent Community (**restricted**) | `hunyuanvideo_t2v.api.json` |
-| **Mochi 1 preview** fp8 | Video | 10.95 GB | `diffusion_models/`, `vae/` | **Apache-2.0** | `mochi1_t2v.api.json` |
-| **Qwen2.5-VL-7B-Instruct** | Vision guard / validator | 16.60 GB | `/workspace/models/qwen2.5-vl/` (not a ComfyUI model) | **Apache-2.0** | `validate_image.py` |
-| *shared encoders + VAE* | — | 5.74 GB | `text_encoders/`, `vae/` | Apache-2.0 / BFL | — |
-| *4x-UltraSharp* (upscaler) | UHD upscaling | 0.07 GB | `upscale_models/` | permissive (ESRGAN) | used by `hidream_i1_full_uhd` |
+| **Qwen2.5-14B-Instruct** fp8 | Brain — storyboard (**active**) | 16 GB | `/workspace/models/brain/` | **Apache-2.0** | `brain.py` |
+| **Qwen2.5-32B-Instruct** fp8-dynamic | Brain — stronger, kept (not default) | 34 GB | `/workspace/models/` | **Apache-2.0** | `brain.py` |
+| **Qwen2.5-VL-7B-Instruct** | Product captions + Stage 2b OCR guard | 16.6 GB | `/workspace/models/qwen2.5-vl/` | **Apache-2.0** | `validate_image.py` |
+| **Qwen-Image-2512** fp8 | Image — scene backdrops (text-to-image) | 20.4 GB | `diffusion_models/` | **Apache-2.0** | `reelkit/workflows/tpl_t2i_qwen`, `tpl_scene_image` |
+| **Qwen-Image-Edit-2511** fp8mixed | Image — `edit_animate`, **default** scene builder | 20.5 GB | `diffusion_models/` | **Apache-2.0** | `reelkit/workflows/tpl_qwen_edit` |
+| **Wan 2.2 I2V 14B** fp8 + LightX2V | Video — motion (**default**) + energy | 38.0 GB | `diffusion_models/`, `text_encoders/`, `vae/`, `loras/` | **Apache-2.0** | `reelkit/workflows/tpl_wan_i2v` |
+| **HunyuanVideo I2V** 720p bf16 | Video — motion (**alternative**), image+text -> video | 35.9 GB | `diffusion_models/`, `text_encoders/`, `vae/` | Tencent Community (**restricted — excl. EU/UK/KR**) | `reelkit/workflows/tpl_hunyuan_i2v` |
+| **BiRefNet** | Segmentation for `compose_animate` | 0.44 GB | `background_removal/` | MIT | — |
+| **4x-UltraSharp** | Upscaling | 0.07 GB | `upscale_models/` | permissive (ESRGAN) | — |
 
-**Total on disk: 197.73 GB.**
+The video engine is chosen at runtime by `REELKIT_VIDEO_MODEL` (Wan default /
+Hunyuan alternative). The **reelkit-only working set is ~110 GB**; a box may hold
+more if the bake-off leftovers were not pruned.
 
-The HiDream-I1-Full row includes its three exclusive encoders (clip_l_hidream,
-clip_g_hidream, llama_3.1_8b); the model file alone is 17.11 GB. E1.1 reuses
-those same encoders, which is why its row is just the 17.11 GB edit model.
-
-**FLUX.1-dev was dropped at your request.** It is still wired up in the
-downloader and can be added any time with `./download_models.sh flux`
-(11.90 GB, split fp8 build from the ungated `Kijai/flux-fp8`). Note its licence
-is **non-commercial** — HiDream-I1-Full is the commercial-safe replacement, which
-is why it is the flagship image model here.
+**FLUX.1-dev is not installed** — its licence is non-commercial. Qwen-Image is the
+commercial-safe, best-in-class-text image model in its place.
 
 ---
 
 ## 2. Shared encoders (deduped)
+
+> **Historical.** These shared encoders served HiDream / LTX / Mochi / HunyuanVideo
+> T2V — all removed — and the orphaned `t5xxl_fp8` / `clip_l` / `ae` were deleted.
+> The live models bundle their own: Qwen-Image → Qwen2.5-VL, Wan 2.2 → UMT5-XXL,
+> HunyuanVideo I2V → llava + clip. Kept for reference.
 
 These are downloaded **once** and referenced by several models. Dedupe was
 confirmed by SHA256/byte-size equality across the source repos, not assumed.
