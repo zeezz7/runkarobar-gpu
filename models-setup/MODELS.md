@@ -22,15 +22,17 @@ Every file was byte-verified against the remote `x-linked-size` header.
 
 ## 1. What is installed
 
-> **CURRENT STATE (updated).** Sections 1-7 below document the original video
-> bake-off inventory and are kept for the licence/trap notes, which remain
-> accurate. Since then the box was retargeted at the reel pipeline:
-> **REMOVED** - HiDream-I1 + E1.1, HunyuanVideo, Mochi 1, LTX-Video 0.9.8, and the
-> orphaned `t5xxl_fp8` / `clip_l` / `ae` encoders.
+> **CURRENT STATE (updated 2026-07-26).** Sections 1-7 below document the original
+> video bake-off inventory and are kept **only** for the licence/trap notes, which
+> remain accurate. They **no longer reflect what is on disk.** Since then the box
+> was retargeted at the reel pipeline:
+> **REMOVED** - HiDream-I1-Full + HiDream-E1.1, LTX-Video 0.9.8, LTX-2.3, Mochi 1,
+> and the orphaned `t5xxl_fp8` / `clip_l` / `ae` encoders.
 > **ADDED** - Qwen-Image-2512, Qwen-Image-Edit-2511, BiRefNet, 4x-UltraSharp,
-> Qwen2.5-32B-Instruct-FP8 (brain).
-> **KEPT** - Wan 2.2 I2V (bake-off winner), LTX-2.3 (benched), Qwen2.5-VL-7B.
-> See **section 8** for the live pipeline inventory.
+> the Qwen2.5-Instruct brain, and **HunyuanVideo I2V** (image+text -> video — the
+> alternative video engine alongside Wan).
+> **KEPT** - Wan 2.2 I2V + LightX2V (default video engine), Qwen2.5-VL-7B.
+> See **section 8** for the live pipeline inventory — that is the source of truth.
 
 All sizes below are **measured on disk**, and every file was byte-verified
 against the remote `x-linked-size` (26/26 exact, 0 mismatches) and had its
@@ -175,6 +177,11 @@ the disk.
 
 ## 6. Running a model
 
+> **Historical (bake-off).** Of the models below only **Wan 2.2** is still on disk;
+> HiDream, LTX 0.9.8, LTX-2.3, Mochi and the HunyuanVideo **T2V** graph were deleted.
+> The live pipeline runs `reelkit/workflows/*` (Qwen-Image, Qwen-Image-Edit,
+> Wan 2.2, HunyuanVideo **I2V**). See section 8 / `reelkit/FLOW.md` for the live set.
+
 Every workflow is API-format, so it goes straight to ComfyUI's `/prompt`
 endpoint. `run_and_upload.py` queues it, waits, and reports the output file:
 
@@ -274,33 +281,42 @@ one finished vertical reel out; everything runs on this box.
 
 | Model | Role | Location | Size |
 |---|---|---|---:|
-| **Qwen2.5-32B-Instruct-FP8-dynamic** | Stage 0 brain — writes the storyboard | `/workspace/models/brain/` | 34.3 GB |
+| **Qwen2.5-14B-Instruct-FP8** | Stage 0 brain — writes the storyboard (**active**) | `/workspace/models/brain/` | 16 GB |
+| **Qwen2.5-32B-Instruct-FP8-dynamic** | stronger brain, **kept but not default** — switch back for better copy / Hinglish quality | `/workspace/models/` | 34 GB |
 | **Qwen2.5-VL-7B-Instruct** | product captions for the brain + Stage 2b OCR guard | `/workspace/models/qwen2.5-vl/` | 16.6 GB |
-| **Qwen-Image-2512** fp8 | Stage 1 scene generation (text-to-image) | `ComfyUI/models/diffusion_models/` | 20.4 GB |
-| **Qwen-Image-Edit-2511** fp8mixed | instruction editing (scene work outside the pipeline) | `ComfyUI/models/diffusion_models/` | 20.5 GB |
-| **Wan 2.2 I2V 14B** fp8 + LightX2V | Stage 2 motion + energy plates | `ComfyUI/models/diffusion_models/` | 38.0 GB |
-| **BiRefNet** | Stage 1 product segmentation | `ComfyUI/models/background_removal/` | 0.44 GB |
+| **Qwen-Image-2512** fp8 | Stage 1 scene backdrops (text-to-image) | `ComfyUI/models/diffusion_models/` | 20.4 GB |
+| **Qwen-Image-Edit-2511** fp8mixed | Stage 1 `edit_animate` — **default** scene builder (re-images the world around the product) | `ComfyUI/models/diffusion_models/` | 20.5 GB |
+| **Wan 2.2 I2V 14B** fp8 + LightX2V | Stage 2 motion (**default**) + energy plates | `ComfyUI/models/diffusion_models/` | 38.0 GB |
+| **HunyuanVideo I2V** 720p bf16 | Stage 2 motion (**alternative**; image+text -> video, 720x1280 native, no distilled path so slower) | `ComfyUI/models/diffusion_models/` | 35.9 GB |
+| **BiRefNet** | Stage 1 `compose_animate` product segmentation | `ComfyUI/models/background_removal/` | 0.44 GB |
+| **4x-UltraSharp** | upscaling | `ComfyUI/models/upscale_models/` | 0.07 GB |
 | ElevenLabs (`eleven_multilingual_v2`) | Stage 3 voiceover | remote API | — |
 
-Added for this pipeline: `Qwen2.5-32B-Instruct-FP8-dynamic` (installed via
-`download_models.sh brain`), plus `compressed-tensors`, `fastapi`, `uvicorn`,
+The video engine is selected by `REELKIT_VIDEO_MODEL` — **Wan 2.2** (default) or
+**HunyuanVideo I2V**. Same call signature, so nothing else changes. Wan is
+**Apache-2.0**; HunyuanVideo's licence **excludes the EU, UK and South Korea**
+(section 3), so Wan is the safe default for those markets.
+
+Added for this pipeline: the Qwen2.5-Instruct brain (14B active, 32B kept),
+Qwen-Image-2512, Qwen-Image-Edit-2511, BiRefNet, 4x-UltraSharp, and
+**HunyuanVideo I2V**, plus `compressed-tensors`, `fastapi`, `uvicorn`,
 `accelerate` in `/venv/main`.
 
-Removed to make room (all lost the video bake-off and are unused by the pipeline):
-HunyuanVideo, Mochi 1, LTX-Video 0.9.8, HiDream-I1/E1.1, and the orphaned
-`t5xxl_fp8`, `clip_l` and `ae` encoders. LTX-2.3 is kept but benched.
+Removed (lost the video bake-off / superseded, unused by the pipeline):
+**HiDream-I1-Full, HiDream-E1.1, LTX-Video 0.9.8, LTX-2.3, Mochi 1**, and the
+orphaned `t5xxl_fp8`, `clip_l` and `ae` encoders.
 
 ### Stages
 
 | Stage | File | What it does |
 |---|---|---|
-| 0 | `brain.py` | Qwen2.5-32B writes the storyboard JSON (schema-validated, 3 retries). Sees the product via Qwen2.5-VL captions. Unloaded before image models load. |
-| 1 | `compose.py` | `compose_animate`: BiRefNet segment → Qwen-Image scene → PIL composite of the REAL product pixels → PIL colour harmonise + contact shadow. `generate_animate`: direct generation. **No diffusion pass ever touches the product.** |
-| 2 | `animate.py` | Ken-Burns (`zoompan`) driven by the brain's structured `kenburns` numbers for product scenes; Wan 2.2 I2V for scene shots; `energy` rendered on pure black and screen-blended. |
-| 2b | `animate.guard_composite` | OCR-diff via `validate_image.py` — label tokens from the composite vs the source product. Fail → re-composite. |
-| 3 | `voiceover.py` | ElevenLabs TTS per scene, real durations via ffprobe. **Voiceover only — never music.** |
-| 4 | `assemble.py` | Fit clips to VO, fade/cut transitions, continuous VO track, optional burned captions, 1080p + 720p, 30fps, yuv420p, faststart. |
-| 5 | `make_reel.py` | Orchestrates 0→4, uploads via `minio_upload.py`, returns the Result JSON. |
+| 0 | `brain.py` | The Qwen2.5-Instruct brain (14B active, 32B available) writes the storyboard JSON (schema-validated, 3 retries). Sees the product via Qwen2.5-VL captions. Unloaded before image models load. |
+| 1 | `compose.py` | `edit_animate` (**default**): Qwen-Image-Edit-2511 re-images the world around the product. `compose_animate`: BiRefNet segment → Qwen-Image backdrop → PIL composite of the REAL product pixels → PIL colour harmonise + contact shadow (**pixel-exact — no sampler touches the product**). `generate_animate`: direct generation, no product on screen. |
+| 2 | `animate.py` | Still → clip via `video_i2v()` — Wan 2.2 I2V (default) or HunyuanVideo I2V, selected by `REELKIT_VIDEO_MODEL`. `energy` rendered on pure black, luma-checked, screen-blended. (Ken-Burns still exists in code but is unreachable from a valid storyboard — every scene is a real clip now.) |
+| 2b | `animate.guard_composite` | OCR-diff via `validate_image.py` — label tokens from the render vs the source product. <50% overlap → re-composite. Skips when the source yields <3 readable tokens (small embroidered logos are unverifiable). |
+| 3 | `voiceover.py` | Runs BEFORE the visuals (audio leads video). ElevenLabs TTS per scene, real durations via ffprobe. **Voiceover only — never music.** |
+| 4 | `assemble.py` | Fit clips to VO, fade (0.15s)/cut transitions, continuous VO track, optional burned ASS captions, **1080×1920 only** (the 720p result key is kept empty for compatibility), 30fps, yuv420p, faststart. |
+| 5 | `make_reel.py` | Orchestrates 0→4, uploads reel + stills to MinIO in parallel, returns the Result JSON. |
 | 6 | `server.py` | FastAPI: `POST /make-reel`, `GET /health`, port 8189. |
 
 ### Secrets
