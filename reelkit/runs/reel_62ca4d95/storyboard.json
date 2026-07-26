@@ -1,0 +1,73 @@
+{
+  "concept": "A serene and luxurious portrayal of Dove Intense Repair Nourishing Shampoo for damaged hair, emphasizing the bottle and its nourishing benefits.",
+  "voice": "Warm female Hinglish",
+  "scenes": [
+    {
+      "n": 1,
+      "goal": "showcase",
+      "method": "edit_animate",
+      "mode": "product",
+      "visual": "A Dove Intense Repair Nourishing Shampoo bottle standing on a wet marble countertop",
+      "background": "A wet marble countertop with water droplets, soft morning light from the left, creating a reflective and luminous surface",
+      "motion": "slow push-in",
+      "energy": "light ripple",
+      "transitionIn": "fade",
+      "durationSec": 5.0,
+      "motionEngine": "video",
+      "kenburns": {
+        "zoom": "in",
+        "start": 1.0,
+        "end": 1.1,
+        "xDrift": 0.0,
+        "yDrift": 0.0,
+        "rotateDeg": 0.0
+      },
+      "vo": "Har dhamaal ke baad bhi, apni beauty maintain karni chahiye."
+    },
+    {
+      "n": 2,
+      "goal": "detail",
+      "method": "edit_animate",
+      "mode": "product",
+      "visual": "Close-up view of the Dove Intense Repair Nourishing Shampoo bottle's label",
+      "background": "The same wet marble countertop with softer focus on the label area",
+      "motion": "crane up",
+      "energy": "",
+      "transitionIn": "cut",
+      "durationSec": 5.0,
+      "motionEngine": "video",
+      "kenburns": {
+        "zoom": "out",
+        "start": 1.1,
+        "end": 1.0,
+        "xDrift": 0.0,
+        "yDrift": 0.0,
+        "rotateDeg": 0.0
+      },
+      "vo": "Dove ka Intense Repair Nourishing Shampoo, apne hair ko acha se nirmaan karne ke liye."
+    },
+    {
+      "n": 3,
+      "goal": "cta",
+      "method": "edit_animate",
+      "mode": "product",
+      "visual": "A hand pouring Dove Intense Repair Nourishing Shampoo into a basin of water, showing suds",
+      "background": "A white basin filled with water, soft diffused lighting, water suds forming around the poured shampoo",
+      "motion": "tilt down",
+      "energy": "water splash",
+      "transitionIn": "fade",
+      "durationSec": 5.0,
+      "motionEngine": "video",
+      "kenburns": {
+        "zoom": "in",
+        "start": 1.12,
+        "end": 1.12,
+        "xDrift": 0.0,
+        "yDrift": -0.1,
+        "rotateDeg": 3.0
+      },
+      "vo": "Hair ke damage se protect karne ke liye, Dove Intense Repair Shampoo ka istemal karein."
+    }
+  ],
+  "notes": "The ad focuses on the luxurious and effective nature of Dove Intense Repair Nourishing Shampoo, showcasing its ability to nourish and repair damaged hair through elegant shots and minimal text."
+}

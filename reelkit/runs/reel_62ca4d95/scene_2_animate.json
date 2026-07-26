@@ -1,0 +1,18 @@
+{
+  "engine": "wan",
+  "path": "video_i2v",
+  "motion_prompt_verbatim": "crane up",
+  "energy_prompt_verbatim": "",
+  "full_prompt_sent": "crane up. Close-up view of the Dove Intense Repair Nourishing Shampoo bottle's label.",
+  "input_still": "/workspace/reelkit/work/reel_62ca4d95/scene_2.png",
+  "requested_duration": 5.292,
+  "clip_path": "/workspace/reelkit/work/reel_62ca4d95/clip_2.mp4",
+  "kenburns": {
+    "zoom": "out",
+    "start": 1.1,
+    "end": 1.0,
+    "xDrift": 0.0,
+    "yDrift": 0.0,
+    "rotateDeg": 0.0
+  }
+}
