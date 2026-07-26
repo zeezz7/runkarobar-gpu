@@ -1,0 +1,18 @@
+{
+  "engine": "wan",
+  "path": "video_i2v",
+  "motion_prompt_verbatim": "tilt up",
+  "energy_prompt_verbatim": "",
+  "full_prompt_sent": "tilt up. Close-up of the blue tube against a blurred backdrop of water droplets and steam, Nivea Men logo clearly visible.",
+  "input_still": "/workspace/reelkit/work/reel_80b9019b/scene_3.png",
+  "requested_duration": 6.0,
+  "clip_path": "/workspace/reelkit/work/reel_80b9019b/clip_3.mp4",
+  "kenburns": {
+    "zoom": "in",
+    "start": 1.12,
+    "end": 1.12,
+    "xDrift": 0.0,
+    "yDrift": -0.05,
+    "rotateDeg": 4.0
+  }
+}

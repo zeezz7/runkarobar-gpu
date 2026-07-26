@@ -1,0 +1,32 @@
+{
+  "per_scene": [
+    {
+      "scene": 1,
+      "fitted_duration": 4.0,
+      "transition_in": "zoom",
+      "dipped_through_black": false
+    },
+    {
+      "scene": 2,
+      "fitted_duration": 5.0,
+      "transition_in": "fade",
+      "dipped_through_black": true
+    },
+    {
+      "scene": 3,
+      "fitted_duration": 6.0,
+      "transition_in": "fade",
+      "dipped_through_black": true
+    }
+  ],
+  "transition_fallbacks": [
+    "scene 1: 'zoom' not implemented -> fade"
+  ],
+  "total_duration": 15.0,
+  "master_resolution": "1080x1920",
+  "captions_burned": false,
+  "fps": 30,
+  "outputs": {
+    "1080p": "/workspace/reelkit/work/reel_80b9019b/reel_80b9019b_1080p.mp4"
+  }
+}

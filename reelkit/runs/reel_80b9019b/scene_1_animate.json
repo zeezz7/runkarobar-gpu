@@ -1,0 +1,18 @@
+{
+  "engine": "wan",
+  "path": "video_i2v",
+  "motion_prompt_verbatim": "slow push-in",
+  "energy_prompt_verbatim": "water splash",
+  "full_prompt_sent": "slow push-in. The blue tube of Nivea Men Protect & Care Deep Cleaning Face Wash with a ribbed cap on a wet dark stone surface. Water droplets glisten around it.. water splash.",
+  "input_still": "/workspace/reelkit/work/reel_80b9019b/scene_1.png",
+  "requested_duration": 4.0,
+  "clip_path": "/workspace/reelkit/work/reel_80b9019b/clip_1.mp4",
+  "kenburns": {
+    "zoom": "in",
+    "start": 1.0,
+    "end": 1.12,
+    "xDrift": 0.0,
+    "yDrift": -0.05,
+    "rotateDeg": 0.0
+  }
+}

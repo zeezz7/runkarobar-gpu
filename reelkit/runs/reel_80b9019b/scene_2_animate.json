@@ -1,0 +1,18 @@
+{
+  "engine": "wan",
+  "path": "video_i2v",
+  "motion_prompt_verbatim": "crane down",
+  "energy_prompt_verbatim": "rising steam",
+  "full_prompt_sent": "crane down. The Nivea Men face wash being applied to a hand in a bathroom with steam rising from the shower. rising steam.",
+  "input_still": "/workspace/reelkit/work/reel_80b9019b/scene_2.png",
+  "requested_duration": 5.0,
+  "clip_path": "/workspace/reelkit/work/reel_80b9019b/clip_2.mp4",
+  "kenburns": {
+    "zoom": "out",
+    "start": 1.12,
+    "end": 1.0,
+    "xDrift": 0.0,
+    "yDrift": 0.0,
+    "rotateDeg": 0.0
+  }
+}

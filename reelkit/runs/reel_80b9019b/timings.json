@@ -1,0 +1,65 @@
+{
+  "total_wall_clock_sec": 470.8,
+  "per_stage": [
+    {
+      "stage": "brain",
+      "seconds": 107.87
+    },
+    {
+      "stage": "voiceover",
+      "seconds": 3.9
+    },
+    {
+      "stage": "scene_1",
+      "seconds": 102.46
+    },
+    {
+      "stage": "scene_2",
+      "seconds": 96.98
+    },
+    {
+      "stage": "scene_3",
+      "seconds": 96.32
+    },
+    {
+      "stage": "assemble",
+      "seconds": 7.55
+    },
+    {
+      "stage": "upload",
+      "seconds": 55.72
+    }
+  ],
+  "model_load_order": [
+    {
+      "model": "Qwen2.5-VL-7B (captions)",
+      "action": "load",
+      "t": 1.27
+    },
+    {
+      "model": "Qwen2.5-14B-Instruct-FP8-dynamic",
+      "action": "load",
+      "t": 10.45
+    },
+    {
+      "model": "brain LLM",
+      "action": "unload",
+      "t": 108.13
+    },
+    {
+      "model": "i2v:wan",
+      "action": "load",
+      "t": 141.74
+    },
+    {
+      "model": "i2v:wan",
+      "action": "load",
+      "t": 241.58
+    },
+    {
+      "model": "i2v:wan",
+      "action": "load",
+      "t": 338.14
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "product_images": [
+    "https://staging-storage.runkarobar.com/videos/uploads/1785024038395-942338becf561e5f-Screenshot_2026-07-26_at_2.40.44___AM.jpg"
+  ],
+  "brief": "15s high-energy face-wash ad for Nivea Men Protect & Care Deep Cleaning Face Wash. Fresh, cool, water-splash mood — morning bathroom and post-gym freshness. Show the tube as the hero, highlight deep cleaning and aloe vera. Punchy male Hinglish voiceover, end on the brand.",
+  "config": {
+    "lengthSec": 15,
+    "resolution": "1080p",
+    "aspectRatio": "9:16",
+    "language": "hinglish",
+    "brandName": "Nivea Men",
+    "elevenVoiceId": "",
+    "captions": false,
+    "template": "ai-director",
+    "trace": true
+  }
+}

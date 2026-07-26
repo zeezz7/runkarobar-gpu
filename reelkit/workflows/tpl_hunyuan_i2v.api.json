@@ -1,0 +1,195 @@
+{
+  "10": {
+    "class_type": "UNETLoader",
+    "inputs": {
+      "unet_name": "hunyuan_video_image_to_video_720p_bf16.safetensors",
+      "weight_dtype": "fp8_e4m3fn"
+    }
+  },
+  "11": {
+    "class_type": "ModelSamplingSD3",
+    "inputs": {
+      "shift": 7.0,
+      "model": [
+        "10",
+        0
+      ]
+    }
+  },
+  "12": {
+    "class_type": "DualCLIPLoader",
+    "inputs": {
+      "clip_name1": "clip_l.safetensors",
+      "clip_name2": "llava_llama3_fp8_scaled.safetensors",
+      "type": "hunyuan_video",
+      "device": "default"
+    }
+  },
+  "13": {
+    "class_type": "VAELoader",
+    "inputs": {
+      "vae_name": "hunyuan_video_vae_bf16.safetensors"
+    }
+  },
+  "14": {
+    "class_type": "CLIPVisionLoader",
+    "inputs": {
+      "clip_name": "llava_llama3_vision.safetensors"
+    }
+  },
+  "20": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "example.png"
+    }
+  },
+  "21": {
+    "class_type": "CLIPVisionEncode",
+    "inputs": {
+      "clip_vision": [
+        "14",
+        0
+      ],
+      "image": [
+        "20",
+        0
+      ],
+      "crop": "none"
+    }
+  },
+  "22": {
+    "class_type": "TextEncodeHunyuanVideo_ImageToVideo",
+    "inputs": {
+      "clip": [
+        "12",
+        0
+      ],
+      "clip_vision_output": [
+        "21",
+        0
+      ],
+      "prompt": "slow cinematic camera move",
+      "image_interleave": 2
+    }
+  },
+  "23": {
+    "class_type": "HunyuanImageToVideo",
+    "inputs": {
+      "positive": [
+        "22",
+        0
+      ],
+      "vae": [
+        "13",
+        0
+      ],
+      "width": 720,
+      "height": 1280,
+      "length": 73,
+      "batch_size": 1,
+      "guidance_type": "v2 (replace)",
+      "start_image": [
+        "20",
+        0
+      ]
+    }
+  },
+  "30": {
+    "class_type": "BasicGuider",
+    "inputs": {
+      "model": [
+        "11",
+        0
+      ],
+      "conditioning": [
+        "23",
+        0
+      ]
+    }
+  },
+  "31": {
+    "class_type": "KSamplerSelect",
+    "inputs": {
+      "sampler_name": "euler"
+    }
+  },
+  "32": {
+    "class_type": "BasicScheduler",
+    "inputs": {
+      "model": [
+        "11",
+        0
+      ],
+      "scheduler": "simple",
+      "steps": 20,
+      "denoise": 1.0
+    }
+  },
+  "33": {
+    "class_type": "RandomNoise",
+    "inputs": {
+      "noise_seed": 1
+    }
+  },
+  "34": {
+    "class_type": "SamplerCustomAdvanced",
+    "inputs": {
+      "noise": [
+        "33",
+        0
+      ],
+      "guider": [
+        "30",
+        0
+      ],
+      "sampler": [
+        "31",
+        0
+      ],
+      "sigmas": [
+        "32",
+        0
+      ],
+      "latent_image": [
+        "23",
+        1
+      ]
+    }
+  },
+  "40": {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": [
+        "34",
+        0
+      ],
+      "vae": [
+        "13",
+        0
+      ]
+    }
+  },
+  "41": {
+    "class_type": "CreateVideo",
+    "inputs": {
+      "images": [
+        "40",
+        0
+      ],
+      "fps": 24,
+      "bit_depth": 8
+    }
+  },
+  "42": {
+    "class_type": "SaveVideo",
+    "inputs": {
+      "video": [
+        "41",
+        0
+      ],
+      "filename_prefix": "video/rk_hy",
+      "format": "auto",
+      "codec": "auto"
+    }
+  }
+}

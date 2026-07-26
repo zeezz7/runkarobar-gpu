@@ -72,26 +72,65 @@ def pad_audio(src, dst, duration):
 
 
 # ------------------------------------------------------------------- captions
-def write_srt(scenes, durations, path):
+def write_ass(scenes, durations, path, w, h):
+    """
+    Burned-in captions as a real ASS file.
+
+    We write ASS directly instead of SRT + `force_style`, because ASS Fontsize is
+    interpreted relative to PlayResY - and when that is not declared libass
+    assumes 288, so a nominal size renders ~6.7x too large at 1080x1920. Passing
+    `original_size=` to the subtitles filter did NOT reliably fix it (measured:
+    captions still ~200px tall and covering the product). Declaring PlayResX/Y
+    here makes Fontsize mean actual pixels.
+    """
+    fs = max(int(h / 42), 20)           # ~46px at 1080x1920
+    margin_v = int(h * 0.10)            # keep clear of the platform UI
+    margin_h = int(w * 0.08)
+
     def ts(t):
-        h = int(t // 3600); m = int(t % 3600 // 60); s = t % 60
-        return f"{h:02d}:{m:02d}:{s:06.3f}".replace(".", ",")
-    lines, t, idx = [], 0.0, 1
+        hh = int(t // 3600); mm = int(t % 3600 // 60); ss = t % 60
+        return f"{hh:d}:{mm:02d}:{ss:05.2f}"
+
+    def wrap(line, max_chars=34):
+        words, out, cur = line.split(), [], ""
+        for word in words:
+            if cur and len(cur) + 1 + len(word) > max_chars:
+                out.append(cur); cur = word
+            else:
+                cur = f"{cur} {word}".strip()
+        if cur:
+            out.append(cur)
+        return "\\N".join(out[:3])      # never more than three lines
+
+    head = (
+        "[Script Info]\n"
+        "ScriptType: v4.00+\n"
+        f"PlayResX: {w}\nPlayResY: {h}\n"
+        "WrapStyle: 0\nScaledBorderAndShadow: yes\n\n"
+        "[V4+ Styles]\n"
+        "Format: Name,Fontname,Fontsize,PrimaryColour,SecondaryColour,OutlineColour,"
+        "BackColour,Bold,Italic,Underline,StrikeOut,ScaleX,ScaleY,Spacing,Angle,"
+        "BorderStyle,Outline,Shadow,Alignment,MarginL,MarginR,MarginV,Encoding\n"
+        f"Style: Cap,DejaVu Sans,{fs},&H00FFFFFF,&H00FFFFFF,&H00000000,&H80000000,"
+        f"-1,0,0,0,100,100,0,0,1,3,2,2,{margin_h},{margin_h},{margin_v},1\n\n"
+        "[Events]\n"
+        "Format: Layer,Start,End,Style,Name,MarginL,MarginR,MarginV,Effect,Text\n")
+
+    events, t, n = [], 0.0, 0
     for sc, d in zip(scenes, durations):
         line = (sc.get("vo") or "").strip()
         if line:
-            # strip anything that will not render cleanly in a burned-in sub
             line = "".join(ch for ch in line if ch.isprintable())
-            lines += [str(idx), f"{ts(t)} --> {ts(t + d)}", line, ""]
-            idx += 1
+            events.append(f"Dialogue: 0,{ts(t)},{ts(t + d)},Cap,,0,0,0,,{wrap(line)}")
+            n += 1
         t += d
-    open(path, "w").write("\n".join(lines))
-    return path if idx > 1 else None
+    open(path, "w").write(head + "\n".join(events) + "\n")
+    return path if n else None
 
 
 # ------------------------------------------------------------------- assemble
 def assemble(scene_clips, vo_tracks, storyboard, job_dir, name, aspect="9:16",
-             captions=True):
+             captions=True, tracer=None):
     """
     scene_clips : [path,...] in scene order
     vo_tracks   : [{"n","audio","duration"},...] from voiceover.voice_scenes
@@ -154,23 +193,22 @@ def assemble(scene_clips, vo_tracks, storyboard, job_dir, name, aspect="9:16",
                 "-c:v", "copy", "-c:a", "aac", "-b:a", "160k", "-shortest", master])
 
     # ---- captions ----------------------------------------------------------
-    srt = write_srt(scenes, durations, os.path.join(tmp, "subs.srt")) if captions else None
     total = common.probe_duration(master)
 
     # ---- final encodes -----------------------------------------------------
+    # 1080p only - the 720p rung was dropped at the caller's request.
     outs = {}
-    for label, tall in (("1080p", 1920), ("720p", 1280)):
+    for label, tall in (("1080p", 1920),):
         w, h = (tall, tall) if aspect == "1:1" else common.dims_for(aspect, tall)
         if aspect == "1:1":
             w = h = 1080 if label == "1080p" else 720
         dst = os.path.join(job_dir, f"{name}_{label}.mp4")
         vf = [f"scale={w}:{h}:force_original_aspect_ratio=decrease",
               f"pad={w}:{h}:(ow-iw)/2:(oh-ih)/2:color=black"]
-        if srt:
-            style = ("FontName=DejaVu Sans,Fontsize=16,PrimaryColour=&H00FFFFFF,"
-                     "OutlineColour=&H00000000,BorderStyle=1,Outline=2,Shadow=1,"
-                     "Alignment=2,MarginV=90")
-            vf.append(f"subtitles={srt}:force_style='{style}'")
+        ass = (write_ass(scenes, durations, os.path.join(tmp, f"subs_{label}.ass"), w, h)
+               if captions else None)
+        if ass:
+            vf.append(f"ass={ass}")
         vf.append("format=yuv420p")
         common.run(["ffmpeg", "-v", "error", "-y", "-i", master,
                     "-vf", ",".join(vf),
@@ -184,4 +222,18 @@ def assemble(scene_clips, vo_tracks, storyboard, job_dir, name, aspect="9:16",
         common.log("assemble", f"{label}: {dst} ({os.path.getsize(dst)/1e6:.1f} MB)")
 
     outs["durationSec"] = round(total, 2)
+    if tracer:
+        tracer.write_json("assemble.json", {
+            "per_scene": [{"scene": sc["n"], "fitted_duration": d,
+                           "transition_in": sc.get("transitionIn"),
+                           "dipped_through_black": f}
+                          for sc, d, f in zip(scenes, durations, fades)],
+            "transition_fallbacks": [
+                f"scene {sc['n']}: '{sc.get('transitionIn')}' not implemented -> fade"
+                for sc in scenes
+                if (sc.get("transitionIn") or "cut").lower() not in SUPPORTED_TRANSITIONS],
+            "total_duration": round(total, 2),
+            "master_resolution": f"{mw}x{mh}",
+            "captions_burned": bool(captions), "fps": FPS,
+            "outputs": {k: v for k, v in outs.items() if k != "durationSec"}})
     return outs

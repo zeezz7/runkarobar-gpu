@@ -66,6 +66,49 @@ def tts(text, out_path, voice_id, api_key=None, timeout=120):
     return out_path, dur
 
 
+MIN_SCENE = 1.6          # never cut a shot shorter than this
+TAIL_PAD = 0.25          # breathing room after a line so cuts do not clip it
+
+
+def rebalance(tracks, target, tol=1.0):
+    """
+    Fit the scene slots to the REQUESTED reel length after real speech is known.
+
+    Two faults this fixes, both measured on a live run:
+      * a line longer than its planned slot pushed the reel to 16.17s against a
+        requested 15s - the +/-1s guarantee was only ever checked on the
+        storyboard, never on the delivered file;
+      * a 4.83s line sat in a 7.0s slot, leaving 2.17s of dead air.
+
+    Speech is never truncated: each slot's floor is its own audio length plus a
+    short tail. Slack is taken from (or given to) the scenes that have it.
+    """
+    floors = [max((t["speech"] or 0) + TAIL_PAD, MIN_SCENE) for t in tracks]
+    total = sum(t["duration"] for t in tracks)
+    if abs(total - target) <= tol:
+        return tracks
+
+    if total > target:                      # shrink, but never below the speech
+        excess = total - target
+        slack = [t["duration"] - f for t, f in zip(tracks, floors)]
+        avail = sum(s for s in slack if s > 0)
+        if avail > 0:
+            take = min(excess, avail)
+            for t, f, sl in zip(tracks, floors, slack):
+                if sl > 0:
+                    t["duration"] = round(t["duration"] - take * (sl / avail), 3)
+    else:                                   # stretch the shortest shots
+        add = (target - total) / len(tracks)
+        for t in tracks:
+            t["duration"] = round(t["duration"] + add, 3)
+
+    for t, f in zip(tracks, floors):        # never go under the floor
+        t["duration"] = round(max(t["duration"], f), 3)
+    common.log("vo", f"rebalanced to {sum(t['duration'] for t in tracks):.2f}s "
+                     f"(target {target}s)")
+    return tracks
+
+
 def voice_scenes(storyboard, config, job_dir):
     """
     Synthesise VO for every scene that has one.
@@ -85,7 +128,7 @@ def voice_scenes(storyboard, config, job_dir):
         planned = float(sc.get("durationSec") or 4)
         if not line:
             common.log("vo", f"scene {n}: silent (no vo) -> {planned:.2f}s")
-            out.append({"n": n, "audio": None, "duration": planned})
+            out.append({"n": n, "audio": None, "duration": planned, "speech": 0.0})
             continue
         path = os.path.join(audio_dir, f"scene_{n}.mp3")
         _, dur = tts(line, path, voice_id)
@@ -93,10 +136,14 @@ def voice_scenes(storyboard, config, job_dir):
         # audio leads video ONLY when the line is longer than planned; a short
         # line keeps its planned slot (padded with silence in assemble) so the
         # finished reel still matches config.lengthSec.
-        dur = round(max(dur + 0.25, planned), 3)
-        common.log("vo", f"scene {n}: {dur:.2f}s (planned {planned:.2f}s) \"{line[:48]}\"")
-        out.append({"n": n, "audio": path, "duration": dur})
-    return out
+        speech = dur
+        dur = round(max(dur + TAIL_PAD, planned), 3)
+        common.log("vo", f"scene {n}: slot {dur:.2f}s (speech {speech:.2f}s, "
+                         f"planned {planned:.2f}s) \"{line[:44]}\"")
+        out.append({"n": n, "audio": path, "duration": dur, "speech": speech})
+
+    target = float(config.get("lengthSec") or sum(t["duration"] for t in out))
+    return rebalance(out, target)
 
 
 if __name__ == "__main__":

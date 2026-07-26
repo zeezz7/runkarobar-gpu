@@ -128,15 +128,69 @@ def set_class(wf, class_type, **kw):
     return n
 
 
+def _resolve_cond_roles(wf, cls):
+    """
+    Work out which text-encode node feeds the sampler's POSITIVE input and which
+    feeds NEGATIVE, by walking the graph backwards from the sampler.
+
+    This used to be guessed from string length ("longest = positive"), which is
+    unsafe: Wan's template ships a 137-character Chinese negative prompt, so any
+    motion prompt shorter than that would have been written into the NEGATIVE
+    slot - telling the model to avoid the very thing we asked for.
+    """
+    targets = {}
+    for _, node in wf.items():
+        if node.get("class_type") in ("KSampler", "KSamplerAdvanced", "SamplerCustom",
+                                      "SamplerCustomAdvanced", "CFGGuider"):
+            for role in ("positive", "negative"):
+                link = node["inputs"].get(role)
+                if isinstance(link, list) and link:
+                    targets.setdefault(role, link[0])
+    if not targets:
+        return {}
+
+    def walk(nid, depth=0):
+        """Follow links back until we hit a node of the wanted class."""
+        if depth > 8 or nid not in wf:
+            return None
+        if wf[nid].get("class_type") == cls:
+            return nid
+        for v in wf[nid]["inputs"].values():
+            if isinstance(v, list) and v and isinstance(v[0], str):
+                got = walk(v[0], depth + 1)
+                if got:
+                    return got
+        return None
+
+    roles = {}
+    for role, start in targets.items():
+        got = walk(start)
+        if got:
+            roles[role] = got
+    # positive and negative must not resolve to the same node
+    if roles.get("positive") and roles.get("positive") == roles.get("negative"):
+        roles.pop("negative", None)
+    return roles
+
+
 def set_prompts(wf, positive, negative=None, cls="CLIPTextEncode", field="text"):
-    """Longest existing text = positive slot, shortest = negative slot."""
+    """Write the positive (and optionally negative) prompt into the right nodes."""
+    roles = _resolve_cond_roles(wf, cls)
+    if roles.get("positive"):
+        wf[roles["positive"]]["inputs"][field] = positive
+        if negative is not None and roles.get("negative"):
+            wf[roles["negative"]]["inputs"][field] = negative
+        return roles
+    # fallback for graphs we cannot trace (single text node, or an unusual sampler)
     nl = nodes_of(wf, cls)
     if not nl:
-        return
+        return {}
     nl.sort(key=lambda kv: len(str(kv[1]["inputs"].get(field, ""))), reverse=True)
     nl[0][1]["inputs"][field] = positive
     if negative is not None and len(nl) > 1:
         nl[-1][1]["inputs"][field] = negative
+    log("prompt", f"WARNING: could not trace {cls} roles - fell back to length heuristic")
+    return {}
 
 
 # --------------------------------------------------------------------- ffmpeg

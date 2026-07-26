@@ -1,0 +1,73 @@
+{
+  "concept": "High-energy morning and gym freshness with Nivea Men Protect & Care",
+  "voice": "male energetic Hinglish",
+  "scenes": [
+    {
+      "n": 1,
+      "goal": "showcase",
+      "method": "edit_animate",
+      "mode": "product",
+      "visual": "The blue tube of Nivea Men Protect & Care Deep Cleaning Face Wash with a ribbed cap on a wet dark stone surface. Water droplets glisten around it.",
+      "background": "Wet dark stone surface, water droplets, cool morning light raking from the left, soft blurred background",
+      "motion": "slow push-in",
+      "energy": "water splash",
+      "transitionIn": "zoom",
+      "durationSec": 4.0,
+      "motionEngine": "video",
+      "kenburns": {
+        "zoom": "in",
+        "start": 1.0,
+        "end": 1.12,
+        "xDrift": 0.0,
+        "yDrift": -0.05,
+        "rotateDeg": 0.0
+      },
+      "vo": "Start your day fresh! Thoroughly cleans & refreshes."
+    },
+    {
+      "n": 2,
+      "goal": "reveal",
+      "method": "edit_animate",
+      "mode": "product",
+      "visual": "The Nivea Men face wash being applied to a hand in a bathroom with steam rising from the shower",
+      "background": "Steam rises from the shower, bathroom foggy, cool morning light",
+      "motion": "crane down",
+      "energy": "rising steam",
+      "transitionIn": "fade",
+      "durationSec": 5.0,
+      "motionEngine": "video",
+      "kenburns": {
+        "zoom": "out",
+        "start": 1.12,
+        "end": 1.0,
+        "xDrift": 0.0,
+        "yDrift": 0.0,
+        "rotateDeg": 0.0
+      },
+      "vo": "With Aloe Vera, soothes skin too!"
+    },
+    {
+      "n": 3,
+      "goal": "cta",
+      "method": "edit_animate",
+      "mode": "product",
+      "visual": "Close-up of the blue tube against a blurred backdrop of water droplets and steam, Nivea Men logo clearly visible",
+      "background": "Blurred backdrop of water droplets and steam, cool morning light",
+      "motion": "tilt up",
+      "energy": "",
+      "transitionIn": "fade",
+      "durationSec": 6.0,
+      "motionEngine": "video",
+      "kenburns": {
+        "zoom": "in",
+        "start": 1.12,
+        "end": 1.12,
+        "xDrift": 0.0,
+        "yDrift": -0.05,
+        "rotateDeg": 4.0
+      },
+      "vo": "Nivea Men Protect & Care Deep Cleaning Face Wash. Feel fresh all day!"
+    }
+  ],
+  "notes": "Show the product in a morning and gym context, highlighting freshness and deep cleaning properties. Voiceover emphasizes benefits mentioned on packaging."
+}

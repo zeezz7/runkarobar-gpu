@@ -42,3 +42,17 @@ venv/
 .venv-backups/
 .sync_*.lock
 .cache/
+
+# --------------------------------------------------- per-run audit trails
+# KEEP the text traces (they are the recipe for reproducing a run) but never
+# the media they reference. The media lives on MinIO; the box is disposable.
+!reelkit/runs/
+!reelkit/runs/**/*.json
+!reelkit/runs/**/*.md
+!reelkit/runs/**/*.txt
+reelkit/runs/**/*.png
+reelkit/runs/**/*.jpg
+reelkit/runs/**/*.jpeg
+reelkit/runs/**/*.mp4
+reelkit/runs/**/*.mp3
+reelkit/runs/**/*.wav

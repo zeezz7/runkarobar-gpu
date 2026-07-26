@@ -1,0 +1,7 @@
+# Beyond the Vast PyTorch/ComfyUI base image.
+compressed-tensors   # loads the fp8 brain (Qwen2.5-14B-Instruct-FP8-dynamic)
+accelerate           # required by transformers 5.x even for a single device_map
+fastapi              # server.py
+uvicorn[standard]    # server.py
+minio                # not used by minio_upload.py (custom SigV4), kept for tooling
+# stdlib + already in the base image: torch, transformers, pillow, numpy, scipy

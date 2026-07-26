@@ -36,6 +36,9 @@ class Config(BaseModel):
     brandName: str = ""
     elevenVoiceId: str = ""
     captions: bool = True
+    # Creative-direction preset. Unknown values fall back to "ai-director"
+    # (warned, not rejected). See brain.TEMPLATES.
+    template: str = "ai-director"
 
 
 class ReelRequest(BaseModel):

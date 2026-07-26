@@ -33,8 +33,37 @@ WAN_FPS = 16
 
 
 # ------------------------------------------------------------------ 2b guard
+_TOKEN_CACHE = {}
+
+
+def unload_guard():
+    """
+    Free the guard's Qwen2.5-VL.
+
+    validate_image keeps its own module-level instance, which is a SECOND copy of
+    the same 16GB model the brain loads for captioning. Holding both alongside a
+    34GB brain and ComfyUI's diffusion models overflowed the 95GB card (measured:
+    65.6GB in this process alone before ComfyUI's 26.8GB).
+    """
+    import gc
+    import torch
+    import validate_image
+    validate_image._model = None
+    validate_image._proc = None
+    gc.collect()
+    torch.cuda.empty_cache()
+    common.log("guard", "VL model unloaded")
+
+
 def _label_tokens(path):
-    """Read label text off an image with the existing Qwen2.5-VL guard."""
+    """
+    Read label text off an image with the existing Qwen2.5-VL guard.
+
+    Cached per path: the source product photo is identical for every scene, so
+    re-running the VL model on it once per scene was pure waste.
+    """
+    if path in _TOKEN_CACHE:
+        return _TOKEN_CACHE[path]
     import validate_image
     v = validate_image.verdict(path)
     det = (v.get("branding") or {}).get("detected") or []
@@ -46,18 +75,34 @@ def _label_tokens(path):
             w = "".join(c for c in w if c.isalnum()).upper()
             if len(w) >= 3:
                 toks.add(w)
+    _TOKEN_CACHE[path] = (toks, v)
     return toks, v
+
+
+MIN_TOKENS_FOR_GUARD = 3
 
 
 def guard_composite(composite_path, source_path, min_overlap=0.5):
     """
     Stage 2b. Returns (ok: bool, detail: str).
+
     Compares label tokens read from the composite against the source product.
+
+    The composite pastes real product pixels, so a mismatch means the product got
+    cropped, occluded or badly scaled - not that it was redrawn. But the signal is
+    only trustworthy when there is enough text to read: on a garment with one tiny
+    embroidered logo the VL model hallucinates a different word each time it looks
+    (measured: 'BRETEL' vs 'BALLY' on identical pixels), and a single misread
+    scores 0%. Below MIN_TOKENS_FOR_GUARD the OCR signal is too weak to judge, so
+    we report it and pass rather than burn a re-composite chasing a phantom.
     """
     src_toks, _ = _label_tokens(source_path)
     out_toks, _ = _label_tokens(composite_path)
     if not src_toks:
         return True, "source had no readable label text - guard skipped"
+    if len(src_toks) < MIN_TOKENS_FOR_GUARD:
+        return True, (f"only {len(src_toks)} token(s) readable on the source "
+                      f"({sorted(src_toks)}) - too weak to diff, guard skipped")
     kept = src_toks & out_toks
     ratio = len(kept) / len(src_toks)
     detail = (f"source={sorted(src_toks)} composite={sorted(out_toks)} "
@@ -66,7 +111,8 @@ def guard_composite(composite_path, source_path, min_overlap=0.5):
 
 
 # --------------------------------------------------------------- ken burns
-DEFAULT_KB = {"zoom": "in", "start": 1.0, "end": 1.12, "xDrift": 0.0, "yDrift": 0.0}
+DEFAULT_KB = {"zoom": "in", "start": 1.0, "end": 1.12, "xDrift": 0.0,
+              "yDrift": 0.0, "rotateDeg": 0.0}
 
 
 def ken_burns(image_path, out_path, duration, w, h, kb=None):
@@ -90,15 +136,72 @@ def ken_burns(image_path, out_path, duration, w, h, kb=None):
     x = f"iw/2-(iw/zoom/2)+({xd})*iw*{prog}"
     y = f"ih/2-(ih/zoom/2)+({yd})*ih*{prog}"
     # oversample first so the pan is smooth rather than stepped
-    vf = (f"scale={w*2}:{h*2}:force_original_aspect_ratio=decrease,"
-          f"pad={w*2}:{h*2}:(ow-iw)/2:(oh-ih)/2:color=black,"
-          f"zoompan=z='{z}':x='{x}':y='{y}':"
-          f"d={frames}:s={w}x{h}:fps={FPS},"
-          f"format=yuv420p")
+    chain = [f"scale={w*2}:{h*2}:force_original_aspect_ratio=decrease",
+             f"pad={w*2}:{h*2}:(ow-iw)/2:(oh-ih)/2:color=black",
+             f"zoompan=z='{z}':x='{x}':y='{y}':d={frames}:s={w}x{h}:fps={FPS}"]
+    # zoompan can only scale and translate. Rotation is a separate filter, which
+    # is why a storyboard asking for "orbit" used to render as a plain push-in.
+    rot = float(kb.get("rotateDeg", 0.0) or 0.0)
+    if abs(rot) > 0.05:
+        rad = rot * 3.141592653589793 / 180.0
+        chain.append(f"rotate=a='{rad}*(t/{duration:.3f})':c=none:"
+                     f"ow=iw:oh=ih:bilinear=1")
+    chain.append("format=yuv420p")
+    vf = ",".join(chain)
     common.run(["ffmpeg", "-v", "error", "-y", "-loop", "1", "-i", image_path,
                 "-vf", vf, "-t", f"{duration:.3f}", "-c:v", "libx264",
                 "-preset", "medium", "-crf", "18", "-r", str(FPS), out_path])
     return out_path
+
+
+# ------------------------------------------------------------------ video i2v
+# Which image-to-video model animates a still. Both are driven through the same
+# i2v(image, prompt, ...) signature, so nothing downstream changes.
+#   wan     - Wan 2.2 14B + LightX2V, 4 steps, native 480x832  (~65s / 5s clip)
+#   hunyuan - HunyuanVideo I2V 720p bf16, native 720x1280      (2.25x the pixels)
+VIDEO_MODEL = os.environ.get("REELKIT_VIDEO_MODEL", "wan").lower()
+HY_FPS = 24
+
+
+def hunyuan_i2v(image_path, prompt, out_path, job_tag, duration=5.0,
+                width=720, height=1280, steps=20):
+    """
+    HunyuanVideo I2V 720p. Native 720x1280 vertical - 2.25x the pixels of Wan's
+    480x832, so the 1080p master is a much smaller upscale.
+
+    Notes that differ from Wan and matter here:
+      * the model is bf16 only (no fp8 build), loaded with weight_dtype
+        fp8_e4m3fn so it casts at load instead of eating 25.6GB of VRAM;
+      * I2V needs a clip_vision encoder that the T2V variant does not;
+      * frame count must be 4n+1.
+    """
+    name = f"rk_hy_{job_tag}.png"
+    common.stage_input(image_path, name)
+    length = max(int(round(duration * HY_FPS / 4)) * 4 + 1, 25)
+
+    wf = common.load_tpl("tpl_hunyuan_i2v.api.json")
+    common.set_class(wf, "LoadImage", image=name)
+    common.set_class(wf, "HunyuanImageToVideo", width=width, height=height,
+                     length=length, batch_size=1)
+    common.set_class(wf, "TextEncodeHunyuanVideo_ImageToVideo", prompt=prompt,
+                     image_interleave=2)
+    common.set_class(wf, "BasicScheduler", steps=steps, scheduler="simple", denoise=1.0)
+    common.set_class(wf, "RandomNoise", noise_seed=abs(hash(job_tag)) % 10**8)
+    common.set_class(wf, "CreateVideo", fps=HY_FPS, bit_depth=8)
+    common.set_class(wf, "SaveVideo", filename_prefix=f"video/rk_{job_tag}")
+    outs = common.comfy_run(wf, timeout=3600)
+    if not outs:
+        raise RuntimeError("hunyuan i2v produced no video")
+    return outs[0]
+
+
+def video_i2v(image_path, prompt, out_path, job_tag, duration=5.0):
+    """Dispatch to whichever i2v model is selected. Same signature either way."""
+    if VIDEO_MODEL == "hunyuan":
+        common.log("animate", f"i2v engine: HunyuanVideo 720p ({duration:.1f}s)")
+        return hunyuan_i2v(image_path, prompt, out_path, job_tag, duration)
+    common.log("animate", f"i2v engine: Wan 2.2 480x832 ({duration:.1f}s)")
+    return wan_i2v(image_path, prompt, out_path, job_tag, duration)
 
 
 # ------------------------------------------------------------------- wan i2v
@@ -129,17 +232,45 @@ def energy_plate(energy_text, out_path, job_tag, duration, w, h):
     prompt = (f"{energy_text}, isolated on a pure black background, "
               f"bright glowing particles and motion against pure black, "
               f"nothing else in frame")
-    clip = wan_i2v(black, prompt, out_path, f"{job_tag}_fx", duration)
+    clip = video_i2v(black, prompt, out_path, f"{job_tag}_fx", duration)
     return clip
 
 
+MAX_PLATE_LUMA = 0.14      # calibrated: pure black 0.063, usable fx plate 0.077,
+                           # a lit Wan scene 0.235 (that one tinted a whole reel)
+FX_OPACITY = 0.35
+
+
+def plate_luma(clip):
+    """
+    Mean luma 0-1, measured with ffprobe/signalstats.
+
+    Wan frequently ignores "on pure black" and renders a lit, coloured scene.
+    Screen-blending that over the shot tints the whole frame (observed: an entire
+    reel came out magenta), so the plate is measured before it is trusted.
+    """
+    p = common.run(["ffprobe", "-v", "error", "-f", "lavfi",
+                    "-i", f"movie={clip},signalstats",
+                    "-show_entries", "frame_tags=lavfi.signalstats.YAVG",
+                    "-of", "csv=p=0"], check=False)
+    vals = [float(v) for v in p.stdout.split() if v.replace(".", "", 1).isdigit()]
+    return (sum(vals) / len(vals) / 255.0) if vals else 1.0
+
+
 def screen_blend(base_clip, fx_clip, out_path, duration):
-    """Overlay the effect with a screen blend - black pixels vanish."""
+    """
+    Screen the effect over the still. Blacks contribute nothing to a screen
+    blend, so we first crush the plate's low end to true black and keep the
+    opacity modest - otherwise a bright plate tints the entire frame.
+    """
     common.run([
         "ffmpeg", "-v", "error", "-y", "-i", base_clip, "-i", fx_clip,
         "-filter_complex",
-        "[1:v]scale=iw:ih[fx];[0:v][fx]scale2ref=w=iw:h=ih[fx2][base];"
-        "[base][fx2]blend=all_mode=screen:all_opacity=0.85,format=yuv420p[v]",
+        # crush lows to real black so only the bright effect survives
+        "[1:v]lutrgb=r=\'clip((val-70)*1.6,0,255)\':"
+        "g=\'clip((val-70)*1.6,0,255)\':b=\'clip((val-70)*1.6,0,255)\'[fxk];"
+        "[0:v][fxk]scale2ref=w=iw:h=ih[base][fx2];"
+        f"[base][fx2]blend=all_mode=screen:all_opacity={FX_OPACITY},format=yuv420p[v]",
         "-map", "[v]", "-t", f"{duration:.3f}",
         "-c:v", "libx264", "-preset", "medium", "-crf", "18", "-r", str(FPS),
         out_path])
@@ -148,7 +279,7 @@ def screen_blend(base_clip, fx_clip, out_path, duration):
 
 # ------------------------------------------------------------------ per scene
 def animate_scene(scene, still_path, source_product, job_dir, w, h, duration,
-                  guard_log=None):
+                  guard_log=None, tracer=None):
     """
     Turn one scene's still into a clip of `duration` seconds.
     Returns (clip_path, guard_verdict_or_None).
@@ -165,7 +296,10 @@ def animate_scene(scene, still_path, source_product, job_dir, w, h, duration,
         if guard_log is not None:
             guard_log.append(verdict)
 
-    if scene.get("mode") == "product":
+    # Ken-Burns is retained only for an explicit opt-in; every storyboard now
+    # asks for real motion, because a reel of zooming stills reads as a slideshow.
+    engine = (scene.get("motionEngine") or "video").lower()
+    if scene.get("mode") == "product" and engine == "kenburns":
         kb = scene.get("kenburns")
         base = ken_burns(still_path, os.path.join(job_dir, f"kb_{n}.mp4"),
                          duration, w, h, kb=kb)
@@ -176,7 +310,15 @@ def animate_scene(scene, still_path, source_product, job_dir, w, h, duration,
             common.log("animate", f"scene {n}: energy plate '{energy[:40]}'")
             fx = energy_plate(energy, os.path.join(job_dir, f"fx_{n}.mp4"),
                               tag, duration, w, h)
-            return screen_blend(base, fx, out, duration), verdict
+            luma = plate_luma(fx)
+            if luma > MAX_PLATE_LUMA:
+                common.log("animate", f"scene {n}: plate mean luma {luma:.2f} > "
+                                      f"{MAX_PLATE_LUMA} - NOT black enough, "
+                                      f"skipping overlay to protect colour")
+            else:
+                common.log("animate", f"scene {n}: blending plate (luma {luma:.2f})")
+                os.replace(screen_blend(base, fx, out + ".fx.mp4", duration), out)
+                return out, verdict
         os.replace(base, out)
         common.log("animate", f"scene {n}: ken-burns {duration:.2f}s")
         return out, verdict
@@ -184,7 +326,15 @@ def animate_scene(scene, still_path, source_product, job_dir, w, h, duration,
     motion = scene.get("motion") or "slow cinematic camera move"
     energy = (scene.get("energy") or "").strip()
     prompt = f"{motion}. {scene['visual']}." + (f" {energy}." if energy else "")
-    common.log("animate", f"scene {n}: wan i2v '{motion[:40]}'")
-    clip = wan_i2v(still_path, prompt, out, tag, duration)
+    if tracer:
+        tracer.write_json(f"scene_{n}_animate.json", {
+            "engine": VIDEO_MODEL, "path": "video_i2v",
+            "motion_prompt_verbatim": motion, "energy_prompt_verbatim": energy,
+            "full_prompt_sent": prompt, "input_still": still_path,
+            "requested_duration": duration, "clip_path": out,
+            "kenburns": scene.get("kenburns")})
+        tracer.model(f"i2v:{VIDEO_MODEL}", "load")
+    common.log("animate", f"scene {n}: i2v '{motion[:40]}'")
+    clip = video_i2v(still_path, prompt, out, tag, duration)
     os.replace(clip, out) if clip != out else None
     return out, verdict

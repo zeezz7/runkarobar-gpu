@@ -27,14 +27,16 @@ import re
 import common
 
 BRAIN_DIR = os.environ.get(
-    "BRAIN_DIR", "/workspace/models/brain/Qwen2.5-32B-Instruct-FP8-dynamic")
+    "BRAIN_DIR", "/workspace/models/brain/Qwen2.5-14B-Instruct-FP8-dynamic")
 VL_DIR = os.environ.get(
     "QWEN_VL_DIR", "/workspace/models/qwen2.5-vl/Qwen2.5-VL-7B-Instruct")
 
 _model = _tok = None
 
 GOALS = {"reveal", "showcase", "detail", "wear", "lifestyle", "cta"}
-METHODS = {"compose_animate", "generate_animate"}
+# goals whose whole point is showing the real product
+PRODUCT_GOALS = {"reveal", "showcase", "detail", "wear", "cta"}
+METHODS = {"compose_animate", "generate_animate", "edit_animate"}
 MODES = {"product", "scene"}
 TRANSITIONS = {"cut", "fade", "whip", "zoom"}
 
@@ -60,14 +62,16 @@ Return EXACTLY this JSON shape:
     {{
       "n": 1,
       "goal": "reveal|showcase|detail|wear|lifestyle|cta",
-      "method": "compose_animate|generate_animate",
+      "method": "edit_animate|compose_animate|generate_animate",
       "mode": "product|scene",
       "visual": "<the on-screen shot description>",
+      "background": "<ONLY the setting/environment for this shot - the place, surface, light and mood. Never mention the product, clothing or any person.>",
       "motion": "<camera move, e.g. 'slow push-in', 'orbit', 'crane down'>",
       "energy": "<a visual effect such as 'water splash' or 'rising steam', or empty string for clean>",
       "transitionIn": "cut|fade|whip|zoom",
       "durationSec": 4,
-      "kenburns": {{"zoom": "in", "start": 1.0, "end": 1.12, "xDrift": 0.0, "yDrift": -0.05}},
+      "motionEngine": "video",
+      "kenburns": {{"zoom": "in", "start": 1.0, "end": 1.12, "xDrift": 0.0, "yDrift": -0.05, "rotateDeg": 0.0}},
       "vo": "<the spoken line for this scene, in {language}>"
     }}
   ],
@@ -76,15 +80,54 @@ Return EXACTLY this JSON shape:
 
 HARD REQUIREMENTS
 - {nmin} to {nmax} scenes. The scene durationSec values MUST sum to {length} (+/-1).
-- Use "compose_animate" + mode "product" whenever the real product is on screen:
-  its true photographed pixels get composited in, so the label stays perfect.
-- Use "generate_animate" + mode "scene" only for shots WITHOUT the product
-  (pure atmosphere, texture plates, lifestyle b-roll).
-- At least one scene must be compose_animate. The final scene should be the cta.
+- Choose the method from what the SUPPLIED PHOTOGRAPHS actually show:
+  * "edit_animate" + mode "product" - THE DEFAULT for product shots. The real photo
+    is kept and its whole world is re-imagined around it, which gives a rich,
+    filmic frame. Use it for clothing, anything worn or held, AND for packaged
+    products you want to drop into a dramatic setting.
+  * "compose_animate" + mode "product" - use ONLY if the caller demands a provably
+    pixel-exact label. It pastes the cut-out onto a generated backdrop and looks
+    noticeably flatter than an edit. Prefer edit_animate.
+  * "generate_animate" + mode "scene" - ONLY for shots where NEITHER the product
+    NOR anyone wearing/holding it is visible: an empty location, a texture, a
+    detail of the surroundings. If a person appears wearing anything like the
+    product, the model invents a DIFFERENT product and the ad shows the wrong
+    item - so any shot featuring the product, or a person wearing it, MUST be
+    edit_animate (or compose_animate for an isolated product).
+  Compositing a photo that contains a PERSON produces two overlapping people, so
+  never pick compose_animate for a model shot.
+- At least one scene must be edit_animate or compose_animate. Final scene = cta.
+- Scenes with goal "reveal", "showcase", "detail", "wear" or "cta" show the product,
+  so they must NEVER use generate_animate.
 - "vo" must be written in {language} and be speakable in roughly its durationSec.
+- CLAIMS: the voiceover may ONLY state benefits that are actually printed on the
+  packaging as transcribed above. Do not invent or imply medical, dermatological or
+  efficacy claims - no curing, removing or eliminating acne, pimples, spots,
+  wrinkles, hair loss or any condition - unless those exact words appear on the
+  product. If you are unsure whether a claim is printed, describe the product or the
+  feeling instead. Wrong claims are a legal problem, not a style problem.
+- LANGUAGE, restated because it overrides everything above: every "vo" line MUST be
+  written in {language}. If {language} is "hinglish", write natural spoken Hinglish -
+  Hindi sentence structure in Latin script, mixing in the English words an Indian ad
+  would actually use (e.g. "Subah ki freshness, har din - deep clean, aloe vera ke
+  saath"). Do NOT fall back to plain English. If {language} is "hi" or "ur", write in
+  that language. The claims rule above still applies, in that language.
 - "energy" is your free choice per scene - describe the effect in plain words, or
   leave it "" for a clean shot. Do not repeat the same energy in every scene.
 - "motion" should vary between scenes; name a concrete camera move.
+- "background" is used to build the scene BEHIND the product, so it must describe
+  ONLY the environment: the place, the surface it sits on, the light and the mood.
+  Never name the product, clothing, packaging or a person in "background" - if you
+  do, the backdrop is generated containing a second copy of the product.
+  Describe a CLOSE, shallow-depth product surface and its light - not a wide room.
+  A wide interior puts furniture and fixtures in shot and dwarfs the product.
+  Good: "wet dark stone surface, water droplets, cool morning light raking from
+  the left, soft blurred background". Bad: "a bathroom with a window and a sink"
+  (that renders the whole room, toilet included).
+- For "generate_animate" scenes the "visual" must NOT mention the product, the
+  garment or anyone wearing it - that shot is generated from nothing, so naming
+  the product makes the model invent a DIFFERENT one and the ad shows the wrong
+  item. Describe only surroundings, texture or atmosphere.
 - "kenburns" gives the EXACT numbers for the camera move on product scenes, so the
   renderer applies them directly instead of guessing from your words:
     zoom   "in" or "out"
@@ -92,12 +135,127 @@ HARD REQUIREMENTS
     end    ending zoom factor   (range 0.9-1.6; use end<start for a pull-out)
     xDrift horizontal pan across the whole shot, fraction of width  (-0.2 to 0.2)
     yDrift vertical pan across the whole shot, fraction of height   (-0.2 to 0.2)
-  Make these match your "motion" wording and vary them per scene. Keep moves
-  gentle (a 0.08-0.20 zoom change reads well over 3-5 seconds).
+    rotateDeg total rotation across the shot in degrees (-12 to 12). Use this for
+      any turning, tilting, orbiting or dutch-angle feel. 0 = no rotation.
+  Make these match your "motion" wording and VARY THEM between scenes - do not
+  make every scene a zoom. If your "motion" says orbit, turn, rotate, tilt or
+  dutch angle, rotateDeg MUST be non-zero.
+- "motionEngine" picks how the shot moves:
+    "kenburns" - the still is scaled, panned and rotated. Fast, and the product
+      stays pixel-perfect. Good for push-ins, pans, tilts and gentle turns.
+    "video" - ALWAYS use this. Every scene must be a real animated shot.
+  Do not use "kenburns"; a reel built from zooming stills looks cheap.
 - "vo" lines must be long enough to actually SPEAK for their durationSec at a
   natural ad pace - roughly 2.5 words per second. A 4 second scene needs about
   10 words, not 4.
 Return only the JSON object."""
+
+
+
+# ---------------------------------------------------------------- templates
+# A template is a CREATIVE-DIRECTION PRESET, not a pipeline. It only appends a
+# style directive to the prompt this module already builds, plus soft defaults
+# the brain is asked to honour. The storyboard JSON schema is unchanged and the
+# renderer (compose -> animate -> guard -> VO -> assemble -> upload) never sees
+# the template at all.
+#
+#   "ai-director" (the default) injects nothing, so its output is identical to
+#   the behaviour before templates existed.
+TEMPLATES = {
+    "ai-director": {
+        "persona": "",
+        "defaults": {},
+    },
+    "showcase": {
+        "persona": (
+            "Clean, minimal, premium product showcase. Let the product be the hero "
+            "with elegant hero shots and subtle camera moves. Minimal on-screen text. "
+            "Calm, confident, aspirational tone. No gimmicks."),
+        "defaults": {"sceneBias": 3, "wantsBadges": False, "wantsCta": False,
+                     "motionStyle": "subtle"},
+    },
+    "ad": {
+        "persona": (
+            "High-energy direct-response ad. Hook the viewer in the first 2 seconds, "
+            "state one clear benefit, and end on a strong call to action. Punchy, "
+            "fast-cut, bold. Use dynamic energy where it fits the product."),
+        "defaults": {"sceneBias": 4, "wantsBadges": True, "wantsCta": True,
+                     "motionStyle": "dynamic"},
+    },
+    "unboxing": {
+        "persona": (
+            "Anticipation-first reveal. Open on the packaging/box, build a moment of "
+            "suspense, then reveal the product as the payoff hero shot. Tactile, "
+            "satisfying, premium."),
+        "defaults": {"sceneBias": 4, "revealFirst": True, "wantsCta": True,
+                     "motionStyle": "reveal"},
+    },
+    "outfit-check": {
+        "persona": (
+            "Aspirational try-on / outfit-check. A real, stylish person wearing or "
+            "using the product in an on-trend setting - street, mirror, cafe. Show "
+            "fit, movement and how it looks in real life. Confident, human."),
+        "defaults": {"sceneBias": 4, "preferMode": "scene", "wantsCta": True,
+                     "motionStyle": "dynamic"},
+    },
+    "testimonial": {
+        "persona": (
+            "Authentic UGC testimonial. A person talks to camera about the product in "
+            "a natural, believable way - like a friend's recommendation. Warm, honest, "
+            "relatable."),
+        "defaults": {"sceneBias": 3, "preferMethod": "lipsync", "wantsCta": True},
+    },
+}
+DEFAULT_TEMPLATE = "ai-director"
+
+
+def resolve_template(name):
+    """Unknown or missing -> the default. Never raises."""
+    key = (name or DEFAULT_TEMPLATE).strip().lower()
+    if key not in TEMPLATES:
+        common.log("brain", f"unknown template {name!r} - falling back to "
+                            f"'{DEFAULT_TEMPLATE}'")
+        key = DEFAULT_TEMPLATE
+    return key, TEMPLATES[key]
+
+
+def _template_directive(key, spec, nmin, nmax):
+    """Render the style directive block appended to the existing prompt."""
+    persona = (spec.get("persona") or "").strip()
+    if not persona and not spec.get("defaults"):
+        return ""                       # ai-director: inject nothing at all
+
+    lines = [f"\n\nSTYLE DIRECTIVE (template: {key}):", persona]
+    d = spec.get("defaults") or {}
+    guidance = []
+    if d.get("sceneBias"):
+        guidance.append(f"aim for about {d['sceneBias']} scenes (stay within "
+                        f"{nmin}-{nmax})")
+    if d.get("motionStyle"):
+        guidance.append(f"favour {d['motionStyle']} camera movement")
+    if d.get("wantsCta") is True:
+        guidance.append("end on an explicit call to action in the final scene's vo")
+    if d.get("wantsCta") is False:
+        guidance.append("do not use a hard call to action; let the product speak")
+    if d.get("wantsBadges") is True:
+        guidance.append("you may work a short benefit claim into the vo lines")
+    if d.get("wantsBadges") is False:
+        guidance.append("keep the vo sparse; avoid claim badges and slogans")
+    if d.get("revealFirst"):
+        guidance.append("scene 1 must build anticipation before the product is fully "
+                        "revealed; the reveal is the payoff")
+    if d.get("preferMode") == "scene":
+        guidance.append("favour scenes with a person using or wearing the product "
+                        "over isolated packshots")
+    if d.get("preferMethod") == "lipsync":
+        guidance.append("write the vo as first-person speech from a person on camera, "
+                        "as if they are speaking the line themselves")
+    if guidance:
+        lines.append("Follow these unless the brief says otherwise:")
+        lines += [f"  - {g}" for g in guidance]
+    lines.append("The brief always outranks this directive. You still choose the "
+                 "scene count, methods, energy, motion and wording yourself.")
+    return "\n".join(lines)
 
 
 # ------------------------------------------------------------------- captions
@@ -120,9 +278,10 @@ def caption_products(image_paths, max_new_tokens=120):
         msgs = [{"role": "user", "content": [
             {"type": "image", "path": os.path.abspath(p)},
             {"type": "text", "text":
-             "Describe this product in one sentence: what it is, its exact brand "
-             "and product name as printed, its colours, shape and packaging. "
-             "Be literal and specific."}]}]
+             "Describe this product literally. State what it is, its exact brand "
+             "and product name as printed, its colours, shape and packaging. Then "
+             "transcribe EVERY word of text printed on it, exactly as written. Do "
+             "not infer benefits that are not printed."}]}]
         inp = proc.apply_chat_template(msgs, add_generation_prompt=True,
                                        tokenize=True, return_dict=True,
                                        return_tensors="pt").to(m.device)
@@ -205,13 +364,19 @@ def _clean_kenburns(kb):
         return max(lo, min(hi, v))
     start = num("start", 0.9, 1.6, 1.0)
     end = num("end", 0.9, 1.6, 1.12)
+    rot = num("rotateDeg", -12.0, 12.0, 0.0)
     if abs(end - start) < 0.005:                     # no movement -> use zoom hint
         end = start - 0.10 if str(kb.get("zoom", "in")).lower() == "out" else start + 0.12
         end = max(0.9, min(1.6, end))
+    # a rotated frame exposes black corners unless we overscan a little
+    if abs(rot) > 0.2:
+        start = max(start, 1.12)
+        end = max(end, 1.12)
     return {"zoom": "out" if end < start else "in",
             "start": round(start, 4), "end": round(end, 4),
             "xDrift": round(num("xDrift", -0.2, 0.2, 0.0), 4),
-            "yDrift": round(num("yDrift", -0.2, 0.2, 0.0), 4)}
+            "yDrift": round(num("yDrift", -0.2, 0.2, 0.0), 4),
+            "rotateDeg": round(rot, 3)}
 
 
 def validate(sb, length):
@@ -226,6 +391,7 @@ def validate(sb, length):
         raise ValueError("'scenes' must be a list of 2-8 scenes")
     total = 0.0
     for i, sc in enumerate(scenes, 1):
+        sc.setdefault("background", "")
         for k in ("goal", "method", "mode", "visual", "motion",
                   "transitionIn", "durationSec", "vo"):
             if k not in sc:
@@ -238,6 +404,19 @@ def validate(sb, length):
             raise ValueError(f"scene {i} mode must be one of {sorted(MODES)}")
         if sc["goal"] not in GOALS:
             raise ValueError(f"scene {i} goal must be one of {sorted(GOALS)}")
+        # generate_animate never involves the real product, so a scene that is
+        # meant to SHOW the product cannot use it - otherwise the ad renders a
+        # different item than the one being sold (observed: scene 1 of a Snitch
+        # reel showed an entirely invented polo).
+        if sc["method"] == "generate_animate":
+            if sc["goal"] in PRODUCT_GOALS:
+                raise ValueError(
+                    f"scene {i} has goal '{sc['goal']}' which shows the product, so it "
+                    f"cannot use generate_animate - use edit_animate instead")
+            if sc["mode"] == "product":
+                raise ValueError(
+                    f"scene {i} is mode 'product' so it cannot use generate_animate - "
+                    f"use edit_animate instead")
         if sc["transitionIn"] not in TRANSITIONS:
             raise ValueError(f"scene {i} transitionIn must be one of {sorted(TRANSITIONS)}")
         try:
@@ -246,28 +425,57 @@ def validate(sb, length):
             raise ValueError(f"scene {i} durationSec must be a number")
         total += sc["durationSec"]
         sc["kenburns"] = _clean_kenburns(sc.get("kenburns"))
+        eng = str(sc.get("motionEngine", "video")).lower()
+        sc["motionEngine"] = eng if eng in ("kenburns", "video") else "video"
     if abs(total - length) > 1.0:
         raise ValueError(
             f"scene durations sum to {total:.1f}s but must sum to {length}s (+/-1)")
-    if not any(s["method"] == "compose_animate" for s in scenes):
-        raise ValueError("at least one scene must use method 'compose_animate'")
+    # A reel of zooming stills looks cheap. Wan i2v is what makes a shot read as
+    # footage, so cap the still-image engine at a single scene.
+    kb_scenes = [s for s in scenes if s.get("motionEngine") == "kenburns"]
+    if kb_scenes:
+        raise ValueError(
+            f"scenes {[s['n'] for s in kb_scenes]} use motionEngine 'kenburns'. "
+            f"Every scene must be a real animated shot - set motionEngine to 'video'")
+    if not any(s["method"] in ("compose_animate", "edit_animate") for s in scenes):
+        raise ValueError("at least one scene must use 'edit_animate' or "
+                         "'compose_animate' so the real product appears")
     sb.setdefault("notes", "")
     return sb
 
 
 # ------------------------------------------------------------------- generate
-def storyboard(brief, config, product_images, retries=3):
+def storyboard(brief, config, product_images, retries=3, tracer=None):
     length = float(config.get("lengthSec") or 20)
     nmin = max(2, int(round(length / 6)))
     nmax = max(nmin, int(round(length / 4)))
     caps = caption_products(product_images)
     captions = "\n".join(f"  - image {i+1}: {c}" for i, c in enumerate(caps))
+    if tracer:
+        tracer.write_text("vision_captions.txt", "\n---\n".join(caps))
+
+    tpl_key, tpl_spec = resolve_template(config.get("template"))
 
     prompt = TEMPLATE.format(
         brief=brief, brand=config.get("brandName") or "the brand",
         language=config.get("language") or "en", length=int(length),
         captions=captions, nmin=nmin, nmax=nmax)
+    # Purely additive: ai-director appends nothing, so its prompt - and therefore
+    # its output - is byte-identical to the pre-template behaviour.
+    directive = _template_directive(tpl_key, tpl_spec, nmin, nmax)
+    prompt += directive
+    common.log("brain", f"template '{tpl_key}'"
+                        + (f" (+{len(directive)} chars of style directive)"
+                           if directive else " (no directive - default behaviour)"))
+    if tpl_spec.get("defaults", {}).get("preferMethod") == "lipsync":
+        common.log("brain", "template 'testimonial' requests lipsync, but no avatar/"
+                            "lipsync stage is wired - FALLING BACK to a person-to-"
+                            "camera scene rendered through the normal i2v path")
 
+    if tracer:
+        tracer.write_text("brain_prompt.txt",
+                          f"===== SYSTEM =====\n{SYSTEM}\n\n===== USER =====\n{prompt}\n")
+        tracer.model(os.path.basename(BRAIN_DIR), "load")
     model, tok = load_brain()
     import torch
     last_err = None

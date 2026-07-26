@@ -25,8 +25,18 @@ from PIL import Image, ImageFilter, ImageStat
 
 import common
 
-NEG = ("text, watermark, logo, brand name, signature, people, hands, "
-       "cluttered, deformed, low quality, blurry, jpeg artifacts")
+# One global negative was being used for all three paths, which actively fought
+# two of them: an edit is told to KEEP the person and the logo while "people,
+# hands, logo, brand name" were being negatively prompted away.
+NEG_EDIT = ("changed clothing, different garment, altered colours, warped fabric, "
+            "distorted face, extra limbs, deformed hands, blurry, low quality, "
+            "jpeg artifacts, watermark")
+NEG_BG = ("product, merchandise, clothing, garment, shirt, bottle, packaging, "
+          "people, person, model, mannequin, hands, text, watermark, logo, "
+          "brand name, cluttered, low quality, blurry")
+NEG_GEN = ("text, watermark, logo, brand name, signature, deformed, extra limbs, "
+           "deformed hands, low quality, blurry, jpeg artifacts")
+NEG = NEG_GEN          # backwards-compatible default
 
 # Where the product sits in frame when composited.
 PRODUCT_HEIGHT_FRAC = 0.52   # product occupies ~52% of frame height
@@ -65,16 +75,72 @@ def segment(product_path, job_dir, tag):
 
 
 # ------------------------------------------------------------------ generation
-def generate_scene(prompt, w, h, out_prefix, seed=0, steps=50, cfg=4.0):
+# FAST path uses the installed 4-step Lightning LoRAs. Backgrounds sit behind a
+# composited product and edits are graded afterwards, so the extra 46 steps buy
+# very little here while costing ~117s per image (measured: 127s vs ~10s).
+FAST = os.environ.get("REELKIT_FAST", "1") != "0"
+T2I_LORA = "Qwen-Image-2512-Lightning-4steps.safetensors"
+EDIT_LORA = "Qwen-Image-Edit-2511-Lightning-4steps.safetensors"
+
+
+def _add_lora(wf, lora_name, after_node, sampler_node="17"):
+    wf["900"] = {"class_type": "LoraLoaderModelOnly",
+                 "inputs": {"lora_name": lora_name, "strength_model": 1.0,
+                            "model": [after_node, 0]}}
+    wf[sampler_node]["inputs"]["model"] = ["900", 0]
+    return wf
+
+
+def generate_scene(prompt, w, h, out_prefix, seed=0, steps=None, cfg=None,
+                   negative=None):
     wf = common.load_tpl("tpl_t2i_qwen.api.json")
+    if FAST:
+        _add_lora(wf, T2I_LORA, "11")
+        steps, cfg = steps or 4, cfg if cfg is not None else 1.0
+    else:
+        steps, cfg = steps or 50, cfg if cfg is not None else 4.0
     common.set_class(wf, "EmptySD3LatentImage", width=w, height=h, batch_size=1)
-    common.set_prompts(wf, prompt, NEG)
+    common.set_prompts(wf, prompt, negative or NEG_GEN)
     common.set_class(wf, "KSampler", seed=seed or 1, steps=steps, cfg=cfg,
                      sampler_name="euler", scheduler="simple", denoise=1.0)
     common.set_class(wf, "SaveImage", filename_prefix=out_prefix)
     outs = common.comfy_run(wf)
     if not outs:
         raise RuntimeError("scene generation produced no image")
+    return outs[0]
+
+
+def edit_scene(product_path, instruction, out_prefix, seed=0, steps=None, cfg=None):
+    """
+    Qwen-Image-Edit-2511: keep the supplied photograph's subject, change its
+    world. This is the right tool when the product is photographed IN CONTEXT -
+    worn by a model, held in a hand, staged on a set.
+
+    Compositing cannot handle those: segmenting a model shot yields the whole
+    PERSON, which then gets pasted over a generated scene that also contains a
+    person, producing two overlapping faces (observed on the Snitch run).
+    """
+    name = f"rk_edit_{os.path.basename(out_prefix)}{os.path.splitext(product_path)[1] or '.png'}"
+    common.stage_input(product_path, name)
+    wf = common.load_tpl("tpl_qwen_edit.api.json")
+    common.set_class(wf, "LoadImage", image=name)
+    if FAST:
+        for _, node in common.nodes_of(wf, "PrimitiveBoolean"):
+            node["inputs"]["value"] = True          # template's Lightning switch
+        steps, cfg = steps or 4, cfg if cfg is not None else 1.0
+    else:
+        for _, node in common.nodes_of(wf, "PrimitiveBoolean"):
+            node["inputs"]["value"] = False
+        steps, cfg = steps or 40, cfg if cfg is not None else 4.0
+    for _, node in common.nodes_of(wf, "LoraLoaderModelOnly"):
+        node["inputs"]["lora_name"] = EDIT_LORA
+    common.set_prompts(wf, instruction, NEG_EDIT,
+                       cls="TextEncodeQwenImageEditPlus", field="prompt")
+    common.set_class(wf, "KSampler", seed=seed or 1, denoise=1.0)
+    common.set_class(wf, "SaveImage", filename_prefix=out_prefix)
+    outs = common.comfy_run(wf)
+    if not outs:
+        raise RuntimeError("scene edit produced no image")
     return outs[0]
 
 
@@ -142,25 +208,82 @@ def composite(cut_path, scene_path, out_path,
 
 
 # -------------------------------------------------------------------- per scene
-def scene_image(scene, product_path, w, h, job_dir, seed=0, cut_cache={}):
-    """Produce the still for one storyboard scene. Returns its path."""
+def scene_image(scene, product_path, w, h, job_dir, seed=0, cut_cache={},
+                bg_cache=None, height_frac=PRODUCT_HEIGHT_FRAC,
+                center_y=PRODUCT_CENTER_Y, tracer=None):
+    """
+    Produce the still for one storyboard scene. Returns its path.
+
+    `bg_cache` lets a re-composite (guard retry) reuse the already-generated
+    background and only change the product's scale/placement. Regenerating the
+    scene costs another ~127s diffusion for no reason - the brief asks a retry to
+    "reposition/rescale", not to redraw the world.
+    """
     n = scene["n"]
     tag = f"s{n}"
     prefix = f"rk_{os.path.basename(job_dir)}_{tag}"
+
+    if scene["method"] == "edit_animate":
+        setting = (scene.get("background") or scene["visual"]).strip().rstrip(".")
+        instruction = (f"Keep the subject exactly as photographed - same face, same "
+                       f"pose, same garment, same colours, same fabric and the same "
+                       f"embroidered logo, unchanged. Change only the surroundings "
+                       f"to: {setting}. Photorealistic editorial fashion photograph.")
+        if tracer:
+            tracer.write_json(f"scene_{n}_compose.json", {
+                "path": "edit_animate", "model": "Qwen-Image-Edit-2511-fp8mixed",
+                "fast_lightning_4step": FAST, "seed": seed + n,
+                "positive_prompt": instruction, "negative_prompt": NEG_EDIT,
+                "source_photo": product_path})
+        out_edit = edit_scene(product_path, instruction, prefix + "_edit", seed=seed + n)
+        out = os.path.join(job_dir, f"scene_{n}.png")
+        Image.open(out_edit).convert("RGB").save(out)
+        common.log("compose", f"scene {n}: edited real photo -> {os.path.basename(out)}")
+        return out
 
     if scene["method"] == "compose_animate":
         if product_path not in cut_cache:
             cut_cache[product_path] = segment(product_path, job_dir, "prod")[0]
         cut = cut_cache[product_path]
-        bg_prompt = (f"{scene['visual']}. Empty scene with no product and no objects "
-                     f"in the centre, clean composition, photorealistic, cinematic lighting.")
-        bg = generate_scene(bg_prompt, w, h, prefix + "_bg", seed=seed + n)
+        key = f"bg_{n}"
+        if bg_cache is not None and key in bg_cache:
+            bg = bg_cache[key]
+            common.log("compose", f"scene {n}: reusing generated background")
+        else:
+            # Use the brain's SETTING-ONLY description. Feeding scene['visual']
+            # here produced self-contradictory prompts like "close-up of the polo
+            # ... empty scene with no product", so the backdrop contained the
+            # product and we then composited a product on top of a product.
+            setting = (scene.get("background") or "").strip()
+            if not setting:
+                setting = "a clean seamless studio backdrop with soft directional light"
+            bg_prompt = (f"{setting}. Completely empty scene: no product, no people, "
+                         f"nothing in the centre of frame. Photorealistic, "
+                         f"cinematic lighting, professional product photography backdrop.")
+            if tracer:
+                tracer.write_json(f"scene_{n}_compose.json", {
+                    "path": "compose_animate", "model": "Qwen-Image-2512-fp8",
+                    "fast_lightning_4step": FAST, "seed": seed + n,
+                    "positive_prompt": bg_prompt, "negative_prompt": NEG_BG,
+                    "segmentation_model": "BiRefNet", "cutout": cut,
+                    "source_photo": product_path,
+                    "placement": {"height_frac": height_frac, "center_y": center_y}})
+            bg = generate_scene(bg_prompt, w, h, prefix + "_bg", seed=seed + n,
+                                negative=NEG_BG)
+            if bg_cache is not None:
+                bg_cache[key] = bg
         out = os.path.join(job_dir, f"scene_{n}.png")
-        return composite(cut, bg, out)
+        return composite(cut, bg, out, height_frac=height_frac, center_y=center_y)
 
+    gen_prompt = f"{scene['visual'].rstrip('.')}. Photorealistic, cinematic lighting."
+    if tracer:
+        tracer.write_json(f"scene_{n}_compose.json", {
+            "path": "generate_animate", "model": "Qwen-Image-2512-fp8",
+            "fast_lightning_4step": FAST, "seed": seed + n,
+            "positive_prompt": gen_prompt, "negative_prompt": NEG_GEN})
     out_gen = generate_scene(
-        f"{scene['visual']}. Photorealistic, cinematic lighting, no text, no logos.",
-        w, h, prefix + "_gen", seed=seed + n)
+        gen_prompt,
+        w, h, prefix + "_gen", seed=seed + n, negative=NEG_GEN)
     out = os.path.join(job_dir, f"scene_{n}.png")
     Image.open(out_gen).convert("RGB").save(out)
     common.log("compose", f"generated -> {os.path.basename(out)}")

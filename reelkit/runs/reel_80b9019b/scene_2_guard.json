@@ -1,0 +1,6 @@
+{
+  "scene": 2,
+  "pass": true,
+  "detail": "source=['ALOE', 'CARE', 'CLEANING', 'DEEP', 'FACE', 'MEN', 'NIVEA', 'PROTECT', 'VERA', 'WASH', 'WITH'] composite=['ALOE', 'AND', 'CARE', 'CLEANING', 'CLEANS', 'DEEP', 'FACE', 'MEN', 'NIVEA', 'PROTECT', 'REFRESHES', 'THOROUGHLY', 'VERA', 'WASH', 'WITH'] kept=100%",
+  "retries": 0
+}

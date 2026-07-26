@@ -1,0 +1,17 @@
+{
+  "product_images": [
+    "https://staging-storage.runkarobar.com/images/dove_product.jpg"
+  ],
+  "brief": "15s premium haircare reel for Dove Intense Repair Nourishing Shampoo for damaged hair. Soft, luminous bathroom and salon mood with flowing water and silky hair energy. Show the bottle as the hero and highlight nourishing repair for damaged hair. Warm female Hinglish voiceover, end on the brand.",
+  "config": {
+    "lengthSec": 15,
+    "resolution": "1080p",
+    "aspectRatio": "9:16",
+    "language": "hinglish",
+    "brandName": "Dove",
+    "elevenVoiceId": "EXAVITQu4vr4xnSDxMaL",
+    "captions": false,
+    "template": "showcase",
+    "trace": true
+  }
+}

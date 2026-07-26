@@ -305,7 +305,26 @@ print('\n'.join(sorted(set(json.load(open(sys.argv[1]))['weight_map'].values()))
   (( missing )) && return 1
   echo "  ok brain ($(du -sh "$dest" | cut -f1), all shards present)"
 }
-\n\n# NOTE: 'flux' is deliberately NOT in the default set - dropped at user request
+\n\n# -----------------------------------------------------------------------------
+# hunyuani2v - HunyuanVideo I2V 720p. Replaces LTX-2.3 (deleted) as the
+#   higher-resolution video path. NOTE the model is bf16 only (no fp8 build) and
+#   I2V additionally needs a clip_vision encoder that T2V does not.
+#   Licence: Tencent Hunyuan Community - EXCLUDES the EU, UK and South Korea.
+# -----------------------------------------------------------------------------
+f_hunyuani2v() {
+  echo "== HunyuanVideo I2V 720p =="
+  local B=$HF/Comfy-Org/HunyuanVideo_repackaged/resolve/main/split_files
+  fetch "$B/diffusion_models/hunyuan_video_image_to_video_720p_bf16.safetensors" \
+        "$M/diffusion_models/hunyuan_video_image_to_video_720p_bf16.safetensors"
+  fetch "$B/text_encoders/llava_llama3_fp8_scaled.safetensors" \
+        "$M/text_encoders/llava_llama3_fp8_scaled.safetensors"
+  fetch "$B/text_encoders/clip_l.safetensors" "$M/text_encoders/clip_l.safetensors"
+  fetch "$B/clip_vision/llava_llama3_vision.safetensors" \
+        "$M/clip_vision/llava_llama3_vision.safetensors"
+  fetch "$B/vae/hunyuan_video_vae_bf16.safetensors" "$M/vae/hunyuan_video_vae_bf16.safetensors"
+}
+
+# NOTE: 'flux' is deliberately NOT in the default set - dropped at user request
 # (non-commercial licence, and HiDream-I1-Full is the commercial-safe
 # replacement). Re-enable any time with:  ./download_models.sh flux
 FAMILIES=("$@")
