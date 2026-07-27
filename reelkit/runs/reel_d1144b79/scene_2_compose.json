@@ -1,0 +1,14 @@
+{
+  "path": "edit_animate",
+  "model": "Qwen-Image-Edit-2511-fp8mixed",
+  "fast_lightning_4step": true,
+  "seed": 2815,
+  "positive_prompt": "Keep the SAME person and the SAME outfit exactly as in this photograph - identical face, hair, skin tone and clothing. Re-frame them for this new shot: extreme close-up of the intricate white embroidery work on the emerald green fabric, showcasing the delicate floral patterns. Setting: soft marble surface with gentle directional lighting, creating subtle shadows that highlight texture. The model WEARS the complete outfit, with any dupatta or scarf draped naturally on the body. Show ONLY the person wearing it - absolutely no clothing rack, coat stand, hanger, mannequin or separately-displayed garment anywhere in the frame. CRITICAL: every garment piece keeps its OWN exact colour from the reference - never recolour, tint or harmonise one piece to match another (e.g. if the trousers are black and the dupatta is purple, the trousers stay black and the dupatta stays purple). STRICT: the person must be fully and MODESTLY dressed at all times - absolutely no nudity, no cleavage, no bare shoulders, midriff or legs, and no revealing, tight, sheer or sexy clothing. Keep it decent, elegant and family-friendly. The presenter faces the camera directly with a clear, well-lit, UNOBSTRUCTED front view of the whole face (both eyes and the mouth fully visible) - the product must not cover the face - a natural, confident expression ready to speak to the viewer. Use the SAME person as in the FIRST reference image - identical face, hair, skin tone and body - only the pose, angle or framing changes. ABSOLUTE REQUIREMENT - override any other wording: the person wears a high-necked, fully-covering outfit that completely covers the chest, cleavage, shoulders, midriff and legs. NO exposed skin below the collarbone, NO cleavage, NO revealing, low-cut, plunging, strapless, off-shoulder or sheer clothing. If a necklace is worn it rests on a COVERED high neckline. Decent, elegant, family-friendly ONLY. Photorealistic editorial photograph, sharp detail.",
+  "negative_prompt": "changed clothing, different garment, altered colours, warped fabric, distorted face, extra limbs, deformed hands, blurry, low quality, jpeg artifacts, watermark",
+  "source_photo": "/workspace/runkarobar-gpu/reelkit/work/reel_d1144b79/scene_1.png",
+  "anchor_used": true,
+  "extra_refs": [
+    "/workspace/runkarobar-gpu/reelkit/work/reel_d1144b79/product_1.jpg"
+  ],
+  "shows_person": true
+}

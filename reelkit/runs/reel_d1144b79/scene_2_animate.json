@@ -1,0 +1,18 @@
+{
+  "engine": "wan",
+  "path": "video_i2v",
+  "motion_prompt_verbatim": "slow orbit around detail",
+  "energy_prompt_verbatim": "shimmering threads",
+  "full_prompt_sent": "slow orbit around detail. extreme close-up of the intricate white embroidery work on the emerald green fabric, showcasing the delicate floral patterns. shimmering threads.",
+  "input_still": "/workspace/runkarobar-gpu/reelkit/work/reel_d1144b79/scene_2.png",
+  "requested_duration": 4.612,
+  "clip_path": "/workspace/runkarobar-gpu/reelkit/work/reel_d1144b79/clip_2.mp4",
+  "kenburns": {
+    "zoom": "in",
+    "start": 1.12,
+    "end": 1.2,
+    "xDrift": 0.1,
+    "yDrift": -0.05,
+    "rotateDeg": 3.0
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "engine": "wan",
+  "path": "video_i2v",
+  "motion_prompt_verbatim": "slow zoom out",
+  "energy_prompt_verbatim": "",
+  "full_prompt_sent": "slow zoom out. Woman facing camera directly with confident smile, phone raised, full suit visible with focus on the premium quality and overall styling.",
+  "input_still": "/workspace/runkarobar-gpu/reelkit/work/reel_202dd60a/scene_3.png",
+  "requested_duration": 8.296,
+  "clip_path": "/workspace/runkarobar-gpu/reelkit/work/reel_202dd60a/clip_3.mp4",
+  "kenburns": {
+    "zoom": "out",
+    "start": 1.2,
+    "end": 1.12,
+    "xDrift": 0.0,
+    "yDrift": 0.02,
+    "rotateDeg": -2.0
+  }
+}

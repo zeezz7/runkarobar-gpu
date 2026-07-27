@@ -544,9 +544,12 @@ def storyboard(brief, config, product_images, retries=3, tracer=None,
                         + (f" (+{len(directive)} chars of style directive)"
                            if directive else " (no directive - default behaviour)"))
     if tpl_spec.get("defaults", {}).get("preferMethod") == "lipsync":
-        common.log("brain", "template 'testimonial' requests lipsync, but no avatar/"
-                            "lipsync stage is wired - FALLING BACK to a person-to-"
-                            "camera scene rendered through the normal i2v path")
+        # Was a "no avatar stage is wired - FALLING BACK" warning. It is wired
+        # now (avatar.py), so say what will actually happen and what it costs.
+        budget = tpl_spec["defaults"].get("lipsyncScenes") or 0
+        common.log("brain", f"template '{tpl_key}' uses lip-sync for up to "
+                            f"{budget} scene(s) via the remote avatar model "
+                            f"(billed per scene; falls back to i2v on failure)")
 
     if tracer:
         tracer.write_text("brain_prompt.txt",

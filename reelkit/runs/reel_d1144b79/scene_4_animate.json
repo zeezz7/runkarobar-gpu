@@ -1,0 +1,18 @@
+{
+  "engine": "wan",
+  "path": "video_i2v",
+  "motion_prompt_verbatim": "dramatic push-in",
+  "energy_prompt_verbatim": "golden sparkles",
+  "full_prompt_sent": "dramatic push-in. the emerald green suit positioned prominently with The Collection branding visible. golden sparkles.",
+  "input_still": "/workspace/runkarobar-gpu/reelkit/work/reel_d1144b79/scene_4.png",
+  "requested_duration": 7.016,
+  "clip_path": "/workspace/runkarobar-gpu/reelkit/work/reel_d1144b79/clip_4.mp4",
+  "kenburns": {
+    "zoom": "in",
+    "start": 1.12,
+    "end": 1.25,
+    "xDrift": 0.0,
+    "yDrift": 0.0,
+    "rotateDeg": 1.0
+  }
+}

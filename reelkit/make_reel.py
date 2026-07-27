@@ -211,8 +211,8 @@ def make_reel(request):
         stills.append(still)
         # The FIRST person scene becomes the anchor; every later person scene is
         # re-framed FROM it, so one face carries the whole reel.
-        if anchor_still is None and tpl_defaults.get("anchorModel") and (
-                sc.get("mode") == "scene" or sc["method"] == "lipsync"):
+        if (anchor_still is None and tpl_defaults.get("anchorModel")
+                and compose.scene_shows_person(sc, tpl_defaults)):
             anchor_still = still
             common.log("compose", f"scene {n}: ANCHOR set - later person scenes "
                                   f"re-frame this model")

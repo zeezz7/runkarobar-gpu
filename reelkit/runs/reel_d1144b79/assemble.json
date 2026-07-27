@@ -1,0 +1,39 @@
+{
+  "per_scene": [
+    {
+      "scene": 1,
+      "fitted_duration": 8.217,
+      "transition_in": "fade",
+      "dipped_through_black": false
+    },
+    {
+      "scene": 2,
+      "fitted_duration": 4.612,
+      "transition_in": "zoom",
+      "dipped_through_black": true
+    },
+    {
+      "scene": 3,
+      "fitted_duration": 8.374,
+      "transition_in": "whip",
+      "dipped_through_black": true
+    },
+    {
+      "scene": 4,
+      "fitted_duration": 7.016,
+      "transition_in": "fade",
+      "dipped_through_black": true
+    }
+  ],
+  "transition_fallbacks": [
+    "scene 2: 'zoom' not implemented -> fade",
+    "scene 3: 'whip' not implemented -> fade"
+  ],
+  "total_duration": 27.96,
+  "master_resolution": "1080x1920",
+  "captions_burned": false,
+  "fps": 30,
+  "outputs": {
+    "1080p": "/workspace/runkarobar-gpu/reelkit/work/reel_d1144b79/reel_d1144b79_1080p.mp4"
+  }
+}

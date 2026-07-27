@@ -236,6 +236,21 @@ def composite(cut_path, scene_path, out_path,
 
 
 # -------------------------------------------------------------------- per scene
+def scene_shows_person(scene, tpl_defaults=None):
+    """
+    Does this scene contain a person?
+
+    One definition, used by BOTH the guard selection here and the anchor choice
+    in make_reel. They were duplicated and drifted: make_reel required
+    mode=="scene", but the brain routinely returns mode "product" for an
+    outfit-check scene (the outfit IS the product), so the anchor never got set
+    and outfit-check silently lost same-model consistency.
+    """
+    d = tpl_defaults or {}
+    return (scene.get("mode") == "scene" or scene.get("method") == "lipsync"
+            or bool(d.get("anchorModel")))
+
+
 def scene_image(scene, product_path, w, h, job_dir, seed=0, cut_cache={},
                 bg_cache=None, height_frac=PRODUCT_HEIGHT_FRAC,
                 center_y=PRODUCT_CENTER_Y, tracer=None, tpl_defaults=None,
@@ -254,8 +269,7 @@ def scene_image(scene, product_path, w, h, job_dir, seed=0, cut_cache={},
     d = tpl_defaults or {}
     # A scene shows a person when the brain framed it that way, or when the
     # template is inherently about a person (outfit-check, ad, testimonial).
-    shows_person = (scene.get("mode") == "scene" or scene["method"] == "lipsync"
-                    or bool(d.get("anchorModel")))
+    shows_person = scene_shows_person(scene, d)
 
     if scene["method"] in ("edit_animate", "lipsync"):
         setting = (scene.get("background") or scene["visual"]).strip().rstrip(".")

@@ -1,0 +1,32 @@
+{
+  "per_scene": [
+    {
+      "scene": 1,
+      "fitted_duration": 7.643,
+      "transition_in": "fade",
+      "dipped_through_black": false
+    },
+    {
+      "scene": 2,
+      "fitted_duration": 7.172,
+      "transition_in": "cut",
+      "dipped_through_black": false
+    },
+    {
+      "scene": 3,
+      "fitted_duration": 8.296,
+      "transition_in": "whip",
+      "dipped_through_black": true
+    }
+  ],
+  "transition_fallbacks": [
+    "scene 3: 'whip' not implemented -> fade"
+  ],
+  "total_duration": 23.05,
+  "master_resolution": "1080x1920",
+  "captions_burned": false,
+  "fps": 30,
+  "outputs": {
+    "1080p": "/workspace/runkarobar-gpu/reelkit/work/reel_202dd60a/reel_202dd60a_1080p.mp4"
+  }
+}
