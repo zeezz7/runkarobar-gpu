@@ -1,0 +1,147 @@
+{
+  "reel_1080p_url": "https://staging-storage.runkarobar.com/reels/reel_dca9e73a_1080p.mp4",
+  "reel_720p_url": "",
+  "scene_image_urls": [
+    "https://staging-storage.runkarobar.com/images/reel_dca9e73a_s1.png",
+    "https://staging-storage.runkarobar.com/images/reel_dca9e73a_s2.png",
+    "https://staging-storage.runkarobar.com/images/reel_dca9e73a_s3.png",
+    "https://staging-storage.runkarobar.com/images/reel_dca9e73a_s4.png"
+  ],
+  "storyboard": {
+    "concept": "Exquisite ruby jewellery set showcased with premium elegance",
+    "voice": "warm female Hinglish",
+    "scenes": [
+      {
+        "n": 1,
+        "goal": "showcase",
+        "method": "edit_animate",
+        "mode": "product",
+        "visual": "Ruby and diamond jewellery set arranged elegantly on display surface - necklace, earrings and bracelet with deep red stones and sparkling diamonds in ornate settings",
+        "background": "luxurious white silk fabric surface, soft golden light from above, warm ambient glow, shallow depth blurred background",
+        "motion": "slow push-in",
+        "energy": "gentle sparkle",
+        "transitionIn": "fade",
+        "durationSec": 6.0,
+        "motionEngine": "video",
+        "kenburns": {
+          "zoom": "in",
+          "start": 1.0,
+          "end": 1.15,
+          "xDrift": 0.0,
+          "yDrift": 0.0,
+          "rotateDeg": 0.0
+        },
+        "vo": "Kya baat hai, itni sundar ruby jewellery set"
+      },
+      {
+        "n": 2,
+        "goal": "detail",
+        "method": "edit_animate",
+        "mode": "product",
+        "visual": "Close-up of ruby necklace showing intricate diamond halo settings around each cushion-cut ruby stone, detailed metalwork and fine craftsmanship",
+        "background": "polished marble surface, dramatic side lighting, deep shadows creating contrast, sophisticated ambiance",
+        "motion": "gentle orbit",
+        "energy": "diamond sparkle",
+        "transitionIn": "cut",
+        "durationSec": 5.0,
+        "motionEngine": "video",
+        "kenburns": {
+          "zoom": "in",
+          "start": 1.12,
+          "end": 1.12,
+          "xDrift": 0.05,
+          "yDrift": 0.0,
+          "rotateDeg": 3.0
+        },
+        "vo": "Har ruby mein diamond ka glow"
+      },
+      {
+        "n": 3,
+        "goal": "showcase",
+        "method": "edit_animate",
+        "mode": "product",
+        "visual": "Matching ruby earrings displayed prominently showing teardrop design with square ruby centers and dangling pear-shaped rubies",
+        "background": "velvet jewelry display pad, soft museum lighting, elegant minimalist setting, pristine backdrop",
+        "motion": "slow crane down",
+        "energy": "",
+        "transitionIn": "whip",
+        "durationSec": 4.0,
+        "motionEngine": "video",
+        "kenburns": {
+          "zoom": "in",
+          "start": 1.12,
+          "end": 1.12,
+          "xDrift": 0.0,
+          "yDrift": -0.08,
+          "rotateDeg": -2.0
+        },
+        "vo": "Perfect matching earrings"
+      },
+      {
+        "n": 4,
+        "goal": "cta",
+        "method": "edit_animate",
+        "mode": "product",
+        "visual": "Complete ruby jewellery set arranged together in premium presentation, all pieces visible showing coordinated design and exceptional craftsmanship",
+        "background": "premium jewelry box interior, soft LED lighting, luxurious satin lining, high-end retail ambiance",
+        "motion": "subtle tilt",
+        "energy": "royal glow",
+        "transitionIn": "fade",
+        "durationSec": 5.0,
+        "motionEngine": "video",
+        "kenburns": {
+          "zoom": "in",
+          "start": 1.12,
+          "end": 1.12,
+          "xDrift": 0.0,
+          "yDrift": 0.03,
+          "rotateDeg": 1.5
+        },
+        "vo": "Apna premium collection discover karo"
+      }
+    ],
+    "badges": [],
+    "notes": "Premium showcase highlighting the ruby jewellery set's luxury appeal with warm Hinglish voiceover. Each scene reveals different aspects - overview, detailed craftsmanship, matching pieces, and final presentation. Varied camera movements and elegant lighting create aspirational mood without hands or models, focusing purely on product beauty."
+  },
+  "durationSec": 20.0,
+  "cost_usd": 0.1701,
+  "_cost": {
+    "total_usd": 0.1701,
+    "gpu_usd": 0.0796,
+    "gpu_seconds": 260.4,
+    "wavespeed_usd": 0.05,
+    "wavespeed_calls": 1,
+    "avatar_usd": 0.0,
+    "avatar_scenes": 0,
+    "elevenlabs_usd": 0.0405,
+    "elevenlabs_chars": 135,
+    "rates": {
+      "gpu_usd_per_hour": 1.1,
+      "eleven_usd_per_1k_chars": 0.3
+    },
+    "note": "estimate - rates are configurable, see costs.py"
+  },
+  "_guard": [
+    {
+      "scene": 1,
+      "ok": true,
+      "detail": "only 1 token(s) readable on the source (['LOGO']) - too weak to diff, guard skipped"
+    },
+    {
+      "scene": 2,
+      "ok": true,
+      "detail": "only 1 token(s) readable on the source (['LOGO']) - too weak to diff, guard skipped"
+    },
+    {
+      "scene": 3,
+      "ok": true,
+      "detail": "only 1 token(s) readable on the source (['LOGO']) - too weak to diff, guard skipped"
+    },
+    {
+      "scene": 4,
+      "ok": true,
+      "detail": "only 1 token(s) readable on the source (['LOGO']) - too weak to diff, guard skipped"
+    }
+  ],
+  "_elapsedSec": 260.4
+}

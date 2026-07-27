@@ -1,0 +1,18 @@
+{
+  "engine": "wan",
+  "path": "video_i2v",
+  "motion_prompt_verbatim": "gentle orbit right",
+  "energy_prompt_verbatim": "fabric flutter",
+  "full_prompt_sent": "gentle orbit right. Same woman turns to flattering three-quarter angle in mirror, showing the drape and flow of the embroidered lawn suit, phone still raised. fabric flutter.",
+  "input_still": "/workspace/runkarobar-gpu/reelkit/work/reel_9c6928e8/scene_2.png",
+  "requested_duration": 6.0,
+  "clip_path": "/workspace/runkarobar-gpu/reelkit/work/reel_9c6928e8/clip_2.mp4",
+  "kenburns": {
+    "zoom": "in",
+    "start": 1.12,
+    "end": 1.12,
+    "xDrift": 0.08,
+    "yDrift": 0.0,
+    "rotateDeg": -3.0
+  }
+}

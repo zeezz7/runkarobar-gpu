@@ -81,20 +81,60 @@ PRESENTER_FACE = (
     "product must not cover the face - a natural, confident expression ready to "
     "speak to the viewer.")
 
+# CONDITIONAL, and this matters. The original clause asserted "keep the brand
+# name, logo and label fully legible" unconditionally. On a product that HAS
+# printed text (a cosmetic tube) that protects it. On one that does NOT (a
+# necklace, a ring, a plain garment) it reads as an instruction to PRODUCE
+# branding - and Qwen-Image-Edit duly invented a gold "RRBRIAR 107" logo and a
+# row of gibberish price tags on a jewellery reel.
+# The wording below is safe either way: preserve text IF it exists, never add
+# text that does not.
 NO_WATERMARK = (
-    " Keep the product - INCLUDING its own printed brand name, logo and label - "
-    "exactly as the reference and fully legible; do not add any new overlaid text, "
-    "watermark or logo of your own, and do not blank or replace the product's real "
-    "branding.")
+    " If the product carries printed text, a brand name or a logo, keep it EXACTLY "
+    "as it appears in the reference and fully legible. Do NOT add, invent or overlay "
+    "ANY text, lettering, numbers, brand name, logo, emblem, watermark, sticker, "
+    "price tag, label or caption that is not already physically on the product in "
+    "the reference photograph. If the product has no text on it, the render must "
+    "have no text anywhere.")
+
+# The piece I did NOT port from StaffHQ, and it cost a reel.
+# A seller's phone photo routinely carries marks that are NOT the product: a
+# shop watermark, a price sticker, a promo banner, screenshot UI, or - as on the
+# ruby-necklace source - a dark script-shaped object lying on the surface behind
+# the hand. Because every other guard here says "keep it exactly as
+# photographed", the editor faithfully carried that mark into the render and
+# stylised it into a handwritten signature in the corner.
+# So the instruction has to be TWO-SIDED: erase what is on the PHOTO, keep what
+# is on the PRODUCT. Dropping either half breaks something - erase everything
+# and a real printed label gets blanked; keep everything and the seller's
+# watermark ships in the ad.
+ERASE_SOURCE_MARK = (
+    " The reference photograph may carry marks that are NOT part of the product - "
+    "a shop or seller watermark, a promotional banner or slogan, a price sticker, "
+    "phone-screenshot UI, a filename, or stray text and objects lying on the "
+    "surface behind it. REMOVE all of those; none of them may appear in the "
+    "render, in any corner or edge. But KEEP the product's OWN printed branding "
+    "intact. The final frame carries no signature, no handwriting, no artist mark "
+    "and no corner text of any kind.")
+
+# The third place text sneaks in, after the product and the corner: the SCENERY.
+# Ask for a boutique interior and the model paints a shop sign on the back wall -
+# an invented brand ("EXEUJOUN") in a reel for someone else's product. The two
+# clauses above only cover the product and the frame edges, so the set has to be
+# named explicitly.
+NO_SCENE_TEXT = (
+    " The SETTING must also be free of writing: no shop sign, no boutique name, no "
+    "brand board, no engraved plaque, no printed box lid, no poster, book, tag or "
+    "packaging with lettering, and no writing on any wall, mirror, display case or "
+    "surface anywhere in the background. Build the scene from materials, light and "
+    "texture alone.")
 
 PRODUCT_LOCK = (
     " The product itself MUST be the exact SAME item as the reference - identical "
-    "design, colours, materials, shape AND all of its OWN printed branding: keep "
-    "the real brand name, logo and label text exactly as they are and fully "
-    "legible. Do NOT invent, restyle, swap or blank out any logo, emblem, label or "
-    "text, and NEVER turn it into a generic unbranded version. You may re-angle, "
-    "zoom, crop, re-light and place it into the new setting the scene describes - "
-    "but the product and its branding stay faithful.")
+    "design, colours, materials, shape, proportions and every detail. Do NOT "
+    "redesign, restyle, simplify or substitute it. You may re-angle, zoom, crop, "
+    "re-light and place it into the new setting the scene describes - but the "
+    "product stays faithful.")
 
 SCENE_LEAD = (
     "Create a NEW, original cinematic advertising shot as described below - freshly "
@@ -127,10 +167,12 @@ def person_guards(template_defaults=None, is_followon=False):
         parts.append(PRESENTER_FACE)
     if is_followon and d.get("anchorModel"):
         parts.append(SAME_MODEL)
+    parts.append(ERASE_SOURCE_MARK)
+    parts.append(NO_SCENE_TEXT)
     parts.append(HARD_MODESTY)          # last, so it wins
     return "".join(parts)
 
 
 def product_guards():
     """Guards for a scene with no person in it."""
-    return PRODUCT_LOCK + NO_WATERMARK
+    return PRODUCT_LOCK + NO_WATERMARK + ERASE_SOURCE_MARK + NO_SCENE_TEXT

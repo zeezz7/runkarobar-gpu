@@ -1,0 +1,18 @@
+{
+  "engine": "wan",
+  "path": "video_i2v",
+  "motion_prompt_verbatim": "slow pull-out",
+  "energy_prompt_verbatim": "subtle diamond sparkle",
+  "full_prompt_sent": "slow pull-out. Full elegant display of both necklace and earrings arranged beautifully, showing complete set coordination. subtle diamond sparkle.",
+  "input_still": "/workspace/runkarobar-gpu/reelkit/work/reel_ddf53e2b/scene_3.png",
+  "requested_duration": 7.0,
+  "clip_path": "/workspace/runkarobar-gpu/reelkit/work/reel_ddf53e2b/clip_3.mp4",
+  "kenburns": {
+    "zoom": "out",
+    "start": 1.2,
+    "end": 1.12,
+    "xDrift": 0.03,
+    "yDrift": 0.0,
+    "rotateDeg": -2.0
+  }
+}

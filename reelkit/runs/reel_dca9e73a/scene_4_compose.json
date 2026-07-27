@@ -1,0 +1,12 @@
+{
+  "path": "edit_animate",
+  "model": "Qwen-Image-Edit-2511-fp8mixed",
+  "fast_lightning_4step": true,
+  "seed": 5605,
+  "positive_prompt": "Keep the product exactly as photographed - identical shape, colours, materials and every detail, unchanged. Change only the surroundings to: premium jewelry box interior, soft LED lighting, luxurious satin lining, high-end retail ambiance. The product itself MUST be the exact SAME item as the reference - identical design, colours, materials, shape, proportions and every detail. Do NOT redesign, restyle, simplify or substitute it. You may re-angle, zoom, crop, re-light and place it into the new setting the scene describes - but the product stays faithful. If the product carries printed text, a brand name or a logo, keep it EXACTLY as it appears in the reference and fully legible. Do NOT add, invent or overlay ANY text, lettering, numbers, brand name, logo, emblem, watermark, sticker, price tag, label or caption that is not already physically on the product in the reference photograph. If the product has no text on it, the render must have no text anywhere. The reference photograph may carry marks that are NOT part of the product - a shop or seller watermark, a promotional banner or slogan, a price sticker, phone-screenshot UI, a filename, or stray text and objects lying on the surface behind it. REMOVE all of those; none of them may appear in the render, in any corner or edge. But KEEP the product's OWN printed branding intact. The final frame carries no signature, no handwriting, no artist mark and no corner text of any kind. Photorealistic editorial photograph, sharp detail.",
+  "negative_prompt": "signature, handwriting, handwritten script, artist mark, corner text, watermark, text, lettering, letters, words, numbers, caption, subtitle, label, price tag, sticker, sign, logo, emblem, brand mark, gibberish text, garbled writing, fake logo, different product, altered design, changed colours, distorted shape, duplicated product, extra objects, people, hands, blurry, soft focus, low quality, jpeg artifacts",
+  "source_photo": "/workspace/runkarobar-gpu/reelkit/work/reel_dca9e73a/product_1.jpg",
+  "anchor_used": false,
+  "extra_refs": [],
+  "shows_person": false
+}

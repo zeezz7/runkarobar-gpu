@@ -1,0 +1,6 @@
+{
+  "scene": 4,
+  "pass": true,
+  "detail": "only 1 token(s) readable on the source (['LOGO']) - too weak to diff, guard skipped",
+  "retries": 0
+}

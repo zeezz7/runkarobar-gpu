@@ -29,9 +29,22 @@ import guards
 # One global negative was being used for all three paths, which actively fought
 # two of them: an edit is told to KEEP the person and the logo while "people,
 # hands, logo, brand name" were being negatively prompted away.
+# Invented text is the single most damaging failure this pipeline produces - a
+# fake logo or a row of gibberish price tags ruins an otherwise good frame - so
+# every text-shaped artefact is named explicitly. The garment/anatomy terms only
+# make sense when a person is in shot; on a product-only scene they waste
+# conditioning, so NEG_PRODUCT drops them.
+NEG_TEXT = ("signature, handwriting, handwritten script, artist mark, corner text, "
+            "watermark, text, lettering, letters, words, numbers, caption, "
+            "subtitle, label, price tag, sticker, sign, logo, emblem, brand mark, "
+            "gibberish text, garbled writing, fake logo, shop sign, signage, "
+            "brand board, engraved plaque, printed box lid, poster")
 NEG_EDIT = ("changed clothing, different garment, altered colours, warped fabric, "
             "distorted face, extra limbs, deformed hands, blurry, low quality, "
-            "jpeg artifacts, watermark")
+            "jpeg artifacts, " + NEG_TEXT)
+NEG_PRODUCT = (NEG_TEXT + ", different product, altered design, changed colours, "
+               "distorted shape, duplicated product, extra objects, people, hands, "
+               "blurry, soft focus, low quality, jpeg artifacts")
 NEG_BG = ("product, merchandise, clothing, garment, shirt, bottle, packaging, "
           "people, person, model, mannequin, hands, text, watermark, logo, "
           "brand name, cluttered, low quality, blurry")
@@ -112,7 +125,7 @@ def generate_scene(prompt, w, h, out_prefix, seed=0, steps=None, cfg=None,
 
 
 def edit_scene(product_path, instruction, out_prefix, seed=0, steps=None, cfg=None,
-               ref_paths=None):
+               ref_paths=None, negative=None):
     """
     Qwen-Image-Edit-2511: keep the supplied photograph's subject, change its
     world. This is the right tool when the product is photographed IN CONTEXT -
@@ -162,7 +175,7 @@ def edit_scene(product_path, instruction, out_prefix, seed=0, steps=None, cfg=No
         steps, cfg = steps or 40, cfg if cfg is not None else 4.0
     for _, node in common.nodes_of(wf, "LoraLoaderModelOnly"):
         node["inputs"]["lora_name"] = EDIT_LORA
-    common.set_prompts(wf, instruction, NEG_EDIT,
+    common.set_prompts(wf, instruction, negative or NEG_EDIT,
                        cls="TextEncodeQwenImageEditPlus", field="prompt")
     common.set_class(wf, "KSampler", seed=seed or 1, denoise=1.0)
     common.set_class(wf, "SaveImage", filename_prefix=out_prefix)
@@ -287,22 +300,22 @@ def scene_image(scene, product_path, w, h, job_dir, seed=0, cut_cache={},
                     f"photograph - identical face, hair, skin tone and clothing. "
                     f"Re-frame them for this new shot: {shot}. Setting: {setting}.")
         else:
-            lead = (f"Keep the subject exactly as photographed - same face, same "
-                    f"garment, same colours, same fabric and the same printed "
-                    f"branding, unchanged. Change only the surroundings to: "
-                    f"{setting}.")
+            lead = (f"Keep the product exactly as photographed - identical shape, "
+                    f"colours, materials and every detail, unchanged. Change only "
+                    f"the surroundings to: {setting}.")
         instruction = lead + (guards.person_guards(d, is_followon=followon)
                               if shows_person else guards.product_guards())
+        negative = NEG_EDIT if shows_person else NEG_PRODUCT
         instruction += " Photorealistic editorial photograph, sharp detail."
         if tracer:
             tracer.write_json(f"scene_{n}_compose.json", {
                 "path": scene["method"], "model": "Qwen-Image-Edit-2511-fp8mixed",
                 "fast_lightning_4step": FAST, "seed": seed + n,
-                "positive_prompt": instruction, "negative_prompt": NEG_EDIT,
+                "positive_prompt": instruction, "negative_prompt": negative,
                 "source_photo": primary, "anchor_used": followon,
                 "extra_refs": refs, "shows_person": shows_person})
         out_edit = edit_scene(primary, instruction, prefix + "_edit",
-                              seed=seed + n, ref_paths=refs)
+                              seed=seed + n, ref_paths=refs, negative=negative)
         out = os.path.join(job_dir, f"scene_{n}.png")
         Image.open(out_edit).convert("RGB").save(out)
         common.log("compose", f"scene {n}: edited real photo -> {os.path.basename(out)}")

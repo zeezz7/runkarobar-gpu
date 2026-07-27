@@ -1,0 +1,18 @@
+{
+  "product_images": [
+    "https://staging-storage.runkarobar.com/videos/uploads/1785153610027-1b1f13313a6cd8b1-WhatsApp_Image_2026-07-23_at_9.13.15_PM.jpg"
+  ],
+  "brief": "20s premium jewellery reel, warm female Hinglish voiceover",
+  "config": {
+    "lengthSec": 20,
+    "resolution": "1080p",
+    "aspectRatio": "9:16",
+    "language": "hinglish",
+    "brandName": "",
+    "elevenVoiceId": "",
+    "captions": false,
+    "template": "showcase",
+    "includeHuman": false,
+    "trace": true
+  }
+}

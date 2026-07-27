@@ -1,0 +1,175 @@
+{
+  "reel_1080p_url": "https://staging-storage.runkarobar.com/reels/reel_9c6928e8_1080p.mp4",
+  "reel_720p_url": "",
+  "scene_image_urls": [
+    "https://staging-storage.runkarobar.com/images/reel_9c6928e8_s1.png",
+    "https://staging-storage.runkarobar.com/images/reel_9c6928e8_s2.png",
+    "https://staging-storage.runkarobar.com/images/reel_9c6928e8_s3.png",
+    "https://staging-storage.runkarobar.com/images/reel_9c6928e8_s4.png",
+    "https://staging-storage.runkarobar.com/images/reel_9c6928e8_s5.png"
+  ],
+  "storyboard": {
+    "concept": "Confident mirror selfie outfit check showcasing premium embroidered lawn suit",
+    "voice": "female confident warm hinglish",
+    "scenes": [
+      {
+        "n": 1,
+        "goal": "reveal",
+        "method": "edit_animate",
+        "mode": "product",
+        "visual": "Full-length mirror shot of confident woman holding phone up, wearing complete embroidered green lawn suit, head-to-toe view in modern room",
+        "background": "Large wall mirror in tastefully styled modern bedroom, soft natural light streaming from window, warm neutral tones, blurred elegant decor",
+        "motion": "slow push-in",
+        "energy": "golden hour glow",
+        "transitionIn": "cut",
+        "durationSec": 5.0,
+        "motionEngine": "video",
+        "kenburns": {
+          "zoom": "in",
+          "start": 1.0,
+          "end": 1.15,
+          "xDrift": 0.0,
+          "yDrift": -0.05,
+          "rotateDeg": 0.0
+        },
+        "vo": "Guys, main bilkul obsessed hun is outfit ke saath"
+      },
+      {
+        "n": 2,
+        "goal": "showcase",
+        "method": "edit_animate",
+        "mode": "product",
+        "visual": "Same woman turns to flattering three-quarter angle in mirror, showing the drape and flow of the embroidered lawn suit, phone still raised",
+        "background": "Same mirror setting with soft diffused lighting, modern minimalist room with warm undertones",
+        "motion": "gentle orbit right",
+        "energy": "fabric flutter",
+        "transitionIn": "fade",
+        "durationSec": 6.0,
+        "motionEngine": "video",
+        "kenburns": {
+          "zoom": "in",
+          "start": 1.12,
+          "end": 1.12,
+          "xDrift": 0.08,
+          "yDrift": 0.0,
+          "rotateDeg": -3.0
+        },
+        "vo": "Dekho yeh embroidery kitni gorgeous hai, aur fabric ka drape - unreal"
+      },
+      {
+        "n": 3,
+        "goal": "detail",
+        "method": "edit_animate",
+        "mode": "product",
+        "visual": "Closer waist-up framing of the woman in mirror, focusing on intricate embroidery details and neckline, holding phone for selfie",
+        "background": "Close-up mirror reflection with soft backlighting, blurred warm interior background",
+        "motion": "slow zoom in",
+        "energy": "shimmer highlights",
+        "transitionIn": "whip",
+        "durationSec": 6.0,
+        "motionEngine": "video",
+        "kenburns": {
+          "zoom": "in",
+          "start": 1.12,
+          "end": 1.18,
+          "xDrift": 0.0,
+          "yDrift": 0.03,
+          "rotateDeg": 1.5
+        },
+        "vo": "Is embroidered work ko dekho - premium quality hai bilkul"
+      },
+      {
+        "n": 4,
+        "goal": "wear",
+        "method": "edit_animate",
+        "mode": "product",
+        "visual": "Woman looks confidently at camera through mirror while holding phone, showing complete styled look with dupatta",
+        "background": "Full mirror view with elegant room setting, soft window light creating dreamy atmosphere",
+        "motion": "gentle tilt left",
+        "energy": "confident glow",
+        "transitionIn": "fade",
+        "durationSec": 5.0,
+        "motionEngine": "video",
+        "kenburns": {
+          "zoom": "in",
+          "start": 1.12,
+          "end": 1.12,
+          "xDrift": -0.03,
+          "yDrift": 0.0,
+          "rotateDeg": -2.0
+        },
+        "vo": "Perfect hai meri Eid ki shopping ke liye"
+      },
+      {
+        "n": 5,
+        "goal": "cta",
+        "method": "edit_animate",
+        "mode": "product",
+        "visual": "Final confident pose in mirror, woman smiling at camera while holding phone, complete outfit visible",
+        "background": "Bright mirror setting with optimistic lighting, clean modern aesthetic",
+        "motion": "slow pull back",
+        "energy": "sparkle overlay",
+        "transitionIn": "cut",
+        "durationSec": 8.0,
+        "motionEngine": "video",
+        "kenburns": {
+          "zoom": "out",
+          "start": 1.15,
+          "end": 1.0,
+          "xDrift": 0.0,
+          "yDrift": -0.08,
+          "rotateDeg": 0.0
+        },
+        "vo": "Tumko bhi chahiye? The Collection se shop karo abhi - link description mein hai"
+      }
+    ],
+    "badges": [],
+    "notes": "Mirror selfie format captures authentic social media aesthetic while showcasing the premium embroidered lawn suit. Each scene builds confidence and desire through personal testimonial style voiceover in natural Hinglish, ending with clear shopping direction."
+  },
+  "durationSec": 29.83,
+  "cost_usd": 0.2369,
+  "_cost": {
+    "total_usd": 0.2369,
+    "gpu_usd": 0.0987,
+    "gpu_seconds": 323.0,
+    "wavespeed_usd": 0.05,
+    "wavespeed_calls": 1,
+    "avatar_usd": 0.0,
+    "avatar_scenes": 0,
+    "elevenlabs_usd": 0.0882,
+    "elevenlabs_chars": 294,
+    "rates": {
+      "gpu_usd_per_hour": 1.1,
+      "eleven_usd_per_1k_chars": 0.3
+    },
+    "note": "estimate - rates are configurable, see costs.py"
+  },
+  "_guard": [
+    {
+      "scene": 1,
+      "ok": true,
+      "detail": "source had no readable label text - guard skipped"
+    },
+    {
+      "scene": 2,
+      "ok": true,
+      "detail": "source had no readable label text - guard skipped"
+    },
+    {
+      "scene": 3,
+      "ok": true,
+      "detail": "source had no readable label text - guard skipped"
+    },
+    {
+      "scene": 4,
+      "ok": true,
+      "detail": "source had no readable label text - guard skipped"
+    },
+    {
+      "scene": 5,
+      "ok": true,
+      "detail": "source had no readable label text - guard skipped"
+    }
+  ],
+  "_elapsedSec": 323.0
+}

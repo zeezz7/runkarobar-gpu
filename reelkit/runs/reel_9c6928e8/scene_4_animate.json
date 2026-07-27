@@ -1,0 +1,18 @@
+{
+  "engine": "wan",
+  "path": "video_i2v",
+  "motion_prompt_verbatim": "gentle tilt left",
+  "energy_prompt_verbatim": "confident glow",
+  "full_prompt_sent": "gentle tilt left. Woman looks confidently at camera through mirror while holding phone, showing complete styled look with dupatta. confident glow.",
+  "input_still": "/workspace/runkarobar-gpu/reelkit/work/reel_9c6928e8/scene_4.png",
+  "requested_duration": 5.0,
+  "clip_path": "/workspace/runkarobar-gpu/reelkit/work/reel_9c6928e8/clip_4.mp4",
+  "kenburns": {
+    "zoom": "in",
+    "start": 1.12,
+    "end": 1.12,
+    "xDrift": -0.03,
+    "yDrift": 0.0,
+    "rotateDeg": -2.0
+  }
+}

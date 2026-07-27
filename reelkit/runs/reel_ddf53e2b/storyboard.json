@@ -1,0 +1,74 @@
+{
+  "concept": "Ruby elegance meets diamond brilliance in premium jewellery showcase",
+  "voice": "female warm hinglish",
+  "scenes": [
+    {
+      "n": 1,
+      "goal": "reveal",
+      "method": "edit_animate",
+      "mode": "product",
+      "visual": "Complete ruby and diamond jewellery set - necklace and earrings - displayed on elegant surface, deep red gemstones catching light",
+      "background": "Soft white silk surface with gentle folds, warm golden light from above, cream backdrop with subtle texture",
+      "motion": "slow push-in",
+      "energy": "gentle light sparkle",
+      "transitionIn": "fade",
+      "durationSec": 6.0,
+      "motionEngine": "video",
+      "kenburns": {
+        "zoom": "in",
+        "start": 1.0,
+        "end": 1.15,
+        "xDrift": 0.0,
+        "yDrift": -0.03,
+        "rotateDeg": 0.0
+      },
+      "vo": "Asli rubies aur diamonds ka perfect combination - yeh hai real luxury"
+    },
+    {
+      "n": 2,
+      "goal": "detail",
+      "method": "edit_animate",
+      "mode": "product",
+      "visual": "Close-up of ruby stones in diamond halo settings, intricate metalwork and brilliant cut details visible",
+      "background": "Smooth marble surface with subtle veining, soft directional lighting creating depth, blurred warm background",
+      "motion": "gentle orbit left",
+      "energy": "",
+      "transitionIn": "cut",
+      "durationSec": 7.0,
+      "motionEngine": "video",
+      "kenburns": {
+        "zoom": "in",
+        "start": 1.12,
+        "end": 1.25,
+        "xDrift": -0.05,
+        "yDrift": 0.0,
+        "rotateDeg": 3.0
+      },
+      "vo": "Har stone hand-selected hai - premium craftsmanship jo dikhta hai clearly"
+    },
+    {
+      "n": 3,
+      "goal": "cta",
+      "method": "edit_animate",
+      "mode": "product",
+      "visual": "Full elegant display of both necklace and earrings arranged beautifully, showing complete set coordination",
+      "background": "Rich velvet surface in deep burgundy, soft studio lighting with subtle shadows, luxurious depth",
+      "motion": "slow pull-out",
+      "energy": "subtle diamond sparkle",
+      "transitionIn": "fade",
+      "durationSec": 7.0,
+      "motionEngine": "video",
+      "kenburns": {
+        "zoom": "out",
+        "start": 1.2,
+        "end": 1.12,
+        "xDrift": 0.03,
+        "yDrift": 0.0,
+        "rotateDeg": -2.0
+      },
+      "vo": "Apne collection mein add karo - timeless beauty jo generations tak chalegi"
+    }
+  ],
+  "badges": [],
+  "notes": "Clean premium showcase highlighting the ruby and diamond craftsmanship without making unverified claims. Varied camera movements and elegant staging create aspirational appeal while letting the product quality speak for itself."
+}

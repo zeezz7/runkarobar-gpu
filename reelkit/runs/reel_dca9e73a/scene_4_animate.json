@@ -1,0 +1,18 @@
+{
+  "engine": "wan",
+  "path": "video_i2v",
+  "motion_prompt_verbatim": "subtle tilt",
+  "energy_prompt_verbatim": "royal glow",
+  "full_prompt_sent": "subtle tilt. Complete ruby jewellery set arranged together in premium presentation, all pieces visible showing coordinated design and exceptional craftsmanship. royal glow.",
+  "input_still": "/workspace/runkarobar-gpu/reelkit/work/reel_dca9e73a/scene_4.png",
+  "requested_duration": 5.0,
+  "clip_path": "/workspace/runkarobar-gpu/reelkit/work/reel_dca9e73a/clip_4.mp4",
+  "kenburns": {
+    "zoom": "in",
+    "start": 1.12,
+    "end": 1.12,
+    "xDrift": 0.0,
+    "yDrift": 0.03,
+    "rotateDeg": 1.5
+  }
+}
