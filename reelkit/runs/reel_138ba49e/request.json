@@ -1,0 +1,18 @@
+{
+  "product_images": [
+    "https://staging-storage.runkarobar.com/videos/uploads/1785163518653-70cb87e17e752c9b-WhatsApp_Image_2026-07-27_at_6.33.54_PM.jpg"
+  ],
+  "brief": "AI-directed 20s premium reel for this Mihnain Apparels women's ethnic suit: a magenta / berry-pink kurta with gold zari embroidery on the yoke and shoulders and a gold embroidered hem, paired with a grey-silver zari-border dupatta and grey salwar. A MODEL should WEAR the full suit through the reel, the SAME model in every scene. Keep the embroidery, the magenta colour, the grey dupatta and every zari detail EXACT - do not reinvent or simplify the pattern. Elegant festive ethnic mood, clean premium shots, warm female Hinglish voiceover. Source is a flat-lay product photo on wood with roses and a 'Mihnain Apparels' logo: ignore the props and the logo, keep only the garment.",
+  "config": {
+    "lengthSec": 20,
+    "resolution": "1080p",
+    "aspectRatio": "9:16",
+    "language": "hinglish",
+    "brandName": "Mihnain Apparels",
+    "elevenVoiceId": "",
+    "captions": false,
+    "template": "ai-director",
+    "includeHuman": true,
+    "trace": true
+  }
+}

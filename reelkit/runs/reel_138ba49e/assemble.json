@@ -1,0 +1,38 @@
+{
+  "per_scene": [
+    {
+      "scene": 1,
+      "fitted_duration": 5.03,
+      "transition_in": "fade",
+      "dipped_through_black": false
+    },
+    {
+      "scene": 2,
+      "fitted_duration": 3.568,
+      "transition_in": "cut",
+      "dipped_through_black": false
+    },
+    {
+      "scene": 3,
+      "fitted_duration": 7.721,
+      "transition_in": "whip",
+      "dipped_through_black": true
+    },
+    {
+      "scene": 4,
+      "fitted_duration": 5.396,
+      "transition_in": "fade",
+      "dipped_through_black": true
+    }
+  ],
+  "transition_fallbacks": [
+    "scene 3: 'whip' not implemented -> fade"
+  ],
+  "total_duration": 21.44,
+  "master_resolution": "1080x1920",
+  "captions_burned": false,
+  "fps": 30,
+  "outputs": {
+    "1080p": "/workspace/runkarobar-gpu/reelkit/work/reel_138ba49e/reel_138ba49e_1080p.mp4"
+  }
+}

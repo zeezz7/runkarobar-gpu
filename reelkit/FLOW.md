@@ -484,3 +484,47 @@ finished video** ($0.23 per 15 s ad) — GPU $0.52, brain $0.20, TTS $0.21.
 that took 11 s on the other three — the §10 stall). Without it: 10.7 min and
 **$0.74**. `minio_upload.py` still has no timeout and no retry; adding them is
 the cheapest ~20% saving available.
+
+---
+
+## 14. Invented text — four causes, and why the fix is fiddly
+
+A jewellery reel came back with a fake gold "RRBRIAR 107" brand mark on the
+necklace and a row of gibberish price tags. The storyboard was clean, so this was
+never the brain — it was the guards, ported wholesale from a clothing catalogue.
+Four separate causes, found one at a time, each only visible once the previous
+was fixed:
+
+1. **Asserting branding that does not exist.** The prompt said "brand name",
+   "logo" and "label text" seven times. Protective on a cosmetic tube; on a
+   necklace with no text at all it is an instruction to *produce* branding.
+2. **A negative that never mentioned text.** Garment-tuned, with "watermark"
+   buried at the end of a long comma list where it carries little weight.
+3. **The mark was INHERITED.** The source photo had a script-shaped object behind
+   the hand, and every guard says "keep it exactly as photographed". This is
+   `ERASE_SOURCE_MARK`, and it must be two-sided — erase what is on the PHOTO,
+   keep what is on the PRODUCT.
+4. **Erasing invites SUBSTITUTION.** With a seller watermark ("Mihnain APPARELS")
+   removed, the model painted its own banner ("Premium Quality") in the same
+   corner. The clause now says the vacated area must contain only the scene.
+
+Plus `NO_SCENE_TEXT` for the set itself: ask for a "boutique interior" and you get
+an invented shop sign on the back wall.
+
+**The lesson worth keeping:** these guards are not product-neutral by default.
+Anything phrased as "preserve X" becomes "create X" on a product that has no X.
+
+## 15. Sharpness — measured, and why nothing was done about it
+
+Wan 2.2 I2V renders at **480×832 natively** and the master is 1080×1920, so every
+reel is a 2.25× upscale. That is the softness.
+
+`4x-UltraSharp` is installed and was benchmarked at the exact working resolution:
+**~1.0 s per frame** (batch 24; 3.0 s at batch 1). A 4-scene reel is 324 frames,
+so a full-frame pass adds **~5.4 minutes and roughly TRIPLES** a showcase render,
+for ~$0.17 more GPU. It sharpens but cannot restore detail Wan never rendered, so
+it is **not wired in**.
+
+The real lever is HunyuanVideo I2V at native 720×1280 — but it is 7.9× slower
+(measured 285 s for a 3 s clip, i.e. ~3.9 s of compute per output frame) and its
+61.3 GiB peak will not fit a 48 GB card. Wan stays the default.

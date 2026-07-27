@@ -1,0 +1,101 @@
+{
+  "concept": "Premium ethnic elegance meets festive sophistication",
+  "voice": "warm female Hinglish",
+  "scenes": [
+    {
+      "n": 1,
+      "goal": "reveal",
+      "method": "edit_animate",
+      "mode": "product",
+      "visual": "Close-up of model wearing the complete magenta kurta suit with gold zari embroidery, grey dupatta draped elegantly over one shoulder",
+      "background": "Soft golden warm lighting, blurred festive bokeh lights in background, rich marble surface",
+      "motion": "slow push-in",
+      "energy": "golden light particles",
+      "transitionIn": "fade",
+      "durationSec": 5.0,
+      "motionEngine": "video",
+      "kenburns": {
+        "zoom": "in",
+        "start": 1.0,
+        "end": 1.15,
+        "xDrift": 0.0,
+        "yDrift": -0.03,
+        "rotateDeg": 0.0
+      },
+      "vo": "Festive season mein sabse elegant look chahiye? Mihnain ka premium collection dekho"
+    },
+    {
+      "n": 2,
+      "goal": "detail",
+      "method": "edit_animate",
+      "mode": "product",
+      "visual": "Model adjusting the grey-silver dupatta, showcasing the intricate gold zari border work and the magenta kurta's embroidered yoke",
+      "background": "Warm candlelit ambiance, soft shadows dancing on textured wall, intimate festive setting",
+      "motion": "gentle arc around",
+      "energy": "",
+      "transitionIn": "cut",
+      "durationSec": 4.0,
+      "motionEngine": "video",
+      "kenburns": {
+        "zoom": "in",
+        "start": 1.12,
+        "end": 1.12,
+        "xDrift": 0.08,
+        "yDrift": 0.0,
+        "rotateDeg": 3.0
+      },
+      "vo": "Hand-crafted zari work, pure elegance har detail mein"
+    },
+    {
+      "n": 3,
+      "goal": "wear",
+      "method": "edit_animate",
+      "mode": "product",
+      "visual": "Full-body shot of model gracefully posing in the complete suit - magenta kurta with gold embroidery, grey salwar and dupatta",
+      "background": "Luxurious heritage palace courtyard, warm evening light filtering through arches, marble pillars",
+      "motion": "slow crane down",
+      "energy": "floating rose petals",
+      "transitionIn": "whip",
+      "durationSec": 6.0,
+      "motionEngine": "video",
+      "kenburns": {
+        "zoom": "in",
+        "start": 1.12,
+        "end": 1.12,
+        "xDrift": -0.05,
+        "yDrift": 0.1,
+        "rotateDeg": -2.0
+      },
+      "vo": "Traditional charm with modern grace - ye hai perfect festive outfit jo banaye aapko center of attraction"
+    },
+    {
+      "n": 4,
+      "goal": "cta",
+      "method": "edit_animate",
+      "mode": "product",
+      "visual": "Model smiling confidently in the magenta suit, hands gently touching the embroidered dupatta edge",
+      "background": "Elegant mirror backdrop with soft fairy lights, premium boutique atmosphere, golden hour lighting",
+      "motion": "subtle zoom in",
+      "energy": "sparkle highlights",
+      "transitionIn": "fade",
+      "durationSec": 5.0,
+      "motionEngine": "video",
+      "kenburns": {
+        "zoom": "in",
+        "start": 1.0,
+        "end": 1.1,
+        "xDrift": 0.0,
+        "yDrift": -0.02,
+        "rotateDeg": 0.0
+      },
+      "vo": "Mihnain Apparels se order karo - premium ethnic wear jo banaye har occasion special"
+    }
+  ],
+  "badges": [
+    {
+      "text": "Premium Quality",
+      "color": "#D4AF37"
+    }
+  ],
+  "notes": "Premium ethnic reel showcasing the exact magenta kurta with gold zari work and grey dupatta. Consistent model throughout, emphasizing craftsmanship and festive elegance with warm Hinglish voiceover that builds from product reveal to emotional connection to clear CTA."
+}

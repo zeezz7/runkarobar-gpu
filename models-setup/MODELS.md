@@ -487,3 +487,62 @@ Per-stage, per 15 s ad: brain 13-16 s, voiceover 5-8 s, three scenes ~33 s each
 
 GPU is the only line that shrinks with parallelism — the four ads ran
 sequentially, but nothing stops one rendering while another uploads.
+
+---
+
+## 13. Serverless (RunPod) — the files that outlive this box
+
+This box is disposable and the working set is ~144 GB, so the production shape is
+a RunPod serverless endpoint: the weights sit on a **Network Volume**, the image
+carries only code, and workers scale horizontally instead of queueing behind one
+GPU lock.
+
+| File | What it is |
+|---|---|
+| `reelkit/handler.py` | the entrypoint. Wraps `make_reel()`; RunPod supplies the queue, `/run` and `/status` |
+| `reelkit/Dockerfile` | code-only image. No weights |
+| `reelkit/start.sh` | boots ComfyUI, **waits for `/system_stats`**, then execs the handler |
+| `reelkit/volume_setup.sh` | run ONCE on a temp pod to populate the volume |
+
+Things that will bite whoever picks this up:
+
+* **ComfyUI is pinned by COMMIT** (`700821e1…` = 0.28.0), not by tag, and the
+  build asserts the version string afterwards. A tag can be moved; a different
+  version renames nodes and every saved workflow stops resolving.
+* **No custom nodes are installed, and none are needed.** All 39 node classes the
+  workflows use are core 0.28.0, checked against `/object_info`. Do not "helpfully"
+  add ComfyUI-Manager.
+* **Models are found via `extra_model_paths.yaml`, not symlinks**, so a missing
+  volume leaves ComfyUI booting-but-empty (diagnosable) instead of crash-looping.
+  `QWEN_VL_DIR` is separate because the OCR guard is a transformers checkpoint and
+  sits outside the ComfyUI tree.
+* **Ordering in `start.sh` is the whole point.** RunPod routes a job the moment the
+  worker reports ready and `make_reel` posts its first workflow within seconds, so
+  ComfyUI must already be answering or job #1 dies on connection refused.
+* **`volume_setup.sh` excludes the brain weights and Wan 2.2 S2V** — the brain is a
+  remote call and there is no lip-sync in any template.
+
+All 20 model URLs in `volume_setup.sh` were re-probed on 2026-07-27: **20/20 HTTP
+200 anonymously**, ~127 GB, no HF token required.
+
+---
+
+## 14. Final state, 2026-07-27
+
+**Six templates**, all rendering video through **Wan 2.2 I2V only**:
+`ai-director · showcase · outfit-check · ad · unboxing · testimonial`.
+
+**`config.includeHuman`** (default `false`) decides who is on screen — product
+only, or a person with the product. Enforced twice: a hard rule appended after
+the template directive, and a validator that rejects `mode: "scene"` plus any
+person word in `visual`/`background`, because a prompt instruction alone is not
+reliable.
+
+**Nothing generates pixels remotely.** Stills come from Qwen-Image-Edit-2511 /
+Qwen-Image-2512, segmentation from BiRefNet, motion from Wan 2.2 I2V, the OCR
+guard from Qwen2.5-VL-7B — all local. The only outbound calls are the storyboard
+brain (WaveSpeed any-llm/vision, text, zero pixels) and the voiceover
+(ElevenLabs, audio). **No talking-avatar, no lip-sync, no Wan 2.2 S2V** —
+`LIPSYNC_TEMPLATES` is an empty set and `avatar.lipsync()` returns `None`.
+
+Working set: **~144 GB** (127 GB ComfyUI models + 16.6 GB the VL guard).

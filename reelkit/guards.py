@@ -115,7 +115,12 @@ ERASE_SOURCE_MARK = (
     "surface behind it. REMOVE all of those; none of them may appear in the "
     "render, in any corner or edge. But KEEP the product's OWN printed branding "
     "intact. The final frame carries no signature, no handwriting, no artist mark "
-    "and no corner text of any kind.")
+    "and no corner text of any kind."
+    " Do NOT REPLACE a removed mark with anything else - no substitute badge, "
+    "banner, ribbon, sticker or caption may take its place. Where a watermark or "
+    "banner was, there must be ONLY the scene itself: plain surface, fabric or "
+    "background. Erasing a seller's logo and painting your own marketing badge in "
+    "the same corner is exactly the failure this clause exists to prevent.")
 
 # The third place text sneaks in, after the product and the corner: the SCENERY.
 # Ask for a boutique interior and the model paints a shop sign on the back wall -
