@@ -13,7 +13,17 @@ import os
 import common
 
 TTS_URL = "https://api.elevenlabs.io/v1/text-to-speech/{voice}"
-MODEL_ID = os.environ.get("ELEVEN_MODEL_ID", "eleven_multilingual_v2")
+
+# eleven_v3 is the current top-quality model (74 languages) and is a clear step
+# up on the multilingual_v2 this used to pin - noticeably better prosody and
+# code-switching, which is what Hinglish copy actually needs. Read at CALL time,
+# not import time: common.load_env() usually runs after this module is imported,
+# so a module-level read would miss /workspace/.env.
+DEFAULT_MODEL_ID = "eleven_v3"
+
+
+def model_id():
+    return os.environ.get("ELEVEN_MODEL_ID") or DEFAULT_MODEL_ID
 
 # Sane defaults per language when config.elevenVoiceId is empty.
 # eleven_multilingual_v2 handles hi/ur/hinglish on these English-native voices.
@@ -43,11 +53,18 @@ def tts(text, out_path, voice_id, api_key=None, timeout=120):
     if not api_key:
         raise RuntimeError("ELEVEN_API_KEY not set (expected in /workspace/.env)")
 
+    mid = model_id()
+    # v3 quantises stability to 0.0 / 0.5 / 1.0 (creative / natural / robust) and
+    # ignores `style`; sending the v2 values gets you a 422 or silently odd
+    # delivery. 0.5 is the natural read an ad wants.
+    if mid.startswith("eleven_v3"):
+        settings = {"stability": 0.5, "similarity_boost": 0.75,
+                    "use_speaker_boost": True}
+    else:
+        settings = {"stability": 0.4, "similarity_boost": 0.75,
+                    "style": 0.35, "use_speaker_boost": True}
     body = _json.dumps({
-        "text": text,
-        "model_id": MODEL_ID,
-        "voice_settings": {"stability": 0.4, "similarity_boost": 0.75,
-                           "style": 0.35, "use_speaker_boost": True},
+        "text": text, "model_id": mid, "voice_settings": settings,
     }).encode()
     req = urllib.request.Request(
         TTS_URL.format(voice=voice_id), data=body, method="POST",

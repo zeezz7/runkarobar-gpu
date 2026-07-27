@@ -369,13 +369,16 @@ Three things that will cost you an hour if you don't know them:
    `{"code":400,"message":"Insufficient credits..."}` with no `data.id`. Checking
    only the HTTP status reads that as success. Check the balance directly:
    `GET /api/v3/balance`.
-3. **The advertised model catalogue has no Anthropic entry.** As of 2026-07-27
-   `GET /api/v3/models` lists, for both any-llm endpoints:
-   `google/gemini-2.5-flash`, `google/gemini-2.5-pro`,
+3. **The advertised model catalogue has no Anthropic entry — but unlisted ids
+   still work.** As of 2026-07-27 `GET /api/v3/models` lists, for both any-llm
+   endpoints, only: `google/gemini-2.5-flash`, `google/gemini-2.5-pro`,
    `google/gemini-3-flash-preview`, `openai/gpt-4o`, `openai/gpt-4.1`,
-   `openai/gpt-5-chat`, `meta-llama/llama-4-scout`. The backend is an OpenRouter
-   passthrough so an unlisted id *may* still resolve, but it is not promised —
-   an unlisted `WAVESPEED_BRAIN_MODEL` is the first thing to suspect on a 400.
+   `openai/gpt-5-chat`, `meta-llama/llama-4-scout`.
+   **`anthropic/claude-sonnet-4` is NOT in that list and is nonetheless accepted**
+   — verified live, job completed in 2.9 s. The backend is an OpenRouter
+   passthrough, so the enum is what the UI offers, not what the API enforces.
+   Treat the enum as a hint: an unlisted `WAVESPEED_BRAIN_MODEL` is still worth
+   suspecting on a 400, but it is not by itself the cause.
 
 Pricing: `any-llm/vision` **$0.05/call**, `any-llm` (text) **$0.01/call**. The
 happy path is exactly one vision call per reel; a schema-validation retry (up to
