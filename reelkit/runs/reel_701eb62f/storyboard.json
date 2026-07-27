@@ -1,0 +1,95 @@
+{
+  "concept": "Elegant emerald embroidery meets modern confidence",
+  "voice": "female warm hinglish",
+  "scenes": [
+    {
+      "n": 1,
+      "goal": "reveal",
+      "method": "edit_animate",
+      "mode": "product",
+      "visual": "Close-up on the intricate silver embroidery details on emerald green fabric",
+      "background": "soft golden hour lighting on textured marble surface, warm ambient glow with shallow depth",
+      "motion": "slow push-in",
+      "energy": "golden light particles",
+      "transitionIn": "fade",
+      "durationSec": 4.0,
+      "motionEngine": "video",
+      "kenburns": {
+        "zoom": "in",
+        "start": 1.0,
+        "end": 1.15,
+        "xDrift": 0.0,
+        "yDrift": -0.03,
+        "rotateDeg": 0.0
+      },
+      "vo": "Dekho kya beautiful embroidery hai - har thread mein elegance"
+    },
+    {
+      "n": 2,
+      "goal": "wear",
+      "method": "edit_animate",
+      "mode": "product",
+      "visual": "Model confidently walking and posing in the complete embroidered lawn suit with dupatta",
+      "background": "urban architectural backdrop with warm afternoon light, blurred city buildings creating depth",
+      "motion": "gentle orbit",
+      "energy": "soft fabric flutter",
+      "transitionIn": "whip",
+      "durationSec": 5.0,
+      "motionEngine": "video",
+      "kenburns": {
+        "zoom": "in",
+        "start": 1.12,
+        "end": 1.12,
+        "xDrift": 0.05,
+        "yDrift": 0.0,
+        "rotateDeg": 3.0
+      },
+      "vo": "Lawn ki comfort aur embroidery ki luxury - perfect combination for special occasions"
+    },
+    {
+      "n": 3,
+      "goal": "showcase",
+      "method": "edit_animate",
+      "mode": "product",
+      "visual": "Full suit display showing the complete three-piece set with coordinated dupatta",
+      "background": "pristine white marble platform with dramatic side lighting, minimalist luxury setting",
+      "motion": "crane down",
+      "energy": "",
+      "transitionIn": "zoom",
+      "durationSec": 3.0,
+      "motionEngine": "video",
+      "kenburns": {
+        "zoom": "in",
+        "start": 1.12,
+        "end": 1.12,
+        "xDrift": -0.02,
+        "yDrift": 0.05,
+        "rotateDeg": -1.5
+      },
+      "vo": "Complete three piece lawn suit - ab tumhara style statement ready hai"
+    },
+    {
+      "n": 4,
+      "goal": "cta",
+      "method": "edit_animate",
+      "mode": "product",
+      "visual": "Model's confident smile and final pose showcasing the outfit's elegance",
+      "background": "soft bokeh lights with warm golden tones, elegant evening atmosphere",
+      "motion": "slow push-in",
+      "energy": "sparkle highlights",
+      "transitionIn": "fade",
+      "durationSec": 3.0,
+      "motionEngine": "video",
+      "kenburns": {
+        "zoom": "in",
+        "start": 1.0,
+        "end": 1.12,
+        "xDrift": 0.0,
+        "yDrift": -0.04,
+        "rotateDeg": 0.0
+      },
+      "vo": "Test brand se - order karo aur feel karo luxury embroidery"
+    }
+  ],
+  "notes": "Showcases the intricate embroidery work and lawn fabric comfort through progressive reveals, ending with brand recall and purchase motivation. Each scene builds elegance while highlighting different aspects of the three-piece suit."
+}

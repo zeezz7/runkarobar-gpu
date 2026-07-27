@@ -1,7 +1,9 @@
-# ComfyUI model bake-off set
+# reelkit model set
 
-Box: Vast RTX PRO 6000 Blackwell (96 GB VRAM, cc 12.0, driver 595.71.05),
-torch 2.10.0+cu130, ComfyUI **0.28.0** at `/workspace/ComfyUI`.
+Box: Vast RTX PRO 6000 Blackwell SE (95.6 GiB VRAM, cc 12.0, driver 580.95.05,
+CUDA 13.2), torch 2.10.0+cu130, ComfyUI **0.28.0** at `/workspace/ComfyUI`.
+ComfyUI is pinned to 0.28.0 — a different version renames nodes and breaks every
+saved workflow here.
 
 Everything here was downloaded **directly over HTTPS, no git**, from repos that
 return HTTP 200 **anonymously** (no HuggingFace token is configured on this box).
@@ -331,7 +333,10 @@ All in `/workspace/.env` (mode 600), never in source:
 WAVESPEED_API_KEY      Stage 0 brain. ~$0.05/reel (any-llm/vision).
 WAVESPEED_BRAIN_MODEL  which model the brain runs on (see §9)
 ELEVEN_API_KEY         Stage 3 voiceover
+ELEVEN_MODEL_ID        TTS model (default eleven_v3, see §11)
 MINIO_ENDPOINT / MINIO_ACCESS_KEY / MINIO_SECRET_KEY / MINIO_BUCKET
+COST_GPU_USD_PER_HOUR  what this box costs; feeds `cost_usd` (§12)
+COST_ELEVEN_USD_PER_1K your ElevenLabs per-1000-character rate
 ```
 
 **The ElevenLabs IP allowlist is gone.** The key is unrestricted now, so a new
@@ -419,3 +424,66 @@ python server.py                    # API on :8189
 curl -X POST localhost:8189/make-reel -H 'Content-Type: application/json' \
      --data-binary @work/api_req.json
 ```
+
+---
+
+## 11. Voiceover — model and voice (both were wrong before)
+
+Two independent fixes, on 2026-07-27:
+
+**Model.** `voiceover.py` pinned `eleven_multilingual_v2`. The default is now
+**`eleven_v3`** — the current top-quality model, 74 languages, noticeably better
+prosody and code-switching, which is what Hinglish copy actually needs.
+
+> **v3 does not take v2's voice settings.** It quantises `stability` to
+> **0.0 / 0.5 / 1.0** (creative / natural / robust) and **ignores `style`**.
+> Sending the v2 block gets you a 422 or a subtly wrong delivery, so `tts()`
+> branches on the model id rather than sending one block to both.
+
+**Voice.** `DEFAULT_VOICES` pointed *every* language at Charlie, a deep male
+voice. For a pipeline that mostly advertises fashion, beauty and apparel that is
+simply the wrong read, and it was the main reason the voiceover sounded bad.
+Defaults are now female:
+
+| Language | Voice | Why |
+|---|---|---|
+| `hinglish` / `hi` / `ur` | Zara (`RAPmAZHXSuTrzY9pjpR3`) | standard accent, young social-media read; carries Hinglish code-switching without snapping into a hard English accent mid-sentence |
+| `en` | Bella (`hpp4J3VqNfWAUOO0d1Us`) | professional, bright — a straight ad read |
+
+There is **no Indian-accent voice** in this account's library; Zara's "standard"
+accent is the closest fit. Override per request with `config.elevenVoiceId`.
+
+Both the model id and the voice are read at **call** time — they used to be read
+at import, which is before `common.load_env()` runs, so `/workspace/.env` was
+silently ignored.
+
+---
+
+## 12. What a reel actually costs
+
+`make_reel` returns **`cost_usd`** plus a `_cost` breakdown. Rates live in the
+environment (`costs.py`) because they change with your plan and your machine —
+nothing is hardcoded.
+
+Measured on the 4x15s collection reel (2026-07-27), RTX PRO 6000 SE at
+**$1.847/hr**:
+
+| Item | | Cost |
+|---|---|---:|
+| GPU | 17.0 min wall clock | $0.5233 |
+| WaveSpeed brain | 4 vision calls x $0.05 | $0.2000 |
+| ElevenLabs | 686 chars @ $0.30/1k | $0.2058 |
+| **Total for 60 s of finished video** | | **$0.93** |
+| **Per 15 s ad** | | **$0.23** |
+
+**37% of that runtime was one stuck upload.** Suits 1 and 2 pushed ~10.7 MB in
+~11 s each; suit 3 took **387 s** for the same payload — the MinIO stall already
+described in FLOW.md §10. Excluding it the batch is 10.7 min and **$0.74**
+($0.18/ad). `minio_upload.py` still has no timeout and no retry, so this is the
+cheapest available win: a timeout plus one retry would cut ~20% off the bill.
+
+Per-stage, per 15 s ad: brain 13-16 s, voiceover 5-8 s, three scenes ~33 s each
+(Qwen-Image-Edit still + Wan 2.2 clip), assemble ~10 s, upload ~11 s.
+
+GPU is the only line that shrinks with parallelism — the four ads ran
+sequentially, but nothing stops one rendering while another uploads.

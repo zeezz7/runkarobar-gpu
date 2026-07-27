@@ -36,6 +36,7 @@ import sys
 import time
 
 import common
+import costs
 
 DEFAULT_CONFIG = {
     "lengthSec": 20,
@@ -103,6 +104,7 @@ def make_reel(request):
     tr = _tracer.Tracer(jid, enabled=bool(cfg.get("trace", True)))
     tr.write_json("request.json", {"product_images": product_urls,
                                    "brief": brief, "config": cfg})
+    costs.reset()
     common.log("job", f"{jid}  len={cfg['lengthSec']}s  aspect={cfg['aspectRatio']}  "
                       f"lang={cfg['language']}  template={cfg.get('template')}")
 
@@ -134,7 +136,7 @@ def make_reel(request):
         sc = next(x for x in sb["scenes"] if x["n"] == v["n"])
         tr.write_json(f"scene_{v['n']}_vo.json", {
             "vo_text": sc.get("vo"), "voice_id": voiceover.pick_voice(cfg),
-            "model_id": voiceover.MODEL_ID, "mp3_path": v.get("audio"),
+            "model_id": voiceover.model_id(), "mp3_path": v.get("audio"),
             "measured_duration": v["duration"],
             "planned_duration": sc.get("durationSec")})
     tr.mark("voiceover")
@@ -228,6 +230,11 @@ def make_reel(request):
         "storyboard": sb,
         "durationSec": outs["durationSec"],
     }
+    costs.current().stop_clock()
+    _cost = costs.current().summary()
+    # Load-bearing key for the caller's billing; the breakdown is diagnostic.
+    result["cost_usd"] = _cost["total_usd"]
+    result["_cost"] = _cost
     result["_guard"] = guard_log
     result["_elapsedSec"] = round(time.time() - t_start, 1)
     json.dump(result, open(os.path.join(jd, "result.json"), "w"),

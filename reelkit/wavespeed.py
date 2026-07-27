@@ -36,6 +36,7 @@ import urllib.error
 import urllib.request
 
 import common
+import costs
 
 BASE_URL = os.environ.get("WAVESPEED_BASE_URL", "https://api.wavespeed.ai").rstrip("/")
 
@@ -118,6 +119,7 @@ def chat(prompt, system=None, images=None, model=None, temperature=0.85,
                     f"({', '.join(CATALOGUE)}). Set WAVESPEED_BRAIN_MODEL to one of those.")
         raise WaveSpeedError(f"submit rejected: {msg}{hint}")
 
+    costs.current().wavespeed("vision" if images else "text")
     jid = res["data"]["id"]
     get_url = (res["data"].get("urls") or {}).get(
         "get", f"{BASE_URL}/api/v3/predictions/{jid}/result")

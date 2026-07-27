@@ -11,6 +11,7 @@ silent and keep their planned durationSec.
 import os
 
 import common
+import costs
 
 TTS_URL = "https://api.elevenlabs.io/v1/text-to-speech/{voice}"
 
@@ -26,12 +27,19 @@ def model_id():
     return os.environ.get("ELEVEN_MODEL_ID") or DEFAULT_MODEL_ID
 
 # Sane defaults per language when config.elevenVoiceId is empty.
-# eleven_multilingual_v2 handles hi/ur/hinglish on these English-native voices.
+# FEMALE by default. This used to point every language at Charlie, a deep male
+# voice, which is wrong for most of what this pipeline advertises (fashion,
+# beauty, apparel) and was the main reason the voiceover read badly.
+# "Zara" is a standard-accent young female social-media read - it carries
+# Hinglish code-switching far more naturally than the American voices, which
+# lean hard into an English accent mid-sentence.
+ZARA_SOCIAL = "RAPmAZHXSuTrzY9pjpR3"   # young, social-media creator, standard
+BELLA_PRO = "hpp4J3VqNfWAUOO0d1Us"     # professional/bright, for straight VO
 DEFAULT_VOICES = {
-    "en":       "IKne3meq5aSn9XLyUdCD",  # Charlie - deep, confident, energetic male
-    "hi":       "IKne3meq5aSn9XLyUdCD",
-    "hinglish": "IKne3meq5aSn9XLyUdCD",
-    "ur":       "IKne3meq5aSn9XLyUdCD",
+    "en":       BELLA_PRO,
+    "hi":       ZARA_SOCIAL,
+    "hinglish": ZARA_SOCIAL,
+    "ur":       ZARA_SOCIAL,
 }
 
 
@@ -63,6 +71,7 @@ def tts(text, out_path, voice_id, api_key=None, timeout=120):
     else:
         settings = {"stability": 0.4, "similarity_boost": 0.75,
                     "style": 0.35, "use_speaker_boost": True}
+    costs.current().eleven(text)
     body = _json.dumps({
         "text": text, "model_id": mid, "voice_settings": settings,
     }).encode()

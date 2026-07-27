@@ -268,7 +268,7 @@ Every one of these passed the automated checks:
 
 ```
 /workspace/reelkit/          the pipeline (in git)
-  brain.py wavespeed.py compose.py animate.py voiceover.py assemble.py
+  brain.py wavespeed.py costs.py compose.py animate.py voiceover.py assemble.py
   make_reel.py server.py tracer.py trace_run.py
   workflows/tpl_*.api.json   ComfyUI graphs
   runs/<id>/                 text audit trail (in git)
@@ -401,3 +401,86 @@ curl -s -H "Authorization: Bearer $WAVESPEED_API_KEY" \
 ```
 
 A vision call is $0.05, so a $0 balance stops every reel at Stage 0.
+
+---
+
+## 11. The voice (fixed 2026-07-27)
+
+`DEFAULT_VOICES` pointed **every** language at Charlie, a deep male voice, and
+the model was pinned to `eleven_multilingual_v2`. For a pipeline that mostly
+advertises fashion, beauty and apparel that is the wrong read, and it was the
+main reason the voiceover sounded bad.
+
+Now: **`eleven_v3`** (current top model, 74 languages) and **female defaults** —
+Zara for Hinglish/Hindi/Urdu, Bella for English. `config.elevenVoiceId` still
+overrides per request.
+
+Two things that bite:
+
+- **v3 rejects v2's voice settings.** It quantises `stability` to 0.0/0.5/1.0 and
+  ignores `style`. `tts()` branches on the model id instead of sending one block
+  to both.
+- **Both were read at import time**, which happens before `common.load_env()`, so
+  `/workspace/.env` was silently ignored. Both are read at call time now. The
+  same bug class hit `brain.BRAIN_MODEL` — worth checking before adding a third.
+
+There is no Indian-accent voice in this account's library. Zara's "standard"
+accent is the closest available fit for Hinglish.
+
+---
+
+## 12. Running it as a service
+
+```bash
+tmux new -d -s reel   'cd /workspace/reelkit && python server.py'   # 0.0.0.0:8189
+tmux new -d -s tunnel 'cloudflared tunnel --url http://localhost:8189'
+tmux capture-pane -pt tunnel | grep trycloudflare
+```
+
+`POST /make-reel` takes the bare request JSON (not wrapped in `{input}`) and
+returns the snake_case Result JSON plus **`cost_usd`**. `GET /health` returns
+`{"ok": true}`.
+
+### The synchronous contract does NOT survive a Cloudflare quick tunnel
+
+**Measured: `POST /make-reel` through `*.trycloudflare.com` returns `HTTP 524`
+after ~125 s.** Cloudflare's edge gives up on an origin that has not responded in
+roughly 100 s, and a reel takes 5-8 minutes. The job keeps running on the box and
+finishes fine — the *caller* just never gets the response. Raising the client
+timeout does not help; the 524 comes from Cloudflare, not from us.
+
+So a quick tunnel is fine for `/health` and for development, and **cannot** carry
+a synchronous render. Pick one:
+
+1. **A Vast open port behind the Caddy auth edge** — no proxy timeout, token
+   auth, works today. This is the straightforward fix.
+2. **Make the endpoint async** — `POST /make-reel` returns a job id immediately,
+   the caller polls `GET /result/<id>`. Survives any proxy, but the VPS contract
+   changes.
+3. A named Cloudflare tunnel does **not** fix this on its own — the edge timeout
+   applies there too.
+
+### One more gotcha
+
+`*.trycloudflare.com` publishes both A and AAAA records. A box with no IPv6
+egress will have `curl` pick IPv6 and fail with `HTTP 000` / exit 6 — which looks
+exactly like a dead tunnel. Test with `curl -4` before concluding anything.
+
+The quick-tunnel URL is also **ephemeral**: it changes every time `cloudflared`
+restarts.
+
+---
+
+## 13. What it costs
+
+`make_reel` returns `cost_usd` plus a `_cost` breakdown. `costs.py` meters
+WaveSpeed per call, ElevenLabs per character and the GPU per second; rates come
+from the environment, never hardcoded.
+
+Measured on a 4x15s collection reel at **$1.847/hr**: **$0.93 for 60 s of
+finished video** ($0.23 per 15 s ad) — GPU $0.52, brain $0.20, TTS $0.21.
+
+**37% of the wall clock was a single stuck upload** (387 s for the same ~10.7 MB
+that took 11 s on the other three — the §10 stall). Without it: 10.7 min and
+**$0.74**. `minio_upload.py` still has no timeout and no retry; adding them is
+the cheapest ~20% saving available.

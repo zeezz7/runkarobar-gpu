@@ -1,0 +1,18 @@
+{
+  "engine": "wan",
+  "path": "video_i2v",
+  "motion_prompt_verbatim": "gentle orbit",
+  "energy_prompt_verbatim": "soft fabric flutter",
+  "full_prompt_sent": "gentle orbit. Model confidently walking and posing in the complete embroidered lawn suit with dupatta. soft fabric flutter.",
+  "input_still": "/workspace/runkarobar-gpu/reelkit/work/reel_701eb62f/scene_2.png",
+  "requested_duration": 6.049,
+  "clip_path": "/workspace/runkarobar-gpu/reelkit/work/reel_701eb62f/clip_2.mp4",
+  "kenburns": {
+    "zoom": "in",
+    "start": 1.12,
+    "end": 1.12,
+    "xDrift": 0.05,
+    "yDrift": 0.0,
+    "rotateDeg": 3.0
+  }
+}

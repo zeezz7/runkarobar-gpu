@@ -1,0 +1,18 @@
+{
+  "engine": "wan",
+  "path": "video_i2v",
+  "motion_prompt_verbatim": "crane down",
+  "energy_prompt_verbatim": "",
+  "full_prompt_sent": "crane down. Full suit display showing the complete three-piece set with coordinated dupatta.",
+  "input_still": "/workspace/runkarobar-gpu/reelkit/work/reel_701eb62f/scene_3.png",
+  "requested_duration": 4.534,
+  "clip_path": "/workspace/runkarobar-gpu/reelkit/work/reel_701eb62f/clip_3.mp4",
+  "kenburns": {
+    "zoom": "in",
+    "start": 1.12,
+    "end": 1.12,
+    "xDrift": -0.02,
+    "yDrift": 0.05,
+    "rotateDeg": -1.5
+  }
+}
