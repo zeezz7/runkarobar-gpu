@@ -8,12 +8,15 @@ cold.
 
 ## 0. The one-paragraph version
 
-You POST a product image URL and a one-line brief. A 14B instruct LLM looks at the
-product (through a vision model) and writes a storyboard. For each scene, an image
-model re-imagines the world around the real product photo; a vision model checks the
-label survived; a video model animates the still; ElevenLabs speaks the line. ffmpeg
-fits every clip to its voiceover, stitches them, and uploads a 1080×1920 MP4. About
-7–8 minutes for 15 seconds of video.
+You POST a product image URL and a one-line brief. A **remote** vision LLM (WaveSpeed
+any-llm/vision) looks at the product photo and writes a storyboard. For each scene, a
+local image model re-imagines the world around the real product photo; a local vision
+model checks the label survived; a local video model animates the still; ElevenLabs
+speaks the line. ffmpeg fits every clip to its voiceover, stitches them, and uploads a
+1080×1920 MP4.
+
+The pipeline is **hybrid**: only the brain is remote. Everything that touches pixels
+runs on this box.
 
 ---
 
@@ -74,11 +77,11 @@ request
    │
    ├─ fetch product images ─────────────────────────────► work/<id>/product_N.jpg
    │
-STAGE 0  brain.py
-   │   Qwen2.5-VL-7B captions each photo (literal, transcribes all printed text)
-   │   Qwen2.5-14B-Instruct-FP8 writes the storyboard   ← template directive appended
-   │   validate → retry up to 3× on a specific complaint
-   │   unload brain (frees 16 GB before the image models load)
+STAGE 0  brain.py            REMOTE - one WaveSpeed any-llm/vision call (~$0.05)
+   │   the product PHOTOS go straight to the model (no captioning pass)
+   │   it writes the storyboard              ← template directive appended
+   │   validate → retry up to 3× on a specific complaint (each retry is billed)
+   │   holds ZERO VRAM - nothing to unload
    │                                                    ► storyboard.json
 STAGE 3  voiceover.py    (runs BEFORE the visuals — audio leads video)
    │   ElevenLabs TTS per scene, real duration via ffprobe
@@ -113,7 +116,17 @@ STAGE 6  trace   runs/<id>/ — 21 artefacts + trace.md
 
 ## 4. What each stage actually decides
 
-### Stage 0 — the brain
+### Stage 0 — the brain (remote)
+
+A single WaveSpeed `any-llm/vision` call. It sees the product photographs directly,
+so the old Qwen2.5-VL captioning pass is gone. Select the model with
+`WAVESPEED_BRAIN_MODEL`; `reelkit/wavespeed.py` has the API details and the three
+traps (URL-only images, credit failures arriving as HTTP 200, and the advertised
+model catalogue).
+
+**No local brain is installed.** Qwen2.5-14B and Qwen2.5-32B were deliberately not
+downloaded — that frees ~50 GB of disk and the ~16 GB of VRAM the brain used to
+hold. Do not reintroduce them.
 
 Writes a JSON storyboard. Per scene it chooses `goal`, `method`, `mode`, `visual`,
 `background`, `motion`, `energy`, `transitionIn`, `durationSec`, `motionEngine`,
@@ -177,21 +190,22 @@ each floored at its own audio so a line is never clipped.
 
 ## 5. Models on the box
 
-| Model | Role | Size |
-|---|---|---:|
-| Qwen2.5-14B-Instruct-FP8 | brain | 16 GB |
-| Qwen2.5-32B-Instruct-FP8 | previous brain, kept | 34 GB |
-| Qwen2.5-VL-7B-Instruct | captions + OCR guard | 16.6 GB |
-| Qwen-Image-2512 fp8 | text-to-image | 20.4 GB |
-| Qwen-Image-Edit-2511 fp8mixed | instruction editing | 20.5 GB |
-| Wan 2.2 I2V 14B fp8 + LightX2V | video (default) | 38 GB |
-| HunyuanVideo I2V 720p bf16 | video (alternative) | 35.9 GB |
-| BiRefNet | segmentation | 0.44 GB |
-| 4x-UltraSharp | upscaling | 0.07 GB |
+| Model | Role | Size | Peak VRAM (measured) |
+|---|---|---:|---:|
+| WaveSpeed any-llm/vision | brain (**remote**) | — | none |
+| Qwen2.5-VL-7B-Instruct | OCR guard only | 16.6 GB | ~18 GiB |
+| Qwen-Image-2512 fp8 | text-to-image | 20.4 GB | 28.5 GiB |
+| Qwen-Image-Edit-2511 fp8mixed | instruction editing | 20.5 GB | 28.9 GiB |
+| Wan 2.2 I2V 14B fp8 + LightX2V | video (default) | 38.0 GB | 38.3 GiB |
+| HunyuanVideo I2V 720p bf16 | video (alternative) | 36.1 GB | 61.3 GiB |
+| BiRefNet | segmentation | 0.44 GB | 2.4 GiB |
+| 4x-UltraSharp | upscaling | 0.07 GB | — |
 
-VRAM is the binding constraint, not disk. The brain is unloaded before the image
-models load, the guard's VL model is freed after each use, and ComfyUI is told to
-free between scenes — all three were added after real OOMs.
+Peak VRAM measured 2026-07-27 on a 95.6 GiB RTX PRO 6000 SE — see MODELS.md §10.
+**Nothing came close to OOM**: the worst case left ~34 GiB spare. The two historical
+OOMs both involved the local brain sitting resident beside the diffusion models;
+with the brain remote that failure mode no longer exists. The guard's VL model is
+still freed after each use and ComfyUI is still told to free between scenes.
 
 ---
 
@@ -254,7 +268,7 @@ Every one of these passed the automated checks:
 
 ```
 /workspace/reelkit/          the pipeline (in git)
-  brain.py compose.py animate.py voiceover.py assemble.py
+  brain.py wavespeed.py compose.py animate.py voiceover.py assemble.py
   make_reel.py server.py tracer.py trace_run.py
   workflows/tpl_*.api.json   ComfyUI graphs
   runs/<id>/                 text audit trail (in git)
@@ -355,8 +369,8 @@ giving stills a job-unique key so two runs cannot overwrite each other.
   has no timeout or retry — if an upload hangs, kill it and retry rather than waiting.
 - A `404` on a fresh URL usually means the PUT has not finished. MinIO writes the key
   atomically, so an object is either absent or complete, never partial.
-- **Rotate the ElevenLabs and MinIO credentials** before production. Both were pasted
-  into a chat session during development.
+- **Rotate the ElevenLabs, WaveSpeed and MinIO credentials** before production. All
+  were pasted into chat sessions during development.
 
 ### ElevenLabs, while we are on secrets
 
@@ -364,7 +378,26 @@ giving stills a job-unique key so two runs cannot overwrite each other.
 ELEVEN_API_KEY=<secret>      # in .env only
 ```
 
-The key is **IP-restricted**. This box (`198.53.64.194`) is allowlisted; a new box
-needs adding in the ElevenLabs dashboard or TTS returns `ip_not_allowed`. The key is
-also scoped — `/v1/user/subscription` returns a permissions error while `/v1/voices`
+**The IP restriction has been removed.** The key is unrestricted now, so a new box
+needs no ElevenLabs dashboard change and `ip_not_allowed` should not appear.
+Verified with a live TTS call from a fresh box on 2026-07-27. The key may still be
+scoped — `/v1/user/subscription` can return a permissions error while `/v1/voices`
 and TTS work fine. That error is harmless and not a sign of a bad key.
+
+### WaveSpeed, the other remote
+
+```bash
+WAVESPEED_API_KEY=<secret>
+WAVESPEED_BRAIN_MODEL=<model id>
+```
+
+Stage 0 only. **Check the balance before blaming the code** — an exhausted account
+fails at submit with HTTP 200 and `{"code":400,"message":"Insufficient credits"}`,
+which reads as success if you only check the status code:
+
+```bash
+curl -s -H "Authorization: Bearer $WAVESPEED_API_KEY" \
+     https://api.wavespeed.ai/api/v3/balance
+```
+
+A vision call is $0.05, so a $0 balance stops every reel at Stage 0.

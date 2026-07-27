@@ -305,7 +305,7 @@ print('\n'.join(sorted(set(json.load(open(sys.argv[1]))['weight_map'].values()))
   (( missing )) && return 1
   echo "  ok brain ($(du -sh "$dest" | cut -f1), all shards present)"
 }
-\n\n# -----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
 # hunyuani2v - HunyuanVideo I2V 720p. Replaces LTX-2.3 (deleted) as the
 #   higher-resolution video path. NOTE the model is bf16 only (no fp8 build) and
 #   I2V additionally needs a clip_vision encoder that T2V does not.
@@ -324,12 +324,20 @@ f_hunyuani2v() {
   fetch "$B/vae/hunyuan_video_vae_bf16.safetensors" "$M/vae/hunyuan_video_vae_bf16.safetensors"
 }
 
-# NOTE: 'flux' is deliberately NOT in the default set - dropped at user request
-# (non-commercial licence, and HiDream-I1-Full is the commercial-safe
-# replacement). Re-enable any time with:  ./download_models.sh flux
+# The DEFAULT set is the live reelkit working set (2026-07-27), nothing more.
+# Deliberately NOT default, and why:
+#   flux      non-commercial licence.
+#   hidream   lost the image bake-off to Qwen-Image-Edit ("MEN" -> "NEN").
+#   ltx098 ltx23 mochi   lost the video bake-off; deleted from the box.
+#   hunyuan   that is HunyuanVideo *T2V*, deleted. The live one is hunyuani2v.
+#   shared    t5xxl_fp8 / clip_l / ae are orphaned now - every live model
+#             bundles its own encoders (hunyuani2v fetches its own clip_l).
+#   brain     the storyboard brain moved to WaveSpeed (remote); no local
+#             Qwen2.5-Instruct is installed. Saves ~50 GB of disk and VRAM.
+# Any of them is one argument away:  ./download_models.sh hidream ltx23
 FAMILIES=("$@")
 if [[ ${#FAMILIES[@]} -eq 0 ]]; then
-  FAMILIES=(shared qwenimage wan22 ltx23 hunyuan qwen extras)
+  FAMILIES=(qwenimage wan22 hunyuani2v qwen extras)
 fi
 for fam in "${FAMILIES[@]}"; do
   disk_guard /workspace || { echo "Stopping before '${fam}' - disk floor reached."; exit 1; }

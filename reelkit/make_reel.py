@@ -115,21 +115,14 @@ def make_reel(request):
     common.log("job", f"{len(products)} product image(s)")
 
     # ---- STAGE 0: brain ------------------------------------------------------
+    # Remote now (WaveSpeed any-llm/vision) - it holds no VRAM, needs no unload,
+    # and takes seconds instead of the minutes the local 14B/32B checkpoint cost.
+    # The ORIGINAL urls go to the brain, not the local copies: any-llm/vision
+    # accepts URLs only. The local copies exist for the renderers.
     import brain
-    _free_comfy_vram()
-    tr.model("Qwen2.5-VL-7B (captions)", "load")
-    sb = brain.storyboard(brief, cfg, products, tracer=tr)
+    sb = brain.storyboard(brief, cfg, products, tracer=tr,
+                          image_urls=product_urls)
     tr.mark("brain")
-    # Reloading 34GB costs ~90s per request. Keep it resident when the box has the
-    # headroom (REELKIT_KEEP_BRAIN=1); otherwise free it for the image models.
-    # MEASURED: keeping the 34GB brain resident alongside ComfyUI's diffusion
-    # models and the guard's VL model overflows this 95GB card (CUDA OOM at
-    # scene 3). Only enable on a box with real headroom.
-    if os.environ.get("REELKIT_KEEP_BRAIN", "0") == "1":
-        common.log("brain", "kept resident (REELKIT_KEEP_BRAIN=1) - OOM risk")
-    else:
-        brain.unload_brain()
-        tr.model("brain LLM", "unload")
     json.dump(sb, open(os.path.join(jd, "storyboard.json"), "w"),
               indent=2, ensure_ascii=False)
     tr.write_json("storyboard.json", sb)

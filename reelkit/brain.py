@@ -1,37 +1,51 @@
 """
 Stage 0 - the brain: turns (product images + brief + config) into a storyboard.
 
-Model: Qwen2.5-32B-Instruct (fp8-dynamic, compressed-tensors). This is a TEXT
-instruct model and is deliberately NOT the Qwen2.5-VL-7B vision guard - that 7B
-model does OCR-diff only and must never write storyboards.
+Model: REMOTE. A single WaveSpeed any-llm/vision call (see wavespeed.py) does
+the whole job - it looks at the product photographs and writes the storyboard in
+one shot. Pick the model with WAVESPEED_BRAIN_MODEL.
 
-The brain still needs to SEE the product, so we caption each product image with
-the VL model first and feed those captions in as text. That keeps one vision
-model on the box doing both jobs it is good at, without letting it direct.
+This used to be a local Qwen2.5-Instruct checkpoint (14B active, 32B kept) fed
+by Qwen2.5-VL captions. That path is DELETED, deliberately:
+  * it cost ~16 GB of VRAM that had to be explicitly freed before the image
+    models could load, and two production OOMs came from getting that wrong;
+  * load + caption + generate ran into minutes; the remote call is seconds;
+  * neither Qwen2.5-14B nor Qwen2.5-32B is installed on the box any more.
+Do NOT reintroduce a local brain. The 7B Qwen2.5-VL that remains on disk is the
+Stage 2b guard (validate_image.py) - it does OCR-diff only, costs no API spend,
+and must never write storyboards.
+
+Because the brain is now a vision model, the separate captioning pass is gone
+too: the photographs go straight to it. That is one billed call per reel.
 
 Design rules from the brief that are enforced here:
   * strict JSON out, validated against a schema, up to 3 retries on malformed
-    output;
+    output (a retry is another billed call - see storyboard());
   * scene count scales with length (~1 scene per 4-6s) and total durationSec
     must land within +/-1s of config.lengthSec;
   * `energy` is FREE TEXT chosen by the model. There are no keyword lists, no
     per-product branches and no hardcoded effects anywhere in this pipeline -
     the executor renders whatever the brain writes.
-  * the model is unloaded before image/video models are loaded (VRAM).
 """
-import gc
 import json
 import os
 import re
 
 import common
+import wavespeed
 
-BRAIN_DIR = os.environ.get(
-    "BRAIN_DIR", "/workspace/models/brain/Qwen2.5-14B-Instruct-FP8-dynamic")
+# The remote brain. Overridable so the model can be changed without a code edit.
+# Read at CALL time, not import time: common.load_env() often runs after this
+# module is imported, so a module-level read would miss /workspace/.env.
+DEFAULT_BRAIN_MODEL = "google/gemini-2.5-pro"
+
+
+def brain_model():
+    return os.environ.get("WAVESPEED_BRAIN_MODEL") or DEFAULT_BRAIN_MODEL
+
+
 VL_DIR = os.environ.get(
     "QWEN_VL_DIR", "/workspace/models/qwen2.5-vl/Qwen2.5-VL-7B-Instruct")
-
-_model = _tok = None
 
 GOALS = {"reveal", "showcase", "detail", "wear", "lifestyle", "cta"}
 # goals whose whole point is showing the real product
@@ -51,8 +65,9 @@ BRIEF: {brief}
 BRAND: {brand}
 LANGUAGE: {language}
 TOTAL LENGTH: {length} seconds
-PRODUCT (what the supplied photographs actually show):
-{captions}
+PRODUCT: study the attached photograph(s). Read every word printed on the
+packaging and treat that text as the only source of truth about the product -
+the voiceover may claim nothing that is not printed there.
 
 Return EXACTLY this JSON shape:
 {{
@@ -258,69 +273,38 @@ def _template_directive(key, spec, nmin, nmax):
     return "\n".join(lines)
 
 
-# ------------------------------------------------------------------- captions
-def caption_products(image_paths, max_new_tokens=120):
-    """Describe each product photo with the VL model so the brain can 'see'."""
-    import torch
-    from transformers import AutoProcessor, Qwen2_5_VLForConditionalGeneration
+# ------------------------------------------------------------- product images
+def product_image_urls(product_images, image_urls=None):
+    """
+    Resolve what the remote brain will actually be shown.
 
-    if not os.path.isdir(VL_DIR):
-        return [f"(image {i+1}: no vision model available)"
-                for i in range(len(image_paths))]
-
-    m = Qwen2_5_VLForConditionalGeneration.from_pretrained(
-        VL_DIR, dtype=torch.bfloat16, attn_implementation="sdpa",
-        device_map="cuda:0").eval()
-    proc = AutoProcessor.from_pretrained(VL_DIR, min_pixels=256*28*28,
-                                         max_pixels=1280*28*28)
-    caps = []
-    for p in image_paths:
-        msgs = [{"role": "user", "content": [
-            {"type": "image", "path": os.path.abspath(p)},
-            {"type": "text", "text":
-             "Describe this product literally. State what it is, its exact brand "
-             "and product name as printed, its colours, shape and packaging. Then "
-             "transcribe EVERY word of text printed on it, exactly as written. Do "
-             "not infer benefits that are not printed."}]}]
-        inp = proc.apply_chat_template(msgs, add_generation_prompt=True,
-                                       tokenize=True, return_dict=True,
-                                       return_tensors="pt").to(m.device)
-        with torch.inference_mode():
-            out = m.generate(**inp, max_new_tokens=max_new_tokens, do_sample=False,
-                             temperature=None, top_p=None, top_k=None)
-        txt = proc.batch_decode(out[:, inp["input_ids"].shape[1]:],
-                                skip_special_tokens=True)[0].strip()
-        caps.append(txt)
-        common.log("brain", f"caption: {txt[:110]}")
-    del m, proc
-    gc.collect()
-    torch.cuda.empty_cache()
-    return caps
-
-
-# ---------------------------------------------------------------------- model
-def load_brain():
-    global _model, _tok
-    import torch
-    from transformers import AutoModelForCausalLM, AutoTokenizer
-    if _model is None:
-        if not os.path.isdir(BRAIN_DIR):
-            raise RuntimeError(f"brain model not found at {BRAIN_DIR}")
-        common.log("brain", f"loading {os.path.basename(BRAIN_DIR)}")
-        _tok = AutoTokenizer.from_pretrained(BRAIN_DIR)
-        _model = AutoModelForCausalLM.from_pretrained(
-            BRAIN_DIR, dtype="auto", device_map="cuda:0").eval()
-    return _model, _tok
+    any-llm/vision takes URLs only - there is no base64 path - so a purely local
+    file cannot be sent. make_reel already has the caller's original URLs, so it
+    passes them straight through; the local copies it downloaded are only for
+    the renderers. A local-only run therefore has nothing to show the brain, and
+    that is worth saying out loud rather than silently writing a storyboard for
+    a product the model never saw.
+    """
+    urls = [u for u in (image_urls or []) if str(u).startswith(("http://", "https://"))]
+    if urls:
+        return urls[:16]
+    local = [p for p in (product_images or [])
+             if not str(p).startswith(("http://", "https://"))]
+    if local:
+        common.log("brain", f"WARNING: {len(local)} product image(s) are local files "
+                            f"with no public URL - the brain will write BLIND. Pass "
+                            f"image_urls, or host them, for a product-aware storyboard.")
+    return []
 
 
 def unload_brain():
-    """Free VRAM before the image/video models load."""
-    global _model, _tok
-    import torch
-    _model = _tok = None
-    gc.collect()
-    torch.cuda.empty_cache()
-    common.log("brain", "unloaded")
+    """
+    No-op. Kept so existing callers do not break.
+
+    There is no local brain to unload any more - Stage 0 is a remote call and
+    holds zero VRAM. This used to free ~16 GB before the image models loaded.
+    """
+    common.log("brain", "no local brain to unload (remote WaveSpeed brain)")
 
 
 # ------------------------------------------------------------------ validate
@@ -445,21 +429,32 @@ def validate(sb, length):
 
 
 # ------------------------------------------------------------------- generate
-def storyboard(brief, config, product_images, retries=3, tracer=None):
+def storyboard(brief, config, product_images, retries=3, tracer=None,
+               image_urls=None):
+    """
+    One WaveSpeed any-llm/vision call per reel (~$0.05).
+
+    `retries` only fires when the returned JSON fails validate(), and each retry
+    is another billed call - so the happy path costs exactly one. The retry
+    re-sends the images along with the specific complaint, because dropping them
+    would make the correction blind to the product.
+    """
     length = float(config.get("lengthSec") or 20)
     nmin = max(2, int(round(length / 6)))
     nmax = max(nmin, int(round(length / 4)))
-    caps = caption_products(product_images)
-    captions = "\n".join(f"  - image {i+1}: {c}" for i, c in enumerate(caps))
+    model = brain_model()
+    urls = product_image_urls(product_images, image_urls)
     if tracer:
-        tracer.write_text("vision_captions.txt", "\n---\n".join(caps))
+        tracer.write_text("vision_captions.txt",
+                          "Stage 0 is a vision model now - no separate captioning "
+                          "pass. Images sent to the brain:\n" + "\n".join(urls))
 
     tpl_key, tpl_spec = resolve_template(config.get("template"))
 
     prompt = TEMPLATE.format(
         brief=brief, brand=config.get("brandName") or "the brand",
         language=config.get("language") or "en", length=int(length),
-        captions=captions, nmin=nmin, nmax=nmax)
+        nmin=nmin, nmax=nmax)
     # Purely additive: ai-director appends nothing, so its prompt - and therefore
     # its output - is byte-identical to the pre-template behaviour.
     directive = _template_directive(tpl_key, tpl_spec, nmin, nmax)
@@ -474,24 +469,20 @@ def storyboard(brief, config, product_images, retries=3, tracer=None):
 
     if tracer:
         tracer.write_text("brain_prompt.txt",
-                          f"===== SYSTEM =====\n{SYSTEM}\n\n===== USER =====\n{prompt}\n")
-        tracer.model(os.path.basename(BRAIN_DIR), "load")
-    model, tok = load_brain()
-    import torch
+                          f"===== SYSTEM =====\n{SYSTEM}\n\n===== USER =====\n{prompt}\n"
+                          f"\n===== IMAGES =====\n" + "\n".join(urls))
+        tracer.model(f"wavespeed:{model}", "remote")
+
+    common.log("brain", f"remote brain {model} via WaveSpeed"
+                        f"{f' + {len(urls)} image(s)' if urls else ' (no images)'}")
     last_err = None
     for attempt in range(1, retries + 1):
-        msgs = [{"role": "system", "content": SYSTEM},
-                {"role": "user", "content": prompt}]
+        ask = prompt
         if last_err:
-            msgs.append({"role": "user", "content":
-                         f"Your previous answer was rejected: {last_err}. "
-                         f"Return corrected JSON only."})
-        text = tok.apply_chat_template(msgs, tokenize=False, add_generation_prompt=True)
-        inp = tok([text], return_tensors="pt").to(model.device)
-        with torch.inference_mode():
-            out = model.generate(**inp, max_new_tokens=1600, do_sample=True,
-                                 temperature=0.85, top_p=0.9)
-        raw = tok.decode(out[0][inp["input_ids"].shape[1]:], skip_special_tokens=True)
+            ask += (f"\n\nYour previous answer was rejected: {last_err}\n"
+                    f"Return corrected JSON only.")
+        raw = wavespeed.chat(ask, system=SYSTEM, images=urls, model=model,
+                             temperature=0.85, max_tokens=1600)
         try:
             sb = validate(_extract_json(raw), length)
             common.log("brain", f"storyboard ok on attempt {attempt}: "
@@ -507,8 +498,9 @@ def storyboard(brief, config, product_images, retries=3, tracer=None):
 if __name__ == "__main__":
     import sys
     common.load_env()
-    imgs = sys.argv[1:] or ["/workspace/bakeoff/ref/nivea_ref.jpg"]
+    # Args are product image URLs - the remote brain can only be shown URLs.
+    imgs = sys.argv[1:]
     sb = storyboard("15s energetic ad for Nivea Men face wash, fresh gym vibe, male VO",
-                    {"lengthSec": 15, "language": "en", "brandName": "Nivea Men"}, imgs)
+                    {"lengthSec": 15, "language": "en", "brandName": "Nivea Men"},
+                    imgs, image_urls=imgs)
     print(json.dumps(sb, indent=2, ensure_ascii=False))
-    unload_brain()

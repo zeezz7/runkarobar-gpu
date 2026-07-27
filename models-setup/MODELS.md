@@ -22,34 +22,43 @@ Every file was byte-verified against the remote `x-linked-size` header.
 
 ## 1. What is installed
 
-> **CURRENT STATE (updated 2026-07-26).** **Section 1 below is the current installed
-> set.** Sections 2-7 keep the original bake-off's licence / trap / dedup notes for
-> reference — some mention models that have since been removed, but the notes
-> themselves remain accurate. Section 8 is the live pipeline stage map.
+> **CURRENT STATE (rebuilt from scratch 2026-07-27 on a fresh RTX PRO 6000 SE).**
+> **Section 1 below is the current installed set.** Sections 2-7 keep the original
+> bake-off's licence / trap / dedup notes for reference — some mention models that
+> have since been removed, but the notes themselves remain accurate. Section 8 is
+> the live pipeline stage map.
 > **REMOVED** - HiDream-I1-Full + HiDream-E1.1, LTX-Video 0.9.8, LTX-2.3, Mochi 1,
 > and the orphaned `t5xxl_fp8` / `clip_l` / `ae` encoders.
-> **ADDED** - Qwen-Image-2512, Qwen-Image-Edit-2511, **HunyuanVideo I2V**, BiRefNet,
-> 4x-UltraSharp, and the Qwen2.5-Instruct brain.
-> **KEPT** - Wan 2.2 I2V + LightX2V (default video engine), Qwen2.5-VL-7B.
+> **NOT INSTALLED — the storyboard brain is REMOTE now.** Neither
+> **Qwen2.5-32B-Instruct** nor **Qwen2.5-14B-Instruct** is on this box. Stage 0
+> runs on **WaveSpeed any-llm/vision** (see §9), which saves ~50 GB of disk, frees
+> the ~16 GB of VRAM the brain used to hold, and removes the load/unload dance
+> that caused two production OOMs. Do not reintroduce a local brain.
+> **KEPT** - Wan 2.2 I2V + LightX2V (default video engine), Qwen2.5-VL-7B (now the
+> Stage 2b guard **only** — it no longer captions for the brain).
 
 Per-row sizes are **measured on disk** (byte-verified against the remote
-`x-linked-size`). Run `bash lib/verify.sh` to re-check on any box.
+`x-linked-size`). Run `bash lib/verify.sh` to re-check on any box. The
+"verified" column means a real generation was run through the saved workflow on
+2026-07-27 — see §10 for the peak-VRAM numbers.
 
 | Model | Role | Size | Folder | License | Workflow |
 |---|---|---:|---|---|---|
-| **Qwen2.5-14B-Instruct** fp8 | Brain — storyboard (**active**) | 16 GB | `/workspace/models/brain/` | **Apache-2.0** | `brain.py` |
-| **Qwen2.5-32B-Instruct** fp8-dynamic | Brain — stronger, kept (not default) | 34 GB | `/workspace/models/` | **Apache-2.0** | `brain.py` |
-| **Qwen2.5-VL-7B-Instruct** | Product captions + Stage 2b OCR guard | 16.6 GB | `/workspace/models/qwen2.5-vl/` | **Apache-2.0** | `validate_image.py` |
+| **Qwen2.5-VL-7B-Instruct** | Stage 2b OCR guard (local, no API cost) | 16.6 GB | `/workspace/models/qwen2.5-vl/` | **Apache-2.0** | `validate_image.py` |
 | **Qwen-Image-2512** fp8 | Image — scene backdrops (text-to-image) | 20.4 GB | `diffusion_models/` | **Apache-2.0** | `reelkit/workflows/tpl_t2i_qwen`, `tpl_scene_image` |
 | **Qwen-Image-Edit-2511** fp8mixed | Image — `edit_animate`, **default** scene builder | 20.5 GB | `diffusion_models/` | **Apache-2.0** | `reelkit/workflows/tpl_qwen_edit` |
 | **Wan 2.2 I2V 14B** fp8 + LightX2V | Video — motion (**default**) + energy | 38.0 GB | `diffusion_models/`, `text_encoders/`, `vae/`, `loras/` | **Apache-2.0** | `reelkit/workflows/tpl_wan_i2v` |
-| **HunyuanVideo I2V** 720p bf16 | Video — motion (**alternative**), image+text -> video | 35.9 GB | `diffusion_models/`, `text_encoders/`, `vae/` | Tencent Community (**restricted — excl. EU/UK/KR**) | `reelkit/workflows/tpl_hunyuan_i2v` |
-| **BiRefNet** | Segmentation for `compose_animate` | 0.44 GB | `background_removal/` | MIT | — |
+| **HunyuanVideo I2V** 720p bf16 | Video — motion (**alternative**), image+text -> video | 36.1 GB | `diffusion_models/`, `text_encoders/`, `clip_vision/`, `vae/` | Tencent Community (**restricted — excl. EU/UK/KR**) | `reelkit/workflows/tpl_hunyuan_i2v` |
+| **BiRefNet** | Segmentation for `compose_animate` | 0.44 GB | `background_removal/` | MIT | `reelkit/workflows/tpl_mask` |
 | **4x-UltraSharp** | Upscaling | 0.07 GB | `upscale_models/` | permissive (ESRGAN) | — |
 
 The video engine is chosen at runtime by `REELKIT_VIDEO_MODEL` (Wan default /
-Hunyuan alternative). The **reelkit-only working set is ~110 GB**; a box may hold
-more if the bake-off leftovers were not pruned.
+Hunyuan alternative). The **reelkit working set is ~144 GB** measured on disk
+(§10), all of it local model weights — the brain is remote and weighs nothing.
+
+`clip_vision/llava_llama3_vision.safetensors` (0.65 GB) is easy to miss:
+HunyuanVideo **I2V** needs it and the T2V variant does not, so a downloader
+written for T2V silently omits it and the graph fails at load.
 
 **FLUX.1-dev is not installed** — its licence is non-commercial. Qwen-Image is the
 commercial-safe, best-in-class-text image model in its place.
@@ -277,9 +286,8 @@ one finished vertical reel out; everything runs on this box.
 
 | Model | Role | Location | Size |
 |---|---|---|---:|
-| **Qwen2.5-14B-Instruct-FP8** | Stage 0 brain — writes the storyboard (**active**) | `/workspace/models/brain/` | 16 GB |
-| **Qwen2.5-32B-Instruct-FP8-dynamic** | stronger brain, **kept but not default** — switch back for better copy / Hinglish quality | `/workspace/models/` | 34 GB |
-| **Qwen2.5-VL-7B-Instruct** | product captions for the brain + Stage 2b OCR guard | `/workspace/models/qwen2.5-vl/` | 16.6 GB |
+| **WaveSpeed any-llm/vision** | Stage 0 brain — reads the product photos and writes the storyboard | **remote API** | — |
+| **Qwen2.5-VL-7B-Instruct** | Stage 2b OCR guard **only** (the brain no longer needs captions — it sees the photos itself) | `/workspace/models/qwen2.5-vl/` | 16.6 GB |
 | **Qwen-Image-2512** fp8 | Stage 1 scene backdrops (text-to-image) | `ComfyUI/models/diffusion_models/` | 20.4 GB |
 | **Qwen-Image-Edit-2511** fp8mixed | Stage 1 `edit_animate` — **default** scene builder (re-images the world around the product) | `ComfyUI/models/diffusion_models/` | 20.5 GB |
 | **Wan 2.2 I2V 14B** fp8 + LightX2V | Stage 2 motion (**default**) + energy plates | `ComfyUI/models/diffusion_models/` | 38.0 GB |
@@ -317,9 +325,87 @@ orphaned `t5xxl_fp8`, `clip_l` and `ae` encoders.
 
 ### Secrets
 
-All in `/workspace/.env` (mode 600), never in source: `ELEVEN_API_KEY`,
-`MINIO_ENDPOINT`, `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`, `MINIO_BUCKET`.
-The ElevenLabs key is IP-restricted — this box (`198.53.64.194`) is allowlisted.
+All in `/workspace/.env` (mode 600), never in source:
+
+```
+WAVESPEED_API_KEY      Stage 0 brain. ~$0.05/reel (any-llm/vision).
+WAVESPEED_BRAIN_MODEL  which model the brain runs on (see §9)
+ELEVEN_API_KEY         Stage 3 voiceover
+MINIO_ENDPOINT / MINIO_ACCESS_KEY / MINIO_SECRET_KEY / MINIO_BUCKET
+```
+
+**The ElevenLabs IP allowlist is gone.** The key is unrestricted now, so a new
+box needs no dashboard change — the old "allowlist `198.53.64.194` or TTS
+returns `ip_not_allowed`" note no longer applies. Verified with a live TTS call
+from this box on 2026-07-27.
+
+---
+
+## 9. The brain is remote (WaveSpeed any-llm)
+
+Stage 0 is the only remote *inference* in the pipeline. `reelkit/wavespeed.py`
+wraps it; `brain.py` calls it once per reel.
+
+It is a **job API, not an OpenAI-compatible chat API** — that catches people out:
+
+```
+POST /api/v3/wavespeed-ai/any-llm/vision   {"prompt":..., "images":[url,...]}
+  -> {"code":200,"data":{"id":"<hex>","urls":{"get":"<poll url>"}}}
+GET  /api/v3/predictions/<id>/result
+  -> {"data":{"status":"completed","outputs":["<text>"],"error":""}}
+```
+
+The reply is **`outputs[0]`**, a plain string — there is no
+`choices[0].message.content`. Don't reach for the OpenAI SDK.
+
+Three things that will cost you an hour if you don't know them:
+
+1. **`images` takes URLs only** (max 16). No base64, no multipart. `make_reel`
+   therefore passes the caller's **original** `product_images` URLs to the brain,
+   not the local copies it downloaded for the renderers. A local-only run has
+   nothing to show the brain — `brain.product_image_urls()` logs a loud warning
+   rather than quietly writing a storyboard for a product it never saw.
+2. **Insufficient balance fails at SUBMIT with HTTP 200** and a body of
+   `{"code":400,"message":"Insufficient credits..."}` with no `data.id`. Checking
+   only the HTTP status reads that as success. Check the balance directly:
+   `GET /api/v3/balance`.
+3. **The advertised model catalogue has no Anthropic entry.** As of 2026-07-27
+   `GET /api/v3/models` lists, for both any-llm endpoints:
+   `google/gemini-2.5-flash`, `google/gemini-2.5-pro`,
+   `google/gemini-3-flash-preview`, `openai/gpt-4o`, `openai/gpt-4.1`,
+   `openai/gpt-5-chat`, `meta-llama/llama-4-scout`. The backend is an OpenRouter
+   passthrough so an unlisted id *may* still resolve, but it is not promised —
+   an unlisted `WAVESPEED_BRAIN_MODEL` is the first thing to suspect on a 400.
+
+Pricing: `any-llm/vision` **$0.05/call**, `any-llm` (text) **$0.01/call**. The
+happy path is exactly one vision call per reel; a schema-validation retry (up to
+3) is another billed call, which is why validation failures are logged.
+
+---
+
+## 10. Verified on this box — 2026-07-27
+
+Every model below had a **real generation run through its saved workflow**, not
+just a byte check. Peak VRAM was sampled from `nvidia-smi` at 250 ms with
+ComfyUI's VRAM freed beforehand, so each figure is that model's own peak.
+Reproduce with `/venv/main/bin/python verify_runs.py`.
+
+| Model | Peak VRAM | Time | Ran OK |
+|---|---:|---:|:--:|
+| Qwen-Image-2512 fp8 | 28.5 GiB | 9.0 s | yes |
+| Qwen-Image-Edit-2511 fp8mixed | 28.9 GiB | 15.0 s | yes |
+| BiRefNet | 2.4 GiB | 3.2 s | yes |
+| Wan 2.2 I2V 14B fp8 + LightX2V | 38.3 GiB | 36.1 s | yes |
+| HunyuanVideo I2V 720p bf16 | 61.3 GiB | 285.4 s | yes |
+
+**Nothing came close to OOM.** On a 95.6 GiB card the worst case (Hunyuan) left
+~34 GiB spare and Wan left ~57 GiB. The historical "97.2 GB, 654 MiB from OOM"
+warning was **LTX-2.3**, which is deleted; and the earlier production OOMs came
+from the *local brain* sitting resident beside the diffusion models. With the
+brain remote, that failure mode is gone.
+
+Frame counts came out correctly quantised to `4n+1`: Wan 81 frames @16fps
+(480×832), Hunyuan 73 frames @24fps (720×1280).
 
 ### Run it
 
