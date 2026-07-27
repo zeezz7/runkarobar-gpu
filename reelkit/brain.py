@@ -50,11 +50,14 @@ VL_DIR = os.environ.get(
 GOALS = {"reveal", "showcase", "detail", "wear", "lifestyle", "cta"}
 # goals whose whole point is showing the real product
 PRODUCT_GOALS = {"reveal", "showcase", "detail", "wear", "cta"}
-# "lipsync" renders a presenter speaking the scene's vo (avatar.py, remote).
-# It is gated by the template - only `ad` and `testimonial` ask for it - so no
-# other template ever pays the avatar cost.
+# "lipsync" is still a valid storyboard value, but NOTHING can render it on this
+# box today: the remote avatar service was removed (all pixels are generated
+# locally - see avatar.py) and no local lip-sync model is installed. Any lipsync
+# scene is therefore downgraded to edit_animate in validate(), which renders a
+# real person shot through Wan i2v - they just do not mouth the words.
+# Re-enable by adding a template here ONCE avatar.lipsync() works locally.
 METHODS = {"compose_animate", "generate_animate", "edit_animate", "lipsync"}
-LIPSYNC_TEMPLATES = {"ad", "testimonial", "outfit-check"}
+LIPSYNC_TEMPLATES = set()
 MODES = {"product", "scene"}
 TRANSITIONS = {"cut", "fade", "whip", "zoom"}
 
@@ -221,18 +224,17 @@ TEMPLATES = {
             "viewer in the first 2 seconds, state one clear benefit, and end on a "
             "strong call to action. Punchy, bold, fast. "
             "Scene 1 is the PRESENTER: a friendly, confident female presenter facing "
-            "camera, holding or wearing the product, speaking straight to the viewer "
-            "- give it method 'lipsync' and write its vo as the words she actually "
-            "says. The remaining scenes are product beats that sell the benefit, with "
-            "energy where it genuinely fits the product. "
+            "camera, holding or wearing the product, addressing the viewer - use "
+            "method 'edit_animate' with mode 'scene', and write its vo as the words "
+            "she is saying. The remaining scenes are product beats that sell the "
+            "benefit, with energy where it genuinely fits the product. "
             "Also propose 2-3 short on-screen badges in the storyboard's 'badges' "
             "array - a price, an offer or a one-word benefit (e.g. '₹499', 'FREE "
             "SHIPPING', 'LIMITED'). Keep each under 16 characters."),
         "defaults": {"sceneBias": 4, "wantsBadges": True, "wantsCta": True,
                      "motionStyle": "dynamic", "lengthSec": 20,
                      "forceFemaleVoice": True, "presenterFace": True,
-                     "anchorModel": True, "preferMethod": "lipsync",
-                     "lipsyncScenes": 1},
+                     "anchorModel": True},
     },
     "unboxing": {
         "persona": (
@@ -258,27 +260,25 @@ TEMPLATES = {
             "Write the vo as casual, trendy FIRST-PERSON lines - 'obsessed with this "
             "fit', 'the drape on this is unreal' - like a real girl showing off her "
             "outfit, NOT an ad read. The last line is a call to action to shop. "
-            "She is TALKING to camera while she films, so give EVERY scene method "
-            "'lipsync' - the vo is the exact words she says. Keep each line short "
-            "enough to say comfortably in the scene's durationSec."),
+            "She is TALKING to camera while she films - write each vo as the exact "
+            "words she says, and keep every line short enough to say comfortably "
+            "within the scene's durationSec."),
         "defaults": {"sceneBias": 3, "preferMode": "scene", "wantsCta": True,
                      "motionStyle": "dynamic", "lengthSec": 30,
                      "forceFemaleVoice": True, "anchorModel": True,
-                     "mirrorSelfie": True, "presenterFace": True,
-                     "preferMethod": "lipsync", "lipsyncScenes": 99},
+                     "mirrorSelfie": True, "presenterFace": True},
     },
     "testimonial": {
         "persona": (
             "Authentic UGC testimonial. ONE real-feeling person talks straight to "
             "camera about the product like a friend's recommendation - warm, honest, "
             "specific, a little imperfect. Not a polished ad read. "
-            "EVERY scene is that person speaking to camera: give each scene method "
-            "'lipsync' and write its vo as the exact words they say. The same person "
-            "throughout. Cut away only if a scene genuinely needs to show the product "
-            "detail they are describing."),
-        "defaults": {"sceneBias": 3, "preferMethod": "lipsync", "wantsCta": True,
-                     "lengthSec": 20, "presenterFace": True, "anchorModel": True,
-                     "lipsyncScenes": 99},
+            "EVERY scene is that person talking to camera: use method 'edit_animate' "
+            "with mode 'scene', and write each vo as the exact words they say. The "
+            "same person throughout. Cut away only if a scene genuinely needs to show "
+            "the product detail they are describing."),
+        "defaults": {"sceneBias": 3, "wantsCta": True, "lengthSec": 20,
+                     "presenterFace": True, "anchorModel": True},
     },
 }
 DEFAULT_TEMPLATE = "ai-director"
@@ -292,6 +292,35 @@ def resolve_template(name):
                             f"'{DEFAULT_TEMPLATE}'")
         key = DEFAULT_TEMPLATE
     return key, TEMPLATES[key]
+
+
+# StaffHQ's "What's in the video" radio. FALSE IS THE DEFAULT and means product
+# only - no people, no hands, no model anywhere. True means a real person
+# features with the product (wears / holds / uses it).
+#
+# This is a PRESET INPUT, exactly like the template: it changes what the brain is
+# asked for, and the executor renders whatever comes back. There is no
+# per-product branch anywhere.
+PEOPLE_RULE_OFF = (
+    "\n\nWHO IS ON SCREEN - HARD RULE, overrides the style directive above:\n"
+    "  This reel is PRODUCT ONLY. NO people, NO model, NO hands, NO fingers, NO "
+    "arms, NO reflections of a person, NO silhouettes - nobody appears in ANY "
+    "scene. Do not describe anyone wearing, holding, touching, opening or using "
+    "the product. If the supplied photograph contains a person, your scenes must "
+    "re-stage the product WITHOUT them - on a surface, a stand, a mannequin-free "
+    "display, or floating in a lit set.\n"
+    "  Every scene's mode must be \"product\", and \"visual\" must describe the "
+    "product and its setting only.")
+PEOPLE_RULE_ON = (
+    "\n\nWHO IS ON SCREEN:\n"
+    "  A real person features with the product - wearing, holding or using it. "
+    "Show them naturally and keep them consistent across scenes (same face, hair "
+    "and build throughout). They must be fully and modestly dressed in every "
+    "shot.")
+
+
+def people_directive(include_human):
+    return PEOPLE_RULE_ON if include_human else PEOPLE_RULE_OFF
 
 
 def _template_directive(key, spec, nmin, nmax):
@@ -423,7 +452,7 @@ def _clean_kenburns(kb):
             "rotateDeg": round(rot, 3)}
 
 
-def validate(sb, length, template=None):
+def validate(sb, length, template=None, include_human=True):
     """Raise ValueError with a specific reason the model can act on."""
     if not isinstance(sb, dict):
         raise ValueError("top level is not an object")
@@ -513,6 +542,27 @@ def validate(sb, length, template=None):
             clean_badges.append({"text": text, "color": colour})
     sb["badges"] = clean_badges
 
+    # Enforce the people rule rather than trusting the prompt: a "just the
+    # product" reel that renders a hand is the single most visible way to get
+    # this wrong, and the brain gets a specific complaint it can act on.
+    if not include_human:
+        bad = [s_["n"] for s_ in scenes if s_.get("mode") == "scene"]
+        if bad:
+            raise ValueError(
+                f"scenes {bad} use mode 'scene' but this reel is PRODUCT ONLY "
+                f"(includeHuman is false) - every scene must be mode 'product' "
+                f"with nobody on screen")
+        human = re.compile(r"\b(model|person|woman|man|girl|boy|hand|hands|"
+                           r"finger|fingers|arm|arms|wrist|neck|face|she|he|her|"
+                           r"his|wearing|worn by|holding|held by)\b", re.I)
+        for s_ in scenes:
+            hit = human.search(f"{s_.get('visual','')} {s_.get('background','')}")
+            if hit:
+                raise ValueError(
+                    f"scene {s_['n']} mentions '{hit.group(0)}' but this reel is "
+                    f"PRODUCT ONLY (includeHuman is false) - rewrite it with no "
+                    f"person, hands or body parts anywhere")
+
     sb.setdefault("notes", "")
     return sb
 
@@ -548,16 +598,21 @@ def storyboard(brief, config, product_images, retries=3, tracer=None,
     # its output - is byte-identical to the pre-template behaviour.
     directive = _template_directive(tpl_key, tpl_spec, nmin, nmax)
     prompt += directive
+    # Appended AFTER the template directive so it wins: a template persona may
+    # describe a model in a mirror, but "just the product" must still mean
+    # nobody on screen.
+    include_human = bool(config.get("includeHuman", False))
+    prompt += people_directive(include_human)
+    common.log("brain", f"includeHuman={include_human} - "
+                        + ("a person features with the product"
+                           if include_human else "PRODUCT ONLY, nobody on screen"))
     common.log("brain", f"template '{tpl_key}'"
                         + (f" (+{len(directive)} chars of style directive)"
                            if directive else " (no directive - default behaviour)"))
-    if tpl_spec.get("defaults", {}).get("preferMethod") == "lipsync":
-        # Was a "no avatar stage is wired - FALLING BACK" warning. It is wired
-        # now (avatar.py), so say what will actually happen and what it costs.
-        budget = tpl_spec["defaults"].get("lipsyncScenes") or 0
-        common.log("brain", f"template '{tpl_key}' uses lip-sync for up to "
-                            f"{budget} scene(s) via the remote avatar model "
-                            f"(billed per scene; falls back to i2v on failure)")
+    if tpl_spec.get("defaults", {}).get("presenterFace"):
+        common.log("brain", f"template '{tpl_key}' fronts a presenter; every shot "
+                            f"renders locally (Wan i2v) - no lip-sync model is "
+                            f"installed, so mouths will not track the voiceover")
 
     if tracer:
         tracer.write_text("brain_prompt.txt",
@@ -576,7 +631,8 @@ def storyboard(brief, config, product_images, retries=3, tracer=None,
         raw = wavespeed.chat(ask, system=SYSTEM, images=urls, model=model,
                              temperature=0.85, max_tokens=1600)
         try:
-            sb = validate(_extract_json(raw), length, template=tpl_key)
+            sb = validate(_extract_json(raw), length, template=tpl_key,
+                          include_human=include_human)
             common.log("brain", f"storyboard ok on attempt {attempt}: "
                                 f"{len(sb['scenes'])} scenes, "
                                 f"{sum(s['durationSec'] for s in sb['scenes']):.0f}s")

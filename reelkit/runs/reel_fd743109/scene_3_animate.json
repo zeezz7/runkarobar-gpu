@@ -1,0 +1,18 @@
+{
+  "engine": "wan",
+  "path": "video_i2v",
+  "motion_prompt_verbatim": "slow tilt up",
+  "energy_prompt_verbatim": "",
+  "full_prompt_sent": "slow tilt up. Closer waist-up shot of the same woman still holding phone, focusing on the intricate embroidery work and neckline details of the green suit.",
+  "input_still": "/workspace/runkarobar-gpu/reelkit/work/reel_fd743109/scene_3.png",
+  "requested_duration": 6.0,
+  "clip_path": "/workspace/runkarobar-gpu/reelkit/work/reel_fd743109/clip_3.mp4",
+  "kenburns": {
+    "zoom": "in",
+    "start": 1.2,
+    "end": 1.35,
+    "xDrift": 0.0,
+    "yDrift": -0.1,
+    "rotateDeg": -2.0
+  }
+}

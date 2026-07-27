@@ -48,6 +48,8 @@ DEFAULT_CONFIG = {
     "captions": True,
     # creative-direction preset for the brain only; the renderer is unaware of it
     "template": "ai-director",
+    # False = product only (no people/hands anywhere). StaffHQ's default.
+    "includeHuman": False,
     # write a full per-run audit trail under runs/<run_id>/ (logging only)
     "trace": True,
 }
@@ -84,31 +86,6 @@ def _upload(path, prefix, key=None):
     return p.stdout.strip().split()[0]
 
 
-def _lipsync_scene(jid, n, still, vo_track, sb, jd):
-    """
-    Render one talking-presenter scene. Returns a clip path, or None to fall back.
-
-    The avatar service fetches its inputs itself, so the still and the scene's
-    mp3 must be PUBLIC first - hence the two uploads. Failure is never fatal: the
-    caller animates the still normally instead, so a flaky avatar costs polish,
-    not the reel.
-    """
-    import avatar
-    try:
-        img_url = _upload(still, "images", f"{jid}_s{n}_presenter.png")
-        aud_url = _upload(vo_track["audio"], "audio", f"{jid}_s{n}_vo.mp3")
-    except Exception as e:
-        common.log("avatar", f"scene {n}: could not publish inputs ({e})")
-        return None
-    out = os.path.join(jd, f"clip_{n}_talk.mp4")
-    got = avatar.lipsync(img_url, aud_url, out,
-                         item_name=(sb.get("concept") or "the product")[:60])
-    if got:
-        avatar.note_cost(float(vo_track.get("duration") or 5))
-        common.log("avatar", f"scene {n}: lip-synced presenter clip")
-    return got
-
-
 def make_reel(request):
     """request -> result, both exactly as specified in the brief."""
     t_start = time.time()
@@ -132,6 +109,13 @@ def make_reel(request):
     if "lengthSec" not in (request.get("config") or {}) and tpl_defaults.get("lengthSec"):
         cfg["lengthSec"] = tpl_defaults["lengthSec"]
         common.log("job", f"template '{tpl_key}' default length {cfg['lengthSec']}s")
+    # outfit-check / testimonial / ad ARE about a person - StaffHQ only offers the
+    # toggle on product-centric templates, so a person template implies it rather
+    # than rendering an outfit-check with nobody in it.
+    if (tpl_defaults.get("anchorModel") or tpl_defaults.get("presenterFace")) \
+            and "includeHuman" not in (request.get("config") or {}):
+        cfg["includeHuman"] = True
+        common.log("job", f"template '{tpl_key}' features a person - includeHuman=True")
     if tpl_defaults.get("forceFemaleVoice") and not (cfg.get("elevenVoiceId") or "").strip():
         import voiceover as _vo
         cfg["elevenVoiceId"] = _vo.female_voice(cfg.get("language"))
@@ -191,7 +175,6 @@ def make_reel(request):
     guard_log, clips, stills = [], [], []
     cut_cache, bg_cache = {}, {}
     anchor_still = None          # B1: the frame that fixes the model's identity
-    lipsync_budget = int(tpl_defaults.get("lipsyncScenes") or 0)
 
     for si, (sc, v) in enumerate(zip(sb["scenes"], vo)):
         n = sc["n"]
@@ -246,27 +229,6 @@ def make_reel(request):
         # Ken-Burns renders at full delivery resolution (it is pure ffmpeg, so
         # there is no reason to downscale). Wan is capped internally at 480x832
         # by VRAM, which is a model limit rather than a choice.
-        # A lipsync scene is rendered by the remote avatar model instead of i2v.
-        # It needs the scene's OWN voiceover audio, which stage 3 already made.
-        if sc["method"] == "lipsync" and lipsync_budget > 0 and v.get("audio"):
-            lipsync_budget -= 1
-            talk = _lipsync_scene(jid, n, still, v, sb, jd)
-            if talk:
-                # A lip-sync clip is EXACTLY as long as the speech that drove it.
-                # The slot, though, is floored at the brain's planned duration
-                # (voiceover.py), so a short line left a gap that assemble filled
-                # by time-stretching the video - which desyncs the mouth from the
-                # audio, because the audio is NOT stretched with it. Snap the slot
-                # to the clip so nothing is stretched or frozen and the sync holds.
-                actual = common.probe_duration(talk)
-                if actual > 0.1 and abs(actual - v["duration"]) > 0.05:
-                    common.log("avatar", f"scene {n}: slot {v['duration']:.2f}s -> "
-                                         f"{actual:.2f}s (match the lip-sync clip)")
-                    v["duration"] = round(actual, 3)
-                clips.append(talk)
-                tr.mark(f"scene_{n}")
-                continue
-            common.log("avatar", f"scene {n}: falling back to i2v")
 
         clip, _ = animate.animate_scene(sc, still, product, jd, w, h,
                                         v["duration"], guard_log=None, tracer=tr)

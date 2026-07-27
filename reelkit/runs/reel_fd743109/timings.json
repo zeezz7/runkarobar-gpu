@@ -1,0 +1,73 @@
+{
+  "total_wall_clock_sec": 434.8,
+  "per_stage": [
+    {
+      "stage": "brain",
+      "seconds": 46.41
+    },
+    {
+      "stage": "voiceover",
+      "seconds": 9.03
+    },
+    {
+      "stage": "scene_1",
+      "seconds": 62.58
+    },
+    {
+      "stage": "scene_2",
+      "seconds": 46.01
+    },
+    {
+      "stage": "scene_3",
+      "seconds": 55.27
+    },
+    {
+      "stage": "scene_4",
+      "seconds": 74.85
+    },
+    {
+      "stage": "scene_5",
+      "seconds": 90.24
+    },
+    {
+      "stage": "assemble",
+      "seconds": 15.96
+    },
+    {
+      "stage": "upload",
+      "seconds": 34.45
+    }
+  ],
+  "model_load_order": [
+    {
+      "model": "wavespeed:anthropic/claude-sonnet-4",
+      "action": "remote",
+      "t": 1.57
+    },
+    {
+      "model": "i2v:wan",
+      "action": "load",
+      "t": 81.97
+    },
+    {
+      "model": "i2v:wan",
+      "action": "load",
+      "t": 136.85
+    },
+    {
+      "model": "i2v:wan",
+      "action": "load",
+      "t": 183.26
+    },
+    {
+      "model": "i2v:wan",
+      "action": "load",
+      "t": 249.09
+    },
+    {
+      "model": "i2v:wan",
+      "action": "load",
+      "t": 324.03
+    }
+  ]
+}

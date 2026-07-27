@@ -1,0 +1,30 @@
+{
+  "per_scene": [
+    {
+      "scene": 1,
+      "fitted_duration": 7.355,
+      "transition_in": "cut",
+      "dipped_through_black": false
+    },
+    {
+      "scene": 2,
+      "fitted_duration": 6.624,
+      "transition_in": "cut",
+      "dipped_through_black": false
+    },
+    {
+      "scene": 3,
+      "fitted_duration": 7.199,
+      "transition_in": "fade",
+      "dipped_through_black": true
+    }
+  ],
+  "transition_fallbacks": [],
+  "total_duration": 20.98,
+  "master_resolution": "1080x1920",
+  "captions_burned": false,
+  "fps": 30,
+  "outputs": {
+    "1080p": "/workspace/runkarobar-gpu/reelkit/work/reel_15daf8c8/reel_15daf8c8_1080p.mp4"
+  }
+}

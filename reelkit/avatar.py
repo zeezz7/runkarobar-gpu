@@ -1,121 +1,62 @@
 """
-Talking-avatar lip-sync — the one capability with no local model.
+Lip-sync — LOCAL ONLY. There is currently no local model, so this is disabled.
 
-Every other stage runs on this box. There is no open lip-sync model installed
-(and none in the reelkit working set), so a `lipsync` scene is rendered by a
-WaveSpeed avatar model: it takes a presenter STILL and an AUDIO clip and returns
-a video of that person speaking it.
+HARD RULE FOR THIS PIPELINE: every pixel is generated on this box. Images come
+from Qwen-Image / Qwen-Image-Edit, video from Wan 2.2 (or HunyuanVideo I2V), all
+on the local GPU. The ONLY remote calls in the whole pipeline are:
 
-That makes this the pipeline's SECOND remote dependency, and a per-scene billed
-one, so it is gated hard: `brain.validate()` downgrades `lipsync` to
-`edit_animate` unless the template is in `LIPSYNC_TEMPLATES` (ad, testimonial).
-No other template can ever trigger a charge here.
+    * the Stage 0 storyboard brain  - text/vision LLM, generates no pixels
+    * ElevenLabs TTS                - audio, generates no pixels
 
-All five models share the same {image, audio} contract, so they are swappable by
-name — the tenant can trial-and-error for the best sync without a code change.
-Model ids ported from StaffHQ's AVATAR_MODEL_IDS.
+This module used to call WaveSpeed's hosted avatar models
+(wavespeed-ai/hunyuan-avatar and friends) to lip-sync a presenter. That is a
+REMOTE VIDEO GENERATOR and it violates the rule, so it is gone - not disabled
+behind a flag, removed. Do not reintroduce it.
 
-Both inputs must be PUBLIC URLS: the avatar service fetches them itself, so a
-local path cannot be used. We upload to MinIO first.
+WHAT THIS MEANS TODAY
+A scene whose method is "lipsync" cannot be truly lip-synced. `lipsync()`
+returns None, and make_reel falls back to animating the presenter still with Wan
+i2v: the person moves and gestures naturally, but their mouth does not track the
+voiceover.
+
+HOW TO GET REAL LIP-SYNC BACK, ON-BOX
+Install a local lip-sync model into ComfyUI and implement `lipsync()` against it.
+Realistic candidates, all of which run on this GPU:
+
+    LatentSync (ByteDance)  diffusion-based, best current open quality
+    MuseTalk                real-time class, 30fps+, lighter
+    Sonic / EchoMimic       portrait animation driven by audio
+    Wav2Lip                 oldest and weakest, but tiny and reliable
+
+All take (face image or video + audio) -> a talking clip, which is exactly the
+signature below, so only the body of `lipsync()` needs writing.
 """
-import os
-
 import common
-import costs
-import wavespeed
 
-# name -> WaveSpeed model id. Prices are per second of output and are the reason
-# this is gated; hunyuan is the cheapest usable one, so it is the default.
-AVATAR_MODELS = {
-    "hunyuan": "wavespeed-ai/hunyuan-avatar",
-    "infinitetalk": "wavespeed-ai/infinitetalk",
-    "omnihuman": "bytedance/avatar-omni-human-1.5",
-    "kling": "kwaivgi/kling-v2-ai-avatar-standard",
-    "wan-speech": "wavespeed-ai/wan-2.2/speech-to-video",
-}
-DEFAULT_AVATAR = "hunyuan"
-
-# Which models accept a `resolution`, and what they accept. THE DEFAULT IS 480p
-# ON ALL OF THEM - leaving it unset silently produced a 480p talking head that
-# was then upscaled to 1080x1920, which is exactly as soft as it sounds.
-# omnihuman and kling expose no resolution knob at all.
-AVATAR_RESOLUTIONS = {
-    "hunyuan": ("480p", "720p"),
-    "infinitetalk": ("480p", "720p"),
-    "wan-speech": ("480p", "720p"),
-}
-DEFAULT_RESOLUTION = "720p"
-
-# FLAT per-call price from the WaveSpeed catalogue (base_price), confirmed
-# against a real dashboard entry: one hunyuan-avatar call billed $0.15.
-# This was previously modelled as a per-second rate, which is simply not how
-# these are billed.
-AVATAR_USD = {"hunyuan": 0.15, "infinitetalk": 0.15, "omnihuman": 0.16,
-              "kling": 0.28, "wan-speech": 0.15}
-
-
-def avatar_model():
-    name = (os.environ.get("REELKIT_AVATAR_MODEL") or DEFAULT_AVATAR).strip().lower()
-    if name not in AVATAR_MODELS:
-        common.log("avatar", f"unknown avatar model {name!r} - using {DEFAULT_AVATAR}")
-        name = DEFAULT_AVATAR
-    return name
-
-
-def resolution_for(name):
-    opts = AVATAR_RESOLUTIONS.get(name)
-    if not opts:
-        return None                      # model has no resolution knob
-    want = (os.environ.get("REELKIT_AVATAR_RESOLUTION") or DEFAULT_RESOLUTION).lower()
-    return want if want in opts else opts[-1]
+# Kept so brain.py's gate still resolves; no model is reachable from here.
+LIPSYNC_AVAILABLE = False
 
 
 def lipsync(image_url, audio_url, out_path, item_name="the product",
             model=None, timeout=900):
     """
-    Presenter still + audio -> a talking clip. Returns the local path, or None.
+    Not implemented locally. Returns None so the caller falls back to i2v.
 
-    Returning None rather than raising is deliberate: a failed avatar call
-    should cost the reel one scene's polish, not the whole render. The caller
-    falls back to animating the still normally.
+    Signature is deliberately unchanged from the removed remote version, so
+    wiring a local model in later touches only this function.
     """
-    name = model or avatar_model()
-    model_id = AVATAR_MODELS[name]
-    common.log("avatar", f"lip-sync via {name} ({model_id})"
-                        + (f" @ {resolution_for(name)}" if resolution_for(name) else ""))
-
-    # Avatar services intermittently fail to fetch our input URLs under load
-    # ("could not download the input"), which is transient - retry before
-    # giving up on the scene.
-    last = None
-    for attempt in range(1, 4):
-        try:
-            payload = {
-                "image": image_url,
-                "audio": audio_url,
-                "prompt": (f"A brand presenter speaking to camera, showing the "
-                           f"{item_name}, natural expression and gestures."),
-            }
-            res = resolution_for(name)
-            if res:
-                payload["resolution"] = res
-            out = wavespeed.run(model_id, payload, timeout=timeout)
-            if out:
-                common.fetch_url(out[0], out_path)
-                return out_path
-            last = "empty output"
-        except Exception as e:
-            last = str(e)[:200]
-            common.log("avatar", f"attempt {attempt}/3 failed: {last}")
-    common.log("avatar", f"lip-sync unavailable ({last}) - falling back to i2v")
+    common.log("avatar",
+               "lip-sync is LOCAL-ONLY and no local model is installed - "
+               "rendering the presenter with Wan i2v instead (mouth will not "
+               "track the voiceover). See avatar.py for how to add one.")
     return None
 
 
 def estimate_usd(seconds=None, model=None):
-    """Flat per call - `seconds` is ignored, kept so callers need not change."""
-    return AVATAR_USD.get(model or avatar_model(), 0.15)
+    """Local rendering has no per-call price; GPU time is metered separately."""
+    return 0.0
 
 
 def note_cost(seconds, model=None):
-    """Record the avatar spend on the job's meter."""
-    costs.current().avatar(estimate_usd(seconds, model))
+    """No-op: nothing remote is billed here any more."""
+    return None

@@ -1,0 +1,175 @@
+{
+  "reel_1080p_url": "https://staging-storage.runkarobar.com/reels/reel_fd743109_1080p.mp4",
+  "reel_720p_url": "",
+  "scene_image_urls": [
+    "https://staging-storage.runkarobar.com/images/reel_fd743109_s1.png",
+    "https://staging-storage.runkarobar.com/images/reel_fd743109_s2.png",
+    "https://staging-storage.runkarobar.com/images/reel_fd743109_s3.png",
+    "https://staging-storage.runkarobar.com/images/reel_fd743109_s4.png",
+    "https://staging-storage.runkarobar.com/images/reel_fd743109_s5.png"
+  ],
+  "storyboard": {
+    "concept": "Confident mirror selfie outfit check showcasing embroidered lawn suit",
+    "voice": "female warm Hinglish",
+    "scenes": [
+      {
+        "n": 1,
+        "goal": "reveal",
+        "method": "edit_animate",
+        "mode": "product",
+        "visual": "Young woman in embroidered green lawn suit standing confidently in front of full-length mirror, holding phone up to take mirror selfie, full body shot showing complete outfit",
+        "background": "Modern bedroom with large floor mirror, soft natural light from window, minimalist decor, warm morning ambiance",
+        "motion": "slow push-in",
+        "energy": "",
+        "transitionIn": "cut",
+        "durationSec": 6.0,
+        "motionEngine": "video",
+        "kenburns": {
+          "zoom": "in",
+          "start": 1.0,
+          "end": 1.15,
+          "xDrift": 0.0,
+          "yDrift": 0.0,
+          "rotateDeg": 0.0
+        },
+        "vo": "Yaar dekho yeh embroidered suit kitna gorgeous hai"
+      },
+      {
+        "n": 2,
+        "goal": "showcase",
+        "method": "edit_animate",
+        "mode": "product",
+        "visual": "Same woman turns to three-quarter angle still holding phone, showing the drape and flow of the embroidered lawn fabric, confident pose",
+        "background": "Same modern bedroom setting with soft natural light, mirror reflecting the outfit beautifully",
+        "motion": "gentle orbit right",
+        "energy": "subtle shimmer",
+        "transitionIn": "cut",
+        "durationSec": 5.0,
+        "motionEngine": "video",
+        "kenburns": {
+          "zoom": "in",
+          "start": 1.12,
+          "end": 1.12,
+          "xDrift": 0.05,
+          "yDrift": 0.0,
+          "rotateDeg": 3.0
+        },
+        "vo": "Iska fabric itna soft aur comfortable hai"
+      },
+      {
+        "n": 3,
+        "goal": "detail",
+        "method": "edit_animate",
+        "mode": "product",
+        "visual": "Closer waist-up shot of the same woman still holding phone, focusing on the intricate embroidery work and neckline details of the green suit",
+        "background": "Soft-focus mirror reflection with warm natural lighting highlighting fabric texture",
+        "motion": "slow tilt up",
+        "energy": "",
+        "transitionIn": "zoom",
+        "durationSec": 6.0,
+        "motionEngine": "video",
+        "kenburns": {
+          "zoom": "in",
+          "start": 1.2,
+          "end": 1.35,
+          "xDrift": 0.0,
+          "yDrift": -0.1,
+          "rotateDeg": -2.0
+        },
+        "vo": "Look at this embroidery work - bilkul stunning lagta hai"
+      },
+      {
+        "n": 4,
+        "goal": "wear",
+        "method": "edit_animate",
+        "mode": "product",
+        "visual": "Woman looking directly at camera through mirror with confident smile, still holding phone, showing complete styled look with the embroidered lawn suit",
+        "background": "Bright modern room with mirror, natural lighting creating perfect selfie ambiance",
+        "motion": "subtle zoom out",
+        "energy": "warm glow",
+        "transitionIn": "fade",
+        "durationSec": 5.0,
+        "motionEngine": "video",
+        "kenburns": {
+          "zoom": "out",
+          "start": 1.2,
+          "end": 1.0,
+          "xDrift": 0.0,
+          "yDrift": 0.05,
+          "rotateDeg": 0.0
+        },
+        "vo": "Main totally obsessed hun is outfit se"
+      },
+      {
+        "n": 5,
+        "goal": "cta",
+        "method": "edit_animate",
+        "mode": "product",
+        "visual": "Final confident pose of woman in embroidered suit holding phone up, direct eye contact with camera, full styling visible",
+        "background": "Clean modern mirror setting with perfect lighting for outfit showcase",
+        "motion": "slow push-in",
+        "energy": "",
+        "transitionIn": "cut",
+        "durationSec": 8.0,
+        "motionEngine": "video",
+        "kenburns": {
+          "zoom": "in",
+          "start": 1.0,
+          "end": 1.25,
+          "xDrift": 0.0,
+          "yDrift": 0.0,
+          "rotateDeg": 0.0
+        },
+        "vo": "Tumko bhi chahiye toh The Collection pe jaake shop karo abhi"
+      }
+    ],
+    "badges": [],
+    "notes": "Mirror selfie outfit check format with single confident woman showcasing embroidered lawn suit throughout, building from full reveal to detail shots ending with strong CTA, maintaining phone-up pose for authentic mirror selfie aesthetic"
+  },
+  "durationSec": 29.92,
+  "cost_usd": 0.3064,
+  "_cost": {
+    "total_usd": 0.3064,
+    "gpu_usd": 0.1329,
+    "gpu_seconds": 434.8,
+    "wavespeed_usd": 0.1,
+    "wavespeed_calls": 2,
+    "avatar_usd": 0.0,
+    "avatar_scenes": 0,
+    "elevenlabs_usd": 0.0735,
+    "elevenlabs_chars": 245,
+    "rates": {
+      "gpu_usd_per_hour": 1.1,
+      "eleven_usd_per_1k_chars": 0.3
+    },
+    "note": "estimate - rates are configurable, see costs.py"
+  },
+  "_guard": [
+    {
+      "scene": 1,
+      "ok": true,
+      "detail": "source had no readable label text - guard skipped"
+    },
+    {
+      "scene": 2,
+      "ok": true,
+      "detail": "source had no readable label text - guard skipped"
+    },
+    {
+      "scene": 3,
+      "ok": true,
+      "detail": "source had no readable label text - guard skipped"
+    },
+    {
+      "scene": 4,
+      "ok": true,
+      "detail": "source had no readable label text - guard skipped"
+    },
+    {
+      "scene": 5,
+      "ok": true,
+      "detail": "source had no readable label text - guard skipped"
+    }
+  ],
+  "_elapsedSec": 434.8
+}

@@ -1,0 +1,119 @@
+{
+  "reel_1080p_url": "https://staging-storage.runkarobar.com/reels/reel_15daf8c8_1080p.mp4",
+  "reel_720p_url": "",
+  "scene_image_urls": [
+    "https://staging-storage.runkarobar.com/images/reel_15daf8c8_s1.png",
+    "https://staging-storage.runkarobar.com/images/reel_15daf8c8_s2.png",
+    "https://staging-storage.runkarobar.com/images/reel_15daf8c8_s3.png"
+  ],
+  "storyboard": {
+    "concept": "Friend's authentic recommendation for premium embroidered lawn suit",
+    "voice": "warm female Hinglish",
+    "scenes": [
+      {
+        "n": 1,
+        "goal": "wear",
+        "method": "edit_animate",
+        "mode": "scene",
+        "visual": "Young woman in green embroidered lawn suit speaking warmly to camera with genuine smile",
+        "background": "Urban street scene with classic architecture, soft golden hour lighting, blurred city backdrop",
+        "motion": "slow push-in",
+        "energy": "gentle breeze effect",
+        "transitionIn": "cut",
+        "durationSec": 7.0,
+        "motionEngine": "video",
+        "kenburns": {
+          "zoom": "in",
+          "start": 1.0,
+          "end": 1.15,
+          "xDrift": 0.0,
+          "yDrift": 0.0,
+          "rotateDeg": 0.0
+        },
+        "vo": "Yaar, The Collection ka yeh embroidered lawn suit dekho - kitna beautiful hai na! Main toh completely in love hun iske saath."
+      },
+      {
+        "n": 2,
+        "goal": "showcase",
+        "method": "edit_animate",
+        "mode": "scene",
+        "visual": "Same woman gesturing toward the intricate embroidery details on her suit, touching the fabric lovingly",
+        "background": "Urban street scene with classic architecture, soft golden hour lighting, blurred city backdrop",
+        "motion": "gentle tilt down",
+        "energy": "soft fabric shimmer",
+        "transitionIn": "cut",
+        "durationSec": 6.0,
+        "motionEngine": "video",
+        "kenburns": {
+          "zoom": "in",
+          "start": 1.12,
+          "end": 1.2,
+          "xDrift": 0.05,
+          "yDrift": 0.1,
+          "rotateDeg": 2.0
+        },
+        "vo": "Dekho kitna premium quality hai - embroidery toh ekdum perfect hai aur fabric bhi so comfortable."
+      },
+      {
+        "n": 3,
+        "goal": "cta",
+        "method": "edit_animate",
+        "mode": "scene",
+        "visual": "Woman looking directly at camera with confident smile, holding dupatta naturally",
+        "background": "Urban street scene with classic architecture, soft golden hour lighting, blurred city backdrop",
+        "motion": "slight orbit",
+        "energy": "",
+        "transitionIn": "fade",
+        "durationSec": 7.0,
+        "motionEngine": "video",
+        "kenburns": {
+          "zoom": "out",
+          "start": 1.2,
+          "end": 1.12,
+          "xDrift": -0.03,
+          "yDrift": 0.0,
+          "rotateDeg": -1.5
+        },
+        "vo": "Trust me girls, The Collection mein jaake definitely try karna - you'll love it! Main toh already next piece order kar chuki hun."
+      }
+    ],
+    "badges": [],
+    "notes": "Authentic testimonial feel with natural gestures and genuine enthusiasm. Focuses on the premium embroidered lawn suit quality while maintaining conversational Hinglish tone throughout."
+  },
+  "durationSec": 20.98,
+  "cost_usd": 0.2442,
+  "_cost": {
+    "total_usd": 0.2442,
+    "gpu_usd": 0.0889,
+    "gpu_seconds": 290.8,
+    "wavespeed_usd": 0.05,
+    "wavespeed_calls": 1,
+    "avatar_usd": 0.0,
+    "avatar_scenes": 0,
+    "elevenlabs_usd": 0.1053,
+    "elevenlabs_chars": 351,
+    "rates": {
+      "gpu_usd_per_hour": 1.1,
+      "eleven_usd_per_1k_chars": 0.3
+    },
+    "note": "estimate - rates are configurable, see costs.py"
+  },
+  "_guard": [
+    {
+      "scene": 1,
+      "ok": true,
+      "detail": "source had no readable label text - guard skipped"
+    },
+    {
+      "scene": 2,
+      "ok": true,
+      "detail": "source had no readable label text - guard skipped"
+    },
+    {
+      "scene": 3,
+      "ok": true,
+      "detail": "source had no readable label text - guard skipped"
+    }
+  ],
+  "_elapsedSec": 290.8
+}

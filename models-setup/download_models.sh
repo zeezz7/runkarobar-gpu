@@ -324,6 +324,25 @@ f_hunyuani2v() {
   fetch "$B/vae/hunyuan_video_vae_bf16.safetensors" "$M/vae/hunyuan_video_vae_bf16.safetensors"
 }
 
+# -----------------------------------------------------------------------------
+# wan22s2v - Wan 2.2 S2V 14B, audio-driven video (real lip-sync), ON-BOX.
+#   Apache-2.0, same licence and family as the I2V model already installed.
+#   This replaces the remote talking-avatar service that was removed: every
+#   pixel is generated locally, which is a hard rule for this pipeline.
+#   Needs an audio encoder (wav2vec2) that the I2V path does not - the node
+#   chain is AudioEncoderLoader -> AudioEncoderEncode -> WanSoundImageToVideo.
+#   fp8_scaled (16.4 GB) over bf16 (32.6 GB): same trade as every other model
+#   here, and it leaves room on the card beside the image models.
+# -----------------------------------------------------------------------------
+f_wan22s2v() {
+  echo "== Wan 2.2 S2V 14B (local lip-sync) =="
+  local B=$HF/Comfy-Org/Wan_2.2_ComfyUI_Repackaged/resolve/main/split_files
+  fetch "$B/diffusion_models/wan2.2_s2v_14B_fp8_scaled.safetensors" \
+        "$M/diffusion_models/wan2.2_s2v_14B_fp8_scaled.safetensors"
+  fetch "$B/audio_encoders/wav2vec2_large_english_fp16.safetensors" \
+        "$M/audio_encoders/wav2vec2_large_english_fp16.safetensors"
+}
+
 # The DEFAULT set is the live reelkit working set (2026-07-27), nothing more.
 # Deliberately NOT default, and why:
 #   flux      non-commercial licence.
@@ -345,3 +364,4 @@ for fam in "${FAMILIES[@]}"; do
 done
 disk_guard /workspace
 echo "== done. manifest: ${MANIFEST:-logs/manifest.tsv}"
+

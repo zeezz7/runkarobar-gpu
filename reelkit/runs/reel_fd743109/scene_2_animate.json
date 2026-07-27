@@ -1,0 +1,18 @@
+{
+  "engine": "wan",
+  "path": "video_i2v",
+  "motion_prompt_verbatim": "gentle orbit right",
+  "energy_prompt_verbatim": "subtle shimmer",
+  "full_prompt_sent": "gentle orbit right. Same woman turns to three-quarter angle still holding phone, showing the drape and flow of the embroidered lawn fabric, confident pose. subtle shimmer.",
+  "input_still": "/workspace/runkarobar-gpu/reelkit/work/reel_fd743109/scene_2.png",
+  "requested_duration": 5.0,
+  "clip_path": "/workspace/runkarobar-gpu/reelkit/work/reel_fd743109/clip_2.mp4",
+  "kenburns": {
+    "zoom": "in",
+    "start": 1.12,
+    "end": 1.12,
+    "xDrift": 0.05,
+    "yDrift": 0.0,
+    "rotateDeg": 3.0
+  }
+}

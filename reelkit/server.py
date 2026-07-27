@@ -41,6 +41,8 @@ class Config(BaseModel):
     # Creative-direction preset. Unknown values fall back to "ai-director"
     # (warned, not rejected). See brain.TEMPLATES.
     template: str = "ai-director"
+    # "What's in the video": False (default) = product only, nobody on screen.
+    includeHuman: bool = False
 
 
 class ReelRequest(BaseModel):

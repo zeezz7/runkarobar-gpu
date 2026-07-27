@@ -1,0 +1,175 @@
+{
+  "reel_1080p_url": "https://staging-storage.runkarobar.com/reels/reel_2fc7a05b_1080p.mp4",
+  "reel_720p_url": "",
+  "scene_image_urls": [
+    "https://staging-storage.runkarobar.com/images/reel_2fc7a05b_s1.png",
+    "https://staging-storage.runkarobar.com/images/reel_2fc7a05b_s2.png",
+    "https://staging-storage.runkarobar.com/images/reel_2fc7a05b_s3.png",
+    "https://staging-storage.runkarobar.com/images/reel_2fc7a05b_s4.png",
+    "https://staging-storage.runkarobar.com/images/reel_2fc7a05b_s5.png"
+  ],
+  "storyboard": {
+    "concept": "First-person mirror outfit check showcasing embroidered lawn suit details",
+    "voice": "female warm confident Hinglish",
+    "scenes": [
+      {
+        "n": 1,
+        "goal": "reveal",
+        "method": "edit_animate",
+        "mode": "product",
+        "visual": "Woman in full-length mirror holding phone up, wearing the embroidered green lawn suit, full head-to-toe view in modern bedroom",
+        "background": "Elegant modern bedroom with large mirror, warm natural light streaming through windows, minimalist decor",
+        "motion": "slow push-in",
+        "energy": "soft golden hour glow",
+        "transitionIn": "cut",
+        "durationSec": 5.0,
+        "motionEngine": "video",
+        "kenburns": {
+          "zoom": "in",
+          "start": 1.0,
+          "end": 1.15,
+          "xDrift": 0.0,
+          "yDrift": -0.05,
+          "rotateDeg": 0.0
+        },
+        "vo": "Yaar this embroidered lawn suit is absolutely gorgeous"
+      },
+      {
+        "n": 2,
+        "goal": "showcase",
+        "method": "edit_animate",
+        "mode": "product",
+        "visual": "Same woman turning to three-quarter angle in mirror, phone still raised, showing the side silhouette and drape of the suit",
+        "background": "Same elegant bedroom mirror setup, soft diffused lighting from the side",
+        "motion": "gentle orbit right",
+        "energy": "",
+        "transitionIn": "whip",
+        "durationSec": 5.0,
+        "motionEngine": "video",
+        "kenburns": {
+          "zoom": "in",
+          "start": 1.12,
+          "end": 1.2,
+          "xDrift": 0.05,
+          "yDrift": 0.0,
+          "rotateDeg": 3.0
+        },
+        "vo": "Dekho na the drape aur fit kitna perfect hai"
+      },
+      {
+        "n": 3,
+        "goal": "detail",
+        "method": "edit_animate",
+        "mode": "product",
+        "visual": "Closer waist-up shot of woman in mirror focusing on the intricate embroidery work and neckline details, phone visible",
+        "background": "Close-up mirror reflection with warm bedroom lighting highlighting fabric texture",
+        "motion": "slow tilt down",
+        "energy": "subtle fabric shimmer",
+        "transitionIn": "zoom",
+        "durationSec": 6.0,
+        "motionEngine": "video",
+        "kenburns": {
+          "zoom": "in",
+          "start": 1.12,
+          "end": 1.25,
+          "xDrift": 0.0,
+          "yDrift": 0.08,
+          "rotateDeg": -2.0
+        },
+        "vo": "Embroidery work dekho kitna detailed aur beautiful hai yaar"
+      },
+      {
+        "n": 4,
+        "goal": "wear",
+        "method": "edit_animate",
+        "mode": "product",
+        "visual": "Woman looking directly at camera through mirror with confident smile, phone held up, full outfit visible with dupatta",
+        "background": "Mirror reflection with soft bedroom ambiance, golden hour lighting",
+        "motion": "slight push-in",
+        "energy": "confident glow",
+        "transitionIn": "fade",
+        "durationSec": 6.0,
+        "motionEngine": "video",
+        "kenburns": {
+          "zoom": "in",
+          "start": 1.12,
+          "end": 1.18,
+          "xDrift": 0.0,
+          "yDrift": -0.03,
+          "rotateDeg": 1.0
+        },
+        "vo": "Main toh completely obsessed hun with this whole look"
+      },
+      {
+        "n": 5,
+        "goal": "cta",
+        "method": "edit_animate",
+        "mode": "product",
+        "visual": "Final confident pose in mirror, woman adjusting dupatta with one hand while holding phone, complete outfit showcase",
+        "background": "Bright modern bedroom mirror with perfect lighting showcasing the entire ensemble",
+        "motion": "crane down",
+        "energy": "sparkle effect",
+        "transitionIn": "cut",
+        "durationSec": 8.0,
+        "motionEngine": "video",
+        "kenburns": {
+          "zoom": "out",
+          "start": 1.2,
+          "end": 1.0,
+          "xDrift": 0.0,
+          "yDrift": 0.05,
+          "rotateDeg": 0.0
+        },
+        "vo": "Tumhe bhi pasand aaya toh The Collection se shop karo abhi"
+      }
+    ],
+    "badges": [],
+    "notes": "Authentic outfit check format with same woman throughout, showcasing the embroidered lawn suit from multiple angles in a natural mirror selfie style. Each scene builds the story from full reveal to detailed embroidery work to confident final pose with clear CTA."
+  },
+  "durationSec": 29.86,
+  "cost_usd": 0.3355,
+  "_cost": {
+    "total_usd": 0.3355,
+    "gpu_usd": 0.1551,
+    "gpu_seconds": 507.7,
+    "wavespeed_usd": 0.1,
+    "wavespeed_calls": 2,
+    "avatar_usd": 0.0,
+    "avatar_scenes": 0,
+    "elevenlabs_usd": 0.0804,
+    "elevenlabs_chars": 268,
+    "rates": {
+      "gpu_usd_per_hour": 1.1,
+      "eleven_usd_per_1k_chars": 0.3
+    },
+    "note": "estimate - rates are configurable, see costs.py"
+  },
+  "_guard": [
+    {
+      "scene": 1,
+      "ok": true,
+      "detail": "source had no readable label text - guard skipped"
+    },
+    {
+      "scene": 2,
+      "ok": true,
+      "detail": "source had no readable label text - guard skipped"
+    },
+    {
+      "scene": 3,
+      "ok": true,
+      "detail": "source had no readable label text - guard skipped"
+    },
+    {
+      "scene": 4,
+      "ok": true,
+      "detail": "source had no readable label text - guard skipped"
+    },
+    {
+      "scene": 5,
+      "ok": true,
+      "detail": "source had no readable label text - guard skipped"
+    }
+  ],
+  "_elapsedSec": 507.7
+}

@@ -1,0 +1,18 @@
+{
+  "engine": "wan",
+  "path": "video_i2v",
+  "motion_prompt_verbatim": "slight orbit",
+  "energy_prompt_verbatim": "",
+  "full_prompt_sent": "slight orbit. Woman looking directly at camera with confident smile, holding dupatta naturally.",
+  "input_still": "/workspace/runkarobar-gpu/reelkit/work/reel_15daf8c8/scene_3.png",
+  "requested_duration": 7.199,
+  "clip_path": "/workspace/runkarobar-gpu/reelkit/work/reel_15daf8c8/clip_3.mp4",
+  "kenburns": {
+    "zoom": "out",
+    "start": 1.2,
+    "end": 1.12,
+    "xDrift": -0.03,
+    "yDrift": 0.0,
+    "rotateDeg": -1.5
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "engine": "wan",
+  "path": "video_i2v",
+  "motion_prompt_verbatim": "gentle tilt down",
+  "energy_prompt_verbatim": "soft fabric shimmer",
+  "full_prompt_sent": "gentle tilt down. Same woman gesturing toward the intricate embroidery details on her suit, touching the fabric lovingly. soft fabric shimmer.",
+  "input_still": "/workspace/runkarobar-gpu/reelkit/work/reel_15daf8c8/scene_2.png",
+  "requested_duration": 6.624,
+  "clip_path": "/workspace/runkarobar-gpu/reelkit/work/reel_15daf8c8/clip_2.mp4",
+  "kenburns": {
+    "zoom": "in",
+    "start": 1.12,
+    "end": 1.2,
+    "xDrift": 0.05,
+    "yDrift": 0.1,
+    "rotateDeg": 2.0
+  }
+}
