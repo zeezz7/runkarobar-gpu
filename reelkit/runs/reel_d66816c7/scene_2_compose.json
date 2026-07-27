@@ -1,0 +1,9 @@
+{
+  "path": "edit_animate",
+  "model": "Qwen-Image-Edit-2511-fp8mixed",
+  "fast_lightning_4step": true,
+  "seed": 118,
+  "positive_prompt": "Keep the subject exactly as photographed - same face, same pose, same garment, same colours, same fabric and the same embroidered logo, unchanged. Change only the surroundings to: pale marble counter, warm sunlight, shallow depth. Photorealistic editorial fashion photograph.",
+  "negative_prompt": "changed clothing, different garment, altered colours, warped fabric, distorted face, extra limbs, deformed hands, blurry, low quality, jpeg artifacts, watermark",
+  "source_photo": "/workspace/reelkit/work/reel_d66816c7/product_1.png"
+}

@@ -1,0 +1,101 @@
+{
+  "reel_1080p_url": "https://staging-storage.runkarobar.com/reels/reel_d66816c7_1080p.mp4",
+  "reel_720p_url": "",
+  "scene_image_urls": [
+    "https://staging-storage.runkarobar.com/images/reel_d66816c7_s1.png",
+    "https://staging-storage.runkarobar.com/images/reel_d66816c7_s2.png",
+    "https://staging-storage.runkarobar.com/images/reel_d66816c7_s3.png"
+  ],
+  "storyboard": {
+    "concept": "A clean, wet-stone reveal that lets the pack do the talking.",
+    "voice": "warm female Hinglish",
+    "scenes": [
+      {
+        "n": 1,
+        "goal": "reveal",
+        "method": "edit_animate",
+        "mode": "product",
+        "visual": "the tube standing on wet dark slate, water beading on it",
+        "background": "wet dark slate surface, cool morning light raking from the left, soft blurred depth",
+        "motion": "slow push-in",
+        "energy": "fine rising steam",
+        "transitionIn": "fade",
+        "durationSec": 5.0,
+        "motionEngine": "video",
+        "kenburns": {
+          "zoom": "in",
+          "start": 1.0,
+          "end": 1.12,
+          "xDrift": 0.0,
+          "yDrift": -0.05,
+          "rotateDeg": 0.0
+        },
+        "vo": "Subah ki freshness, har din."
+      },
+      {
+        "n": 2,
+        "goal": "detail",
+        "method": "edit_animate",
+        "mode": "product",
+        "visual": "close on the pack, printed text crisp and readable",
+        "background": "pale marble counter, warm sunlight, shallow depth",
+        "motion": "slow orbit",
+        "energy": "",
+        "transitionIn": "cut",
+        "durationSec": 5.0,
+        "motionEngine": "video",
+        "kenburns": {
+          "zoom": "in",
+          "start": 1.0,
+          "end": 1.1,
+          "xDrift": 0.02,
+          "yDrift": 0.0,
+          "rotateDeg": 0.0
+        },
+        "vo": "Deep clean, har roz ke liye."
+      },
+      {
+        "n": 3,
+        "goal": "cta",
+        "method": "edit_animate",
+        "mode": "product",
+        "visual": "the pack centred, light blooming behind it",
+        "background": "soft neutral gradient surface, bright even light",
+        "motion": "gentle crane down",
+        "energy": "soft light bloom",
+        "transitionIn": "fade",
+        "durationSec": 5.0,
+        "motionEngine": "video",
+        "kenburns": {
+          "zoom": "out",
+          "start": 1.1,
+          "end": 1.0,
+          "xDrift": 0.0,
+          "yDrift": 0.03,
+          "rotateDeg": 0.0
+        },
+        "vo": "Aaj hi try karein."
+      }
+    ],
+    "notes": "Hand-written stand-in for the remote brain (account balance is $0)."
+  },
+  "durationSec": 15.0,
+  "_guard": [
+    {
+      "scene": 1,
+      "ok": true,
+      "detail": "only 2 token(s) readable on the source (['GLOW', 'PURE']) - too weak to diff, guard skipped"
+    },
+    {
+      "scene": 2,
+      "ok": true,
+      "detail": "only 2 token(s) readable on the source (['GLOW', 'PURE']) - too weak to diff, guard skipped"
+    },
+    {
+      "scene": 3,
+      "ok": true,
+      "detail": "only 2 token(s) readable on the source (['GLOW', 'PURE']) - too weak to diff, guard skipped"
+    }
+  ],
+  "_elapsedSec": 333.9
+}

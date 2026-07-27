@@ -1,0 +1,17 @@
+{
+  "product_images": [
+    "https://staging-storage.runkarobar.com/images/verify_t2i_pureglow.png"
+  ],
+  "brief": "15s premium skincare reel, warm female Hinglish voiceover",
+  "config": {
+    "lengthSec": 15,
+    "resolution": "1080p",
+    "aspectRatio": "9:16",
+    "language": "hinglish",
+    "brandName": "Pure Glow",
+    "elevenVoiceId": "",
+    "captions": false,
+    "template": "showcase",
+    "trace": true
+  }
+}

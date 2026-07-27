@@ -1,0 +1,30 @@
+{
+  "per_scene": [
+    {
+      "scene": 1,
+      "fitted_duration": 5.0,
+      "transition_in": "fade",
+      "dipped_through_black": false
+    },
+    {
+      "scene": 2,
+      "fitted_duration": 5.0,
+      "transition_in": "cut",
+      "dipped_through_black": false
+    },
+    {
+      "scene": 3,
+      "fitted_duration": 5.0,
+      "transition_in": "fade",
+      "dipped_through_black": true
+    }
+  ],
+  "transition_fallbacks": [],
+  "total_duration": 15.0,
+  "master_resolution": "1080x1920",
+  "captions_burned": false,
+  "fps": 30,
+  "outputs": {
+    "1080p": "/workspace/reelkit/work/reel_d66816c7/reel_d66816c7_1080p.mp4"
+  }
+}

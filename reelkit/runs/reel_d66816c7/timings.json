@@ -1,0 +1,50 @@
+{
+  "total_wall_clock_sec": 333.86,
+  "per_stage": [
+    {
+      "stage": "brain",
+      "seconds": 2.48
+    },
+    {
+      "stage": "voiceover",
+      "seconds": 2.75
+    },
+    {
+      "stage": "scene_1",
+      "seconds": 57.83
+    },
+    {
+      "stage": "scene_2",
+      "seconds": 51.32
+    },
+    {
+      "stage": "scene_3",
+      "seconds": 48.4
+    },
+    {
+      "stage": "assemble",
+      "seconds": 8.56
+    },
+    {
+      "stage": "upload",
+      "seconds": 162.5
+    }
+  ],
+  "model_load_order": [
+    {
+      "model": "i2v:wan",
+      "action": "load",
+      "t": 29.92
+    },
+    {
+      "model": "i2v:wan",
+      "action": "load",
+      "t": 84.33
+    },
+    {
+      "model": "i2v:wan",
+      "action": "load",
+      "t": 132.73
+    }
+  ]
+}
