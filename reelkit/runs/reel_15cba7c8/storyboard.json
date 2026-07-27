@@ -1,0 +1,74 @@
+{
+  "concept": "Exquisite embroidered luxury that makes every moment special",
+  "voice": "warm female Hinglish",
+  "scenes": [
+    {
+      "n": 1,
+      "goal": "showcase",
+      "method": "edit_animate",
+      "mode": "product",
+      "visual": "Woman in elegant emerald green embroidered lawn suit with intricate silver threadwork, holding matching dupatta",
+      "background": "soft marble surface with warm golden hour light filtering through, creating gentle shadows and highlights",
+      "motion": "slow push-in",
+      "energy": "",
+      "transitionIn": "fade",
+      "durationSec": 5.0,
+      "motionEngine": "video",
+      "kenburns": {
+        "zoom": "in",
+        "start": 1.12,
+        "end": 1.15,
+        "xDrift": 0.0,
+        "yDrift": -0.03,
+        "rotateDeg": 1.0
+      },
+      "vo": "Jab style meets elegance, toh kuch aisa hota hai"
+    },
+    {
+      "n": 2,
+      "goal": "detail",
+      "method": "edit_animate",
+      "mode": "product",
+      "visual": "Close-up of the intricate silver embroidery and threadwork details on the emerald fabric",
+      "background": "rich textured silk surface with soft diffused lighting, creating depth and luxury feel",
+      "motion": "gentle orbit",
+      "energy": "subtle shimmer",
+      "transitionIn": "cut",
+      "durationSec": 4.0,
+      "motionEngine": "video",
+      "kenburns": {
+        "zoom": "in",
+        "start": 1.12,
+        "end": 1.25,
+        "xDrift": 0.08,
+        "yDrift": 0.0,
+        "rotateDeg": -2.0
+      },
+      "vo": "Har thread mein hai craftsmanship ka jaadu"
+    },
+    {
+      "n": 3,
+      "goal": "cta",
+      "method": "edit_animate",
+      "mode": "product",
+      "visual": "Full elegant portrait showcasing the complete embroidered lawn suit ensemble with dupatta",
+      "background": "pristine white marble backdrop with soft natural lighting and subtle texture details",
+      "motion": "slow pull-back",
+      "energy": "",
+      "transitionIn": "whip",
+      "durationSec": 6.0,
+      "motionEngine": "video",
+      "kenburns": {
+        "zoom": "out",
+        "start": 1.2,
+        "end": 1.12,
+        "xDrift": 0.0,
+        "yDrift": 0.05,
+        "rotateDeg": 0.5
+      },
+      "vo": "The Collection - jahan har outfit ek masterpiece hai"
+    }
+  ],
+  "badges": [],
+  "notes": "Premium showcase focusing on the exquisite embroidery craftsmanship. Varied framing from lifestyle to detail to hero shot, with subtle camera moves and warm aspirational tone that celebrates the artisanal quality without hard selling."
+}

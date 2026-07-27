@@ -1,0 +1,18 @@
+{
+  "engine": "wan",
+  "path": "video_i2v",
+  "motion_prompt_verbatim": "slow pull-back",
+  "energy_prompt_verbatim": "",
+  "full_prompt_sent": "slow pull-back. Full elegant portrait showcasing the complete embroidered lawn suit ensemble with dupatta.",
+  "input_still": "/workspace/runkarobar-gpu/reelkit/work/reel_15cba7c8/scene_3.png",
+  "requested_duration": 6.0,
+  "clip_path": "/workspace/runkarobar-gpu/reelkit/work/reel_15cba7c8/clip_3.mp4",
+  "kenburns": {
+    "zoom": "out",
+    "start": 1.2,
+    "end": 1.12,
+    "xDrift": 0.0,
+    "yDrift": 0.05,
+    "rotateDeg": 0.5
+  }
+}

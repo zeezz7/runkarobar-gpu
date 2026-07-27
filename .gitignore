@@ -56,3 +56,6 @@ reelkit/runs/**/*.jpeg
 reelkit/runs/**/*.mp4
 reelkit/runs/**/*.mp3
 reelkit/runs/**/*.wav
+
+# ---------------------------------------------- serverless build scratch
+reelkit/.dockerignore.local

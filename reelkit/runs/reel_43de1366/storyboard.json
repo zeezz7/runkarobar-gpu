@@ -1,0 +1,96 @@
+{
+  "concept": "Premium mint-green CZ jewellery set showcase with elegant luxury presentation",
+  "voice": "warm female Hinglish",
+  "scenes": [
+    {
+      "n": 1,
+      "goal": "reveal",
+      "method": "edit_animate",
+      "mode": "product",
+      "visual": "Mint-green CZ necklace and earrings set displayed in open black velvet jewellery box",
+      "background": "plush black velvet interior, soft warm golden light from above, subtle shadows, luxurious texture",
+      "motion": "slow push-in",
+      "energy": "gentle sparkle on stones",
+      "transitionIn": "fade",
+      "durationSec": 6.0,
+      "motionEngine": "video",
+      "kenburns": {
+        "zoom": "in",
+        "start": 1.0,
+        "end": 1.15,
+        "xDrift": 0.0,
+        "yDrift": 0.0,
+        "rotateDeg": 0.0
+      },
+      "vo": "Yeh hai asli elegance - mint green CZ ka premium set"
+    },
+    {
+      "n": 2,
+      "goal": "detail",
+      "method": "edit_animate",
+      "mode": "product",
+      "visual": "Extreme close-up of the mint-green CZ stones and crystal details in the necklace pendant",
+      "background": "smooth white marble surface, soft diffused lighting, clean minimalist setting",
+      "motion": "gentle orbit",
+      "energy": "prismatic light reflections",
+      "transitionIn": "cut",
+      "durationSec": 5.0,
+      "motionEngine": "video",
+      "kenburns": {
+        "zoom": "in",
+        "start": 1.12,
+        "end": 1.2,
+        "xDrift": 0.1,
+        "yDrift": 0.0,
+        "rotateDeg": 3.0
+      },
+      "vo": "Har stone mein chamak, har detail mein perfection"
+    },
+    {
+      "n": 3,
+      "goal": "showcase",
+      "method": "edit_animate",
+      "mode": "product",
+      "visual": "Complete necklace and earrings set arranged on elegant jewellery display bust",
+      "background": "cream silk fabric backdrop, warm ambient lighting, sophisticated display surface",
+      "motion": "slow crane down",
+      "energy": "",
+      "transitionIn": "fade",
+      "durationSec": 5.0,
+      "motionEngine": "video",
+      "kenburns": {
+        "zoom": "out",
+        "start": 1.2,
+        "end": 1.12,
+        "xDrift": 0.0,
+        "yDrift": 0.1,
+        "rotateDeg": -2.0
+      },
+      "vo": "Luxury jewellery jo banaye aapko special"
+    },
+    {
+      "n": 4,
+      "goal": "cta",
+      "method": "edit_animate",
+      "mode": "product",
+      "visual": "Final hero shot of the complete mint-green CZ set against premium backdrop",
+      "background": "soft grey velvet surface, elegant mood lighting, refined luxury setting",
+      "motion": "subtle tilt",
+      "energy": "soft golden glow",
+      "transitionIn": "fade",
+      "durationSec": 4.0,
+      "motionEngine": "video",
+      "kenburns": {
+        "zoom": "in",
+        "start": 1.12,
+        "end": 1.12,
+        "xDrift": 0.0,
+        "yDrift": -0.05,
+        "rotateDeg": 1.5
+      },
+      "vo": "Ab baniye fashion queen"
+    }
+  ],
+  "badges": [],
+  "notes": "Premium showcase focusing on the mint-green CZ stones with varied angles - velvet box reveal, macro detail shot, bust display, and final hero. Each scene uses different surfaces and lighting to maintain luxury feel while highlighting the jewellery's elegance."
+}

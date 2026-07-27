@@ -1,0 +1,2 @@
+Stage 0 is a vision model now - no separate captioning pass. Images sent to the brain:
+https://staging-storage.runkarobar.com/videos/uploads/1785161273786-5bbc91472c9e1be3-WhatsApp_Image_2026-07-23_at_9.11.25_PM.jpg

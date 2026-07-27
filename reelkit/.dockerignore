@@ -1,0 +1,15 @@
+# Weights live on the Network Volume; renders and secrets never ship.
+runs/
+work/
+.env
+*.env
+*.safetensors
+*.pth
+*.mp4
+*.mp3
+*.png
+*.jpg
+__pycache__/
+*.py[cod]
+server.py
+trace_run.py
