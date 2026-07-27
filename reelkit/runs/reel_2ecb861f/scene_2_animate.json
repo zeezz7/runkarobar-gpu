@@ -1,0 +1,18 @@
+{
+  "engine": "wan",
+  "path": "video_i2v",
+  "motion_prompt_verbatim": "gentle orbit",
+  "energy_prompt_verbatim": "subtle shimmer",
+  "full_prompt_sent": "gentle orbit. Close-up macro shot of the intricate white embroidered floral motifs and paisley patterns on the emerald fabric. subtle shimmer.",
+  "input_still": "/workspace/runkarobar-gpu/reelkit/work/reel_2ecb861f/scene_2.png",
+  "requested_duration": 4.0,
+  "clip_path": "/workspace/runkarobar-gpu/reelkit/work/reel_2ecb861f/clip_2.mp4",
+  "kenburns": {
+    "zoom": "in",
+    "start": 1.12,
+    "end": 1.25,
+    "xDrift": 0.05,
+    "yDrift": 0.0,
+    "rotateDeg": 3.0
+  }
+}

@@ -34,9 +34,24 @@ AVATAR_MODELS = {
     "wan-speech": "wavespeed-ai/wan-2.2/speech-to-video",
 }
 DEFAULT_AVATAR = "hunyuan"
-# Rough $/s, used only for the cost estimate in the Result JSON.
-AVATAR_USD_PER_SEC = {"hunyuan": 0.03, "infinitetalk": 0.06, "omnihuman": 0.12,
-                      "kling": 0.06, "wan-speech": 0.05}
+
+# Which models accept a `resolution`, and what they accept. THE DEFAULT IS 480p
+# ON ALL OF THEM - leaving it unset silently produced a 480p talking head that
+# was then upscaled to 1080x1920, which is exactly as soft as it sounds.
+# omnihuman and kling expose no resolution knob at all.
+AVATAR_RESOLUTIONS = {
+    "hunyuan": ("480p", "720p"),
+    "infinitetalk": ("480p", "720p"),
+    "wan-speech": ("480p", "720p"),
+}
+DEFAULT_RESOLUTION = "720p"
+
+# FLAT per-call price from the WaveSpeed catalogue (base_price), confirmed
+# against a real dashboard entry: one hunyuan-avatar call billed $0.15.
+# This was previously modelled as a per-second rate, which is simply not how
+# these are billed.
+AVATAR_USD = {"hunyuan": 0.15, "infinitetalk": 0.15, "omnihuman": 0.16,
+              "kling": 0.28, "wan-speech": 0.15}
 
 
 def avatar_model():
@@ -45,6 +60,14 @@ def avatar_model():
         common.log("avatar", f"unknown avatar model {name!r} - using {DEFAULT_AVATAR}")
         name = DEFAULT_AVATAR
     return name
+
+
+def resolution_for(name):
+    opts = AVATAR_RESOLUTIONS.get(name)
+    if not opts:
+        return None                      # model has no resolution knob
+    want = (os.environ.get("REELKIT_AVATAR_RESOLUTION") or DEFAULT_RESOLUTION).lower()
+    return want if want in opts else opts[-1]
 
 
 def lipsync(image_url, audio_url, out_path, item_name="the product",
@@ -58,7 +81,8 @@ def lipsync(image_url, audio_url, out_path, item_name="the product",
     """
     name = model or avatar_model()
     model_id = AVATAR_MODELS[name]
-    common.log("avatar", f"lip-sync via {name} ({model_id})")
+    common.log("avatar", f"lip-sync via {name} ({model_id})"
+                        + (f" @ {resolution_for(name)}" if resolution_for(name) else ""))
 
     # Avatar services intermittently fail to fetch our input URLs under load
     # ("could not download the input"), which is transient - retry before
@@ -66,12 +90,16 @@ def lipsync(image_url, audio_url, out_path, item_name="the product",
     last = None
     for attempt in range(1, 4):
         try:
-            out = wavespeed.run(model_id, {
+            payload = {
                 "image": image_url,
                 "audio": audio_url,
                 "prompt": (f"A brand presenter speaking to camera, showing the "
                            f"{item_name}, natural expression and gestures."),
-            }, timeout=timeout)
+            }
+            res = resolution_for(name)
+            if res:
+                payload["resolution"] = res
+            out = wavespeed.run(model_id, payload, timeout=timeout)
             if out:
                 common.fetch_url(out[0], out_path)
                 return out_path
@@ -83,9 +111,9 @@ def lipsync(image_url, audio_url, out_path, item_name="the product",
     return None
 
 
-def estimate_usd(seconds, model=None):
-    name = model or avatar_model()
-    return round(0.09 + seconds * AVATAR_USD_PER_SEC.get(name, 0.06), 4)
+def estimate_usd(seconds=None, model=None):
+    """Flat per call - `seconds` is ignored, kept so callers need not change."""
+    return AVATAR_USD.get(model or avatar_model(), 0.15)
 
 
 def note_cost(seconds, model=None):

@@ -1,0 +1,149 @@
+{
+  "reel_1080p_url": "https://staging-storage.runkarobar.com/reels/reel_ef503873_1080p.mp4",
+  "reel_720p_url": "",
+  "scene_image_urls": [
+    "https://staging-storage.runkarobar.com/images/reel_ef503873_s1.png",
+    "https://staging-storage.runkarobar.com/images/reel_ef503873_s2.png",
+    "https://staging-storage.runkarobar.com/images/reel_ef503873_s3.png",
+    "https://staging-storage.runkarobar.com/images/reel_ef503873_s4.png",
+    "https://staging-storage.runkarobar.com/images/reel_ef503873_s5.png"
+  ],
+  "storyboard": {
+    "concept": "Mirror selfie outfit check showcasing embroidered lawn suit with confident Hinglish commentary",
+    "voice": "female warm confident Hinglish",
+    "scenes": [
+      {
+        "n": 1,
+        "goal": "reveal",
+        "method": "lipsync",
+        "mode": "scene",
+        "visual": "confident young woman in embroidered green lawn suit standing in front of large mirror, holding phone up for mirror selfie, head-to-toe view in modern bedroom",
+        "background": "modern minimalist bedroom with large full-length mirror, soft natural lighting from window, cream walls",
+        "motion": "slow push-in",
+        "energy": "",
+        "transitionIn": "cut",
+        "durationSec": 5.0,
+        "motionEngine": "video",
+        "kenburns": {
+          "zoom": "in",
+          "start": 1.0,
+          "end": 1.15,
+          "xDrift": 0.0,
+          "yDrift": 0.0,
+          "rotateDeg": 0.0
+        },
+        "vo": "Guys, today ka outfit check - yeh lawn suit dekho!"
+      },
+      {
+        "n": 2,
+        "goal": "showcase",
+        "method": "lipsync",
+        "mode": "scene",
+        "visual": "same woman turning to three-quarter angle in mirror, still holding phone, showing the drape and flow of the embroidered suit",
+        "background": "same modern bedroom with mirror, warm afternoon light, neutral tones",
+        "motion": "gentle orbit left",
+        "energy": "soft fabric flutter",
+        "transitionIn": "whip",
+        "durationSec": 6.0,
+        "motionEngine": "video",
+        "kenburns": {
+          "zoom": "in",
+          "start": 1.12,
+          "end": 1.12,
+          "xDrift": -0.1,
+          "yDrift": 0.0,
+          "rotateDeg": 3.0
+        },
+        "vo": "Is embroidered lawn ka quality dekho - bilkul premium lagta hai!"
+      },
+      {
+        "n": 3,
+        "goal": "detail",
+        "method": "lipsync",
+        "mode": "scene",
+        "visual": "closer waist-up shot of the same woman in mirror, phone still raised, focusing on intricate embroidery details and neckline",
+        "background": "mirror reflection with soft bedroom lighting, blurred background depth",
+        "motion": "slow zoom in",
+        "energy": "",
+        "transitionIn": "fade",
+        "durationSec": 6.0,
+        "motionEngine": "video",
+        "kenburns": {
+          "zoom": "in",
+          "start": 1.1,
+          "end": 1.25,
+          "xDrift": 0.05,
+          "yDrift": -0.1,
+          "rotateDeg": 0.0
+        },
+        "vo": "Yeh embroidery work kitni detailed hai - obsessed with this design!"
+      },
+      {
+        "n": 4,
+        "goal": "wear",
+        "method": "lipsync",
+        "mode": "scene",
+        "visual": "same woman adjusting dupatta gracefully while looking in mirror, phone in hand, showing complete styling",
+        "background": "bedroom mirror setting with golden hour lighting streaming in",
+        "motion": "gentle tilt right",
+        "energy": "golden light rays",
+        "transitionIn": "cut",
+        "durationSec": 5.0,
+        "motionEngine": "video",
+        "kenburns": {
+          "zoom": "out",
+          "start": 1.2,
+          "end": 1.12,
+          "xDrift": 0.0,
+          "yDrift": 0.05,
+          "rotateDeg": -2.0
+        },
+        "vo": "Perfect summer outfit - comfortable aur stylish dono!"
+      },
+      {
+        "n": 5,
+        "goal": "cta",
+        "method": "lipsync",
+        "mode": "scene",
+        "visual": "confident close-up of woman looking directly at camera through mirror, phone raised, bright smile",
+        "background": "mirror with soft bokeh bedroom background, bright natural lighting on face",
+        "motion": "push-in on face",
+        "energy": "",
+        "transitionIn": "zoom",
+        "durationSec": 8.0,
+        "motionEngine": "video",
+        "kenburns": {
+          "zoom": "in",
+          "start": 1.0,
+          "end": 1.3,
+          "xDrift": 0.0,
+          "yDrift": -0.05,
+          "rotateDeg": 0.0
+        },
+        "vo": "The Collection se shop karo - link bio mein hai, go check it out!"
+      }
+    ],
+    "badges": [],
+    "notes": "Mirror selfie outfit check following authentic social media format - same confident woman throughout all scenes with phone raised, showcasing embroidered lawn suit with casual Hinglish commentary building to shopping CTA"
+  },
+  "durationSec": 29.37,
+  "cost_usd": 1.6612,
+  "_cost": {
+    "total_usd": 1.6612,
+    "gpu_usd": 0.1715,
+    "gpu_seconds": 561.2,
+    "wavespeed_usd": 0.05,
+    "wavespeed_calls": 1,
+    "avatar_usd": 1.35,
+    "avatar_scenes": 5,
+    "elevenlabs_usd": 0.0897,
+    "elevenlabs_chars": 299,
+    "rates": {
+      "gpu_usd_per_hour": 1.1,
+      "eleven_usd_per_1k_chars": 0.3
+    },
+    "note": "estimate - rates are configurable, see costs.py"
+  },
+  "_guard": [],
+  "_elapsedSec": 561.2
+}

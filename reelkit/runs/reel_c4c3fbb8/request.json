@@ -1,0 +1,17 @@
+{
+  "product_images": [
+    "https://staging-storage.runkarobar.com/videos/uploads/1785150296652-826672de130d6770-WhatsApp_Image_2026-07-27_at_4.32.11_PM.jpg"
+  ],
+  "brief": "Premium reel for this embroidered lawn suit - aspirational, scroll-stopping, warm female Hinglish voiceover.",
+  "config": {
+    "lengthSec": 20,
+    "resolution": "1080p",
+    "aspectRatio": "9:16",
+    "language": "hinglish",
+    "brandName": "The Collection",
+    "elevenVoiceId": "",
+    "captions": false,
+    "template": "ai-director",
+    "trace": true
+  }
+}

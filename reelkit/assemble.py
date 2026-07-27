@@ -34,9 +34,24 @@ def fit_clip(src, dst, duration, w, h, fade_in=False, fade_out=False):
         f"pad={w}:{h}:(ow-iw)/2:(oh-ih)/2:color=black",
         f"fps={FPS}",
     ]
-    # hold the last frame if the clip is shorter than its voiceover
+    # Filling a short clip used to clone the last frame (tpad), which read as a
+    # dead freeze at the end of EVERY scene - measured 2.6s, 2.1s and 2.3s of
+    # frozen video in a 23s reel, nearly a third of it a still.
+    # A slight slow-down is invisible up to ~1.35x and keeps the shot alive.
+    # Beyond that the motion turns to syrup, so only the excess is padded.
     if have < duration - 0.02:
-        vf.append(f"tpad=stop_mode=clone:stop_duration={duration - have:.3f}")
+        ratio = duration / max(have, 0.01)
+        if ratio <= MAX_SLOWDOWN:
+            vf.append(f"setpts={ratio:.4f}*PTS")
+            common.log("assemble", f"  clip {have:.2f}s -> slot {duration:.2f}s "
+                                   f"(slowed {ratio:.2f}x)")
+        else:
+            stretched = have * MAX_SLOWDOWN
+            vf.append(f"setpts={MAX_SLOWDOWN:.4f}*PTS")
+            vf.append(f"tpad=stop_mode=clone:stop_duration={duration - stretched:.3f}")
+            common.log("assemble", f"  clip {have:.2f}s -> slot {duration:.2f}s "
+                                   f"(slowed {MAX_SLOWDOWN}x + "
+                                   f"{duration - stretched:.2f}s hold)")
     if fade_in:
         vf.append(f"fade=t=in:st=0:d={FADE}")
     if fade_out:
@@ -57,6 +72,9 @@ def fit_clip(src, dst, duration, w, h, fade_in=False, fade_out=False):
 # final encode - four lossy generations stacked on top of ElevenLabs' own mp3,
 # each one adding swirl to sibilants. Now there is exactly ONE lossy step, the
 # final AAC.
+# How far a clip may be slowed to fill its slot before it looks wrong.
+MAX_SLOWDOWN = 1.35
+
 A_RATE, A_CH = 48000, 2
 # -16 LUFS / -1.5 dBTP is the loudness social platforms normalise to; hitting it
 # here means they leave the audio alone instead of pulling it around.

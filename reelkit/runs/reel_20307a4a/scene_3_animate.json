@@ -1,0 +1,18 @@
+{
+  "engine": "wan",
+  "path": "video_i2v",
+  "motion_prompt_verbatim": "slow pull-out",
+  "energy_prompt_verbatim": "",
+  "full_prompt_sent": "slow pull-out. Complete ruby necklace and earring set artfully arranged, showing the matching design elements and coordinated beauty.",
+  "input_still": "/workspace/runkarobar-gpu/reelkit/work/reel_20307a4a/scene_3.png",
+  "requested_duration": 7.0,
+  "clip_path": "/workspace/runkarobar-gpu/reelkit/work/reel_20307a4a/clip_3.mp4",
+  "kenburns": {
+    "zoom": "out",
+    "start": 1.2,
+    "end": 1.12,
+    "xDrift": 0.0,
+    "yDrift": 0.02,
+    "rotateDeg": -1.0
+  }
+}

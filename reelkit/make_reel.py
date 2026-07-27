@@ -252,6 +252,17 @@ def make_reel(request):
             lipsync_budget -= 1
             talk = _lipsync_scene(jid, n, still, v, sb, jd)
             if talk:
+                # A lip-sync clip is EXACTLY as long as the speech that drove it.
+                # The slot, though, is floored at the brain's planned duration
+                # (voiceover.py), so a short line left a gap that assemble filled
+                # by time-stretching the video - which desyncs the mouth from the
+                # audio, because the audio is NOT stretched with it. Snap the slot
+                # to the clip so nothing is stretched or frozen and the sync holds.
+                actual = common.probe_duration(talk)
+                if actual > 0.1 and abs(actual - v["duration"]) > 0.05:
+                    common.log("avatar", f"scene {n}: slot {v['duration']:.2f}s -> "
+                                         f"{actual:.2f}s (match the lip-sync clip)")
+                    v["duration"] = round(actual, 3)
                 clips.append(talk)
                 tr.mark(f"scene_{n}")
                 continue

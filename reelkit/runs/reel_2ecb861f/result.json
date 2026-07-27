@@ -1,0 +1,119 @@
+{
+  "reel_1080p_url": "https://staging-storage.runkarobar.com/reels/reel_2ecb861f_1080p.mp4",
+  "reel_720p_url": "",
+  "scene_image_urls": [
+    "https://staging-storage.runkarobar.com/images/reel_2ecb861f_s1.png",
+    "https://staging-storage.runkarobar.com/images/reel_2ecb861f_s2.png",
+    "https://staging-storage.runkarobar.com/images/reel_2ecb861f_s3.png"
+  ],
+  "storyboard": {
+    "concept": "Elegant embroidered lawn suit showcasing intricate craftsmanship",
+    "voice": "warm female Hinglish",
+    "scenes": [
+      {
+        "n": 1,
+        "goal": "showcase",
+        "method": "edit_animate",
+        "mode": "product",
+        "visual": "Full shot of the emerald green embroidered lawn suit with intricate white floral patterns and detailed neckline",
+        "background": "soft cream marble surface with warm golden hour lighting, gentle shadows, luxurious texture with subtle depth",
+        "motion": "slow push-in",
+        "energy": "",
+        "transitionIn": "cut",
+        "durationSec": 5.0,
+        "motionEngine": "video",
+        "kenburns": {
+          "zoom": "in",
+          "start": 1.0,
+          "end": 1.15,
+          "xDrift": 0.0,
+          "yDrift": -0.03,
+          "rotateDeg": 0.0
+        },
+        "vo": "Yeh hai real elegance - handcrafted embroidery ke saath"
+      },
+      {
+        "n": 2,
+        "goal": "detail",
+        "method": "edit_animate",
+        "mode": "product",
+        "visual": "Close-up macro shot of the intricate white embroidered floral motifs and paisley patterns on the emerald fabric",
+        "background": "soft textured linen surface with diffused natural light creating gentle highlights on embroidery threads",
+        "motion": "gentle orbit",
+        "energy": "subtle shimmer",
+        "transitionIn": "fade",
+        "durationSec": 4.0,
+        "motionEngine": "video",
+        "kenburns": {
+          "zoom": "in",
+          "start": 1.12,
+          "end": 1.25,
+          "xDrift": 0.05,
+          "yDrift": 0.0,
+          "rotateDeg": 3.0
+        },
+        "vo": "Har thread mein craft ka passion"
+      },
+      {
+        "n": 3,
+        "goal": "cta",
+        "method": "edit_animate",
+        "mode": "product",
+        "visual": "Styled shot showing the complete embroidered lawn suit with dupatta draped elegantly",
+        "background": "warm wooden surface with soft morning light, blurred botanical elements in background",
+        "motion": "slow tilt down",
+        "energy": "",
+        "transitionIn": "whip",
+        "durationSec": 6.0,
+        "motionEngine": "video",
+        "kenburns": {
+          "zoom": "out",
+          "start": 1.2,
+          "end": 1.12,
+          "xDrift": 0.0,
+          "yDrift": 0.05,
+          "rotateDeg": -2.0
+        },
+        "vo": "The Collection se - apna style statement banao today"
+      }
+    ],
+    "badges": [],
+    "notes": "Premium showcase focusing on the intricate embroidery craftsmanship with varied framing - full suit hero shot, detailed macro of embroidery work, and elegant styled presentation. Warm Hinglish voice celebrates the handcrafted artistry while maintaining aspirational tone."
+  },
+  "durationSec": 14.91,
+  "cost_usd": 0.1648,
+  "_cost": {
+    "total_usd": 0.1648,
+    "gpu_usd": 0.0732,
+    "gpu_seconds": 239.4,
+    "wavespeed_usd": 0.05,
+    "wavespeed_calls": 1,
+    "avatar_usd": 0.0,
+    "avatar_scenes": 0,
+    "elevenlabs_usd": 0.0417,
+    "elevenlabs_chars": 139,
+    "rates": {
+      "gpu_usd_per_hour": 1.1,
+      "eleven_usd_per_1k_chars": 0.3
+    },
+    "note": "estimate - rates are configurable, see costs.py"
+  },
+  "_guard": [
+    {
+      "scene": 1,
+      "ok": true,
+      "detail": "source had no readable label text - guard skipped"
+    },
+    {
+      "scene": 2,
+      "ok": true,
+      "detail": "source had no readable label text - guard skipped"
+    },
+    {
+      "scene": 3,
+      "ok": true,
+      "detail": "source had no readable label text - guard skipped"
+    }
+  ],
+  "_elapsedSec": 239.4
+}

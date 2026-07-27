@@ -31,6 +31,23 @@ OUTPUT_FORMATS = ("pcm_44100", "mp3_44100_192", "mp3_44100_128")
 # so a module-level read would miss /workspace/.env.
 DEFAULT_MODEL_ID = "eleven_v3"
 
+# Hinglish reads slow and flat at 1.0 - 1.1x gives it the pace an actual reel
+# has, and shortens every slot, which is also what stops clips being stretched.
+# Applied with ffmpeg atempo, NOT the API's voice_settings.speed: v3 accepts
+# that field with HTTP 200 and then ignores it (measured - speed=1.1 came back
+# LONGER than speed=1.0, i.e. it was just generation variance).
+DEFAULT_SPEED = {"hinglish": 1.1, "hi": 1.1, "ur": 1.1, "en": 1.0}
+
+
+def speed_for(language):
+    env = os.environ.get("REELKIT_VO_SPEED")
+    if env:
+        try:
+            return max(0.5, min(2.0, float(env)))
+        except ValueError:
+            pass
+    return DEFAULT_SPEED.get((language or "en").lower(), 1.0)
+
 
 def model_id():
     return os.environ.get("ELEVEN_MODEL_ID") or DEFAULT_MODEL_ID
@@ -70,7 +87,7 @@ def pick_voice(config):
                               DEFAULT_VOICES["en"])
 
 
-def tts(text, out_path, voice_id, api_key=None, timeout=120):
+def tts(text, out_path, voice_id, api_key=None, timeout=120, speed=1.0):
     """Synthesise one line. Returns (path, duration_seconds)."""
     import urllib.error
     import urllib.request
@@ -120,6 +137,14 @@ def tts(text, out_path, voice_id, api_key=None, timeout=120):
             raise RuntimeError(f"ElevenLabs HTTP {e.code}: {detail}")
     else:
         raise RuntimeError(f"ElevenLabs refused every output format: {last}")
+
+    # atempo preserves pitch; chain it if ever asked for >2.0.
+    if speed and abs(speed - 1.0) > 0.01:
+        sped = out_path + ".spd.mp3"
+        common.run(["ffmpeg", "-v", "error", "-y", "-i", out_path,
+                    "-filter:a", f"atempo={speed:.3f}",
+                    "-c:a", "libmp3lame", "-b:a", "192k", sped])
+        os.replace(sped, out_path)
 
     dur = common.probe_duration(out_path)
     if dur <= 0:
@@ -179,6 +204,9 @@ def voice_scenes(storyboard, config, job_dir):
     `duration` is the authoritative clip length for that scene.
     """
     voice_id = pick_voice(config)
+    spd = speed_for(config.get("language"))
+    if abs(spd - 1.0) > 0.01:
+        common.log("vo", f"speaking at {spd}x")
     audio_dir = os.path.join(job_dir, "audio")
     os.makedirs(audio_dir, exist_ok=True)
 
@@ -192,7 +220,7 @@ def voice_scenes(storyboard, config, job_dir):
             out.append({"n": n, "audio": None, "duration": planned, "speech": 0.0})
             continue
         path = os.path.join(audio_dir, f"scene_{n}.mp3")
-        _, dur = tts(line, path, voice_id)
+        _, dur = tts(line, path, voice_id, speed=spd)
         # a hair of air after the line so cuts do not clip the last word
         # audio leads video ONLY when the line is longer than planned; a short
         # line keeps its planned slot (padded with silence in assemble) so the

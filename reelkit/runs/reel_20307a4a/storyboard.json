@@ -1,0 +1,74 @@
+{
+  "concept": "Premium ruby elegance that speaks without words",
+  "voice": "warm female Hinglish",
+  "scenes": [
+    {
+      "n": 1,
+      "goal": "reveal",
+      "method": "edit_animate",
+      "mode": "product",
+      "visual": "Ruby necklace set elegantly displayed in an open palm, the deep red stones catching light against diamonds",
+      "background": "soft cream marble surface with gentle natural light from above, warm golden hour glow, subtle shadows creating depth",
+      "motion": "slow push-in",
+      "energy": "",
+      "transitionIn": "fade",
+      "durationSec": 7.0,
+      "motionEngine": "video",
+      "kenburns": {
+        "zoom": "in",
+        "start": 1.0,
+        "end": 1.15,
+        "xDrift": 0.0,
+        "yDrift": -0.03,
+        "rotateDeg": 0.0
+      },
+      "vo": "Kuch cheezein sirf dikhti nahi, mehsoos hoti hain - ruby ki royal elegance"
+    },
+    {
+      "n": 2,
+      "goal": "detail",
+      "method": "edit_animate",
+      "mode": "product",
+      "visual": "Extreme close-up of the ruby pendant's center stone, showcasing the intricate diamond halo and craftsmanship details",
+      "background": "soft focus velvet texture in deep charcoal, dramatic side lighting creating sparkle and depth",
+      "motion": "gentle orbit",
+      "energy": "subtle light rays",
+      "transitionIn": "zoom",
+      "durationSec": 6.0,
+      "motionEngine": "video",
+      "kenburns": {
+        "zoom": "in",
+        "start": 1.12,
+        "end": 1.25,
+        "xDrift": 0.05,
+        "yDrift": 0.0,
+        "rotateDeg": 3.0
+      },
+      "vo": "Har ruby stone mein chhupa hai perfect craftsmanship"
+    },
+    {
+      "n": 3,
+      "goal": "cta",
+      "method": "edit_animate",
+      "mode": "product",
+      "visual": "Complete ruby necklace and earring set artfully arranged, showing the matching design elements and coordinated beauty",
+      "background": "pristine white silk with soft diffused lighting, creating an airy luxury feel with minimal shadows",
+      "motion": "slow pull-out",
+      "energy": "",
+      "transitionIn": "fade",
+      "durationSec": 7.0,
+      "motionEngine": "video",
+      "kenburns": {
+        "zoom": "out",
+        "start": 1.2,
+        "end": 1.12,
+        "xDrift": 0.0,
+        "yDrift": 0.02,
+        "rotateDeg": -1.0
+      },
+      "vo": "Premium ruby collection - apna style statement banayiye"
+    }
+  ],
+  "badges": [],
+  "notes": "Premium showcase focusing on the inherent beauty of the ruby set. Clean, minimal approach letting the jewelry speak through elegant framing and subtle camera movement. Warm Hinglish VO emphasizes the emotional connection and craftsmanship without making unsupported claims."
+}

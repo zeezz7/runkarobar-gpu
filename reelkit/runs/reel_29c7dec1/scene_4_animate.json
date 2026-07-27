@@ -1,0 +1,18 @@
+{
+  "engine": "wan",
+  "path": "video_i2v",
+  "motion_prompt_verbatim": "crane down",
+  "energy_prompt_verbatim": "soft sparkle",
+  "full_prompt_sent": "crane down. Woman facing mirror with confident expression, phone raised, showing complete outfit coordination with dupatta draped elegantly. soft sparkle.",
+  "input_still": "/workspace/runkarobar-gpu/reelkit/work/reel_29c7dec1/scene_4.png",
+  "requested_duration": 6.676,
+  "clip_path": "/workspace/runkarobar-gpu/reelkit/work/reel_29c7dec1/clip_4.mp4",
+  "kenburns": {
+    "zoom": "out",
+    "start": 1.3,
+    "end": 1.12,
+    "xDrift": -0.05,
+    "yDrift": 0.05,
+    "rotateDeg": 2.0
+  }
+}

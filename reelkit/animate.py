@@ -30,6 +30,8 @@ import common
 
 FPS = 30
 WAN_FPS = 16
+# Wan 2.2 i2v quality ceiling - 121 frames = 7.56s at 16fps.
+WAN_MAX_FRAMES = 121
 
 
 # ------------------------------------------------------------------ 2b guard
@@ -209,11 +211,19 @@ def wan_i2v(image_path, prompt, out_path, job_tag, duration=5.0):
     """Wan 2.2 I2V + LightX2V 4-step. Returns the raw clip path."""
     name = f"rk_wan_{job_tag}.png"
     common.stage_input(image_path, name)
-    length = max(int(round(duration * WAN_FPS / 4)) * 4 + 1, 33)   # 4n+1
+    # 4n+1, and CAPPED: Wan 2.2 i2v is trained around 81 frames; past ~121 the
+    # motion starts looping and drifting, so a longer slot is better filled by
+    # a slight slow-down in assemble than by asking Wan for frames it cannot do.
+    length = max(int(round(duration * WAN_FPS / 4)) * 4 + 1, 33)
+    length = min(length, WAN_MAX_FRAMES)
 
     wf = common.load_tpl("tpl_wan_i2v.api.json")
     common.set_class(wf, "LoadImage", image=name)
-    common.set_class(wf, "WanImageToVideo", width=480, height=832)
+    # `length` was computed here and then NEVER PASSED - so every clip came out
+    # at the template's default 81 frames (5.06s) no matter what was asked for.
+    # A 7.6s voiceover slot therefore got a 5.06s clip and assemble froze the
+    # last frame for 2.5s: the "lag on every transition".
+    common.set_class(wf, "WanImageToVideo", width=480, height=832, length=length)
     common.set_class(wf, "PrimitiveBoolean", value=True)           # turbo path
     common.set_class(wf, "SaveVideo", filename_prefix=f"video/rk_{job_tag}")
     common.set_prompts(wf, prompt, None)                            # keep template negative

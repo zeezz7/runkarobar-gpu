@@ -1,0 +1,118 @@
+{
+  "concept": "First-person mirror selfie outfit check showcasing embroidered lawn suit",
+  "voice": "warm female Hinglish",
+  "scenes": [
+    {
+      "n": 1,
+      "goal": "reveal",
+      "method": "lipsync",
+      "mode": "scene",
+      "visual": "confident young woman standing in front of large full-length mirror in modern styled room, holding phone up to take mirror selfie, wearing green embroidered lawn suit, visible head-to-toe",
+      "background": "modern minimalist bedroom with soft natural light, clean walls, wooden flooring",
+      "motion": "slow push-in",
+      "energy": "golden hour glow",
+      "transitionIn": "cut",
+      "durationSec": 5.0,
+      "motionEngine": "video",
+      "kenburns": {
+        "zoom": "in",
+        "start": 1.0,
+        "end": 1.15,
+        "xDrift": 0.0,
+        "yDrift": 0.0,
+        "rotateDeg": 0.0
+      },
+      "vo": "Guys, is outfit check time! Dekho ye lawn suit kitna beautiful hai"
+    },
+    {
+      "n": 2,
+      "goal": "showcase",
+      "method": "lipsync",
+      "mode": "scene",
+      "visual": "same woman turning to flattering three-quarter angle in mirror, phone still raised, showing side profile of the embroidered green suit",
+      "background": "same modern bedroom with mirror, soft afternoon light filtering through",
+      "motion": "gentle orbit left",
+      "energy": "fabric shimmer",
+      "transitionIn": "whip",
+      "durationSec": 6.0,
+      "motionEngine": "video",
+      "kenburns": {
+        "zoom": "in",
+        "start": 1.12,
+        "end": 1.12,
+        "xDrift": 0.1,
+        "yDrift": 0.0,
+        "rotateDeg": 3.0
+      },
+      "vo": "Embroidery ka work dekho - itna detailed aur elegant lagta hai na"
+    },
+    {
+      "n": 3,
+      "goal": "detail",
+      "method": "lipsync",
+      "mode": "scene",
+      "visual": "closer waist-up framing of same woman in mirror showing intricate embroidered neckline and sleeves, phone visible in frame",
+      "background": "mirror reflection with soft diffused lighting, blurred background",
+      "motion": "slow tilt up",
+      "energy": "thread glint",
+      "transitionIn": "zoom",
+      "durationSec": 6.0,
+      "motionEngine": "video",
+      "kenburns": {
+        "zoom": "in",
+        "start": 1.12,
+        "end": 1.18,
+        "xDrift": 0.0,
+        "yDrift": -0.1,
+        "rotateDeg": -2.0
+      },
+      "vo": "Lawn fabric ki quality amazing hai - breathable aur comfortable feel"
+    },
+    {
+      "n": 4,
+      "goal": "wear",
+      "method": "lipsync",
+      "mode": "scene",
+      "visual": "same woman facing mirror with confident expression, full outfit visible, phone held up for selfie",
+      "background": "stylish modern room with natural lighting, clean aesthetic",
+      "motion": "crane down",
+      "energy": "confidence sparkle",
+      "transitionIn": "fade",
+      "durationSec": 5.0,
+      "motionEngine": "video",
+      "kenburns": {
+        "zoom": "out",
+        "start": 1.15,
+        "end": 1.0,
+        "xDrift": 0.0,
+        "yDrift": 0.05,
+        "rotateDeg": 0.0
+      },
+      "vo": "Perfect hai summer ke liye - stylish aur classy look mil raha"
+    },
+    {
+      "n": 5,
+      "goal": "cta",
+      "method": "lipsync",
+      "mode": "scene",
+      "visual": "same woman looking directly at camera through mirror with bright smile, phone still raised, complete embroidered suit visible",
+      "background": "bright modern interior with mirror, warm natural light",
+      "motion": "push-in close",
+      "energy": "",
+      "transitionIn": "cut",
+      "durationSec": 8.0,
+      "motionEngine": "video",
+      "kenburns": {
+        "zoom": "in",
+        "start": 1.0,
+        "end": 1.25,
+        "xDrift": 0.0,
+        "yDrift": 0.0,
+        "rotateDeg": 0.0
+      },
+      "vo": "Tum bhi try karo The Collection se - link check karo aur order karo abhi!"
+    }
+  ],
+  "badges": [],
+  "notes": "First-person outfit check format with consistent woman throughout, showcasing embroidered lawn suit through natural mirror selfie progression. Each scene maintains phone-in-hand authenticity while highlighting different aspects of the garment."
+}

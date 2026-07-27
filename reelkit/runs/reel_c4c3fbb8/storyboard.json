@@ -1,0 +1,123 @@
+{
+  "concept": "Elegant embroidered luxury meets modern sophistication",
+  "voice": "female warm aspirational Hinglish",
+  "scenes": [
+    {
+      "n": 1,
+      "goal": "reveal",
+      "method": "edit_animate",
+      "mode": "product",
+      "visual": "Woman in embroidered green lawn suit standing confidently on urban street",
+      "background": "elegant city street with classic architecture, warm golden hour light streaming from behind, soft bokeh of building facades",
+      "motion": "slow push-in",
+      "energy": "golden light rays",
+      "transitionIn": "fade",
+      "durationSec": 5.0,
+      "motionEngine": "video",
+      "kenburns": {
+        "zoom": "in",
+        "start": 1.0,
+        "end": 1.15,
+        "xDrift": 0.0,
+        "yDrift": 0.0,
+        "rotateDeg": 0.0
+      },
+      "vo": "Jab style aur elegance ka perfect blend chahiye toh The Collection hai na"
+    },
+    {
+      "n": 2,
+      "goal": "detail",
+      "method": "edit_animate",
+      "mode": "product",
+      "visual": "Close-up of intricate embroidered neckline and sleeve details",
+      "background": "soft neutral marble surface with delicate rim lighting, luxurious cream backdrop with subtle texture",
+      "motion": "gentle orbit",
+      "energy": "",
+      "transitionIn": "cut",
+      "durationSec": 4.0,
+      "motionEngine": "video",
+      "kenburns": {
+        "zoom": "in",
+        "start": 1.12,
+        "end": 1.2,
+        "xDrift": 0.1,
+        "yDrift": 0.0,
+        "rotateDeg": 3.0
+      },
+      "vo": "Dekho kitni beautiful embroidery hai, har thread mein luxury"
+    },
+    {
+      "n": 3,
+      "goal": "wear",
+      "method": "edit_animate",
+      "mode": "product",
+      "visual": "Full outfit showcase with dupatta flowing gracefully",
+      "background": "premium boutique setting with soft ambient lighting, polished surfaces reflecting warm glow",
+      "motion": "crane down",
+      "energy": "fabric flutter",
+      "transitionIn": "whip",
+      "durationSec": 5.0,
+      "motionEngine": "video",
+      "kenburns": {
+        "zoom": "out",
+        "start": 1.2,
+        "end": 1.12,
+        "xDrift": -0.1,
+        "yDrift": 0.1,
+        "rotateDeg": -2.0
+      },
+      "vo": "Lawn ki comfort aur premium embroidery ka combination - bilkul perfect"
+    },
+    {
+      "n": 4,
+      "goal": "lifestyle",
+      "method": "edit_animate",
+      "mode": "product",
+      "visual": "Confident stride showing complete ensemble in natural movement",
+      "background": "upscale urban environment with contemporary architecture, natural daylight with sophisticated shadows",
+      "motion": "tracking shot",
+      "energy": "confidence aura",
+      "transitionIn": "zoom",
+      "durationSec": 4.0,
+      "motionEngine": "video",
+      "kenburns": {
+        "zoom": "in",
+        "start": 1.12,
+        "end": 1.12,
+        "xDrift": 0.15,
+        "yDrift": -0.05,
+        "rotateDeg": 1.0
+      },
+      "vo": "Har occasion ke liye ready ho jao sophisticated look ke saath"
+    },
+    {
+      "n": 5,
+      "goal": "cta",
+      "method": "edit_animate",
+      "mode": "product",
+      "visual": "Final glamorous pose with brand focus and confident smile",
+      "background": "luxurious display setting with premium lighting setup, elegant backdrop with subtle brand elements",
+      "motion": "slow zoom",
+      "energy": "sparkle highlight",
+      "transitionIn": "fade",
+      "durationSec": 2.0,
+      "motionEngine": "video",
+      "kenburns": {
+        "zoom": "in",
+        "start": 1.0,
+        "end": 1.08,
+        "xDrift": 0.0,
+        "yDrift": 0.0,
+        "rotateDeg": 0.0
+      },
+      "vo": "The Collection - premium lawn suits"
+    }
+  ],
+  "badges": [
+    {
+      "text": "Premium Lawn",
+      "color": "#2D5016"
+    }
+  ],
+  "notes": "Aspirational storytelling showcasing the luxury embroidered lawn suit through elegant reveals, detail shots, and confident lifestyle moments. Warm Hinglish voiceover creates emotional connection while highlighting the premium craftsmanship and versatile elegance of The Collection brand."
+}

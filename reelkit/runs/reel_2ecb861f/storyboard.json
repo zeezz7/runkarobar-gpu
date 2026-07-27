@@ -1,0 +1,74 @@
+{
+  "concept": "Elegant embroidered lawn suit showcasing intricate craftsmanship",
+  "voice": "warm female Hinglish",
+  "scenes": [
+    {
+      "n": 1,
+      "goal": "showcase",
+      "method": "edit_animate",
+      "mode": "product",
+      "visual": "Full shot of the emerald green embroidered lawn suit with intricate white floral patterns and detailed neckline",
+      "background": "soft cream marble surface with warm golden hour lighting, gentle shadows, luxurious texture with subtle depth",
+      "motion": "slow push-in",
+      "energy": "",
+      "transitionIn": "cut",
+      "durationSec": 5.0,
+      "motionEngine": "video",
+      "kenburns": {
+        "zoom": "in",
+        "start": 1.0,
+        "end": 1.15,
+        "xDrift": 0.0,
+        "yDrift": -0.03,
+        "rotateDeg": 0.0
+      },
+      "vo": "Yeh hai real elegance - handcrafted embroidery ke saath"
+    },
+    {
+      "n": 2,
+      "goal": "detail",
+      "method": "edit_animate",
+      "mode": "product",
+      "visual": "Close-up macro shot of the intricate white embroidered floral motifs and paisley patterns on the emerald fabric",
+      "background": "soft textured linen surface with diffused natural light creating gentle highlights on embroidery threads",
+      "motion": "gentle orbit",
+      "energy": "subtle shimmer",
+      "transitionIn": "fade",
+      "durationSec": 4.0,
+      "motionEngine": "video",
+      "kenburns": {
+        "zoom": "in",
+        "start": 1.12,
+        "end": 1.25,
+        "xDrift": 0.05,
+        "yDrift": 0.0,
+        "rotateDeg": 3.0
+      },
+      "vo": "Har thread mein craft ka passion"
+    },
+    {
+      "n": 3,
+      "goal": "cta",
+      "method": "edit_animate",
+      "mode": "product",
+      "visual": "Styled shot showing the complete embroidered lawn suit with dupatta draped elegantly",
+      "background": "warm wooden surface with soft morning light, blurred botanical elements in background",
+      "motion": "slow tilt down",
+      "energy": "",
+      "transitionIn": "whip",
+      "durationSec": 6.0,
+      "motionEngine": "video",
+      "kenburns": {
+        "zoom": "out",
+        "start": 1.2,
+        "end": 1.12,
+        "xDrift": 0.0,
+        "yDrift": 0.05,
+        "rotateDeg": -2.0
+      },
+      "vo": "The Collection se - apna style statement banao today"
+    }
+  ],
+  "badges": [],
+  "notes": "Premium showcase focusing on the intricate embroidery craftsmanship with varied framing - full suit hero shot, detailed macro of embroidery work, and elegant styled presentation. Warm Hinglish voice celebrates the handcrafted artistry while maintaining aspirational tone."
+}

@@ -1,0 +1,17 @@
+{
+  "product_images": [
+    "https://staging-storage.runkarobar.com/videos/uploads/1785154670411-a79b9dd837edf80a-WhatsApp_Image_2026-07-23_at_9.11.25_PM.jpg"
+  ],
+  "brief": "20s premium luxury reel for this mint-green CZ necklace and matching earrings set — elegant jewellery showcase, clean hero shots on premium surfaces (velvet box, bust, marble), soft sparkle, warm female Hinglish voiceover. The source is a WhatsApp screenshot: ignore the phone status bar, the reply bar, emojis, the hand and the cloth background — isolate ONLY the jewellery set and keep it clean and coherent.",
+  "config": {
+    "lengthSec": 20,
+    "resolution": "1080p",
+    "aspectRatio": "9:16",
+    "language": "hinglish",
+    "brandName": "",
+    "elevenVoiceId": "",
+    "captions": false,
+    "template": "showcase",
+    "trace": true
+  }
+}

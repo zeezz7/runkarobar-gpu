@@ -1,0 +1,18 @@
+{
+  "engine": "wan",
+  "path": "video_i2v",
+  "motion_prompt_verbatim": "slow tilt up",
+  "energy_prompt_verbatim": "shimmer effect",
+  "full_prompt_sent": "slow tilt up. Closer waist-up framing of the woman in mirror, focusing on the detailed embroidered neckline and sleeve work, phone visible in frame. shimmer effect.",
+  "input_still": "/workspace/runkarobar-gpu/reelkit/work/reel_29c7dec1/scene_3.png",
+  "requested_duration": 7.329,
+  "clip_path": "/workspace/runkarobar-gpu/reelkit/work/reel_29c7dec1/clip_3.mp4",
+  "kenburns": {
+    "zoom": "in",
+    "start": 1.12,
+    "end": 1.25,
+    "xDrift": 0.0,
+    "yDrift": -0.1,
+    "rotateDeg": -1.5
+  }
+}

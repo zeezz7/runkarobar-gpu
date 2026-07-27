@@ -1,0 +1,14 @@
+{
+  "path": "edit_animate",
+  "model": "Qwen-Image-Edit-2511-fp8mixed",
+  "fast_lightning_4step": true,
+  "seed": 1476,
+  "positive_prompt": "Keep the SAME person and the SAME outfit exactly as in this photograph - identical face, hair, skin tone and clothing. Re-frame them for this new shot: Final confident look to camera through mirror, woman smiling with phone raised, complete elegant lawn suit visible. Setting: Luxurious bedroom setting with warm golden hour lighting, sophisticated minimal décor, dreamy soft focus. The model WEARS the complete outfit, with any dupatta or scarf draped naturally on the body. Show ONLY the person wearing it - absolutely no clothing rack, coat stand, hanger, mannequin or separately-displayed garment anywhere in the frame. CRITICAL: every garment piece keeps its OWN exact colour from the reference - never recolour, tint or harmonise one piece to match another (e.g. if the trousers are black and the dupatta is purple, the trousers stay black and the dupatta stays purple). STRICT: the person must be fully and MODESTLY dressed at all times - absolutely no nudity, no cleavage, no bare shoulders, midriff or legs, and no revealing, tight, sheer or sexy clothing. Keep it decent, elegant and family-friendly. The outfit MUST be an EXACT replica of the one in the reference photo - identical colour on every piece, identical embroidery or print pattern, motif placement, borders, neckline, sleeves, hem and fabric texture. Do NOT redesign, restyle, simplify, recolour, add or remove ANY detail - only the pose, angle or framing may change. Do not invent an unseen back or print. She is taking a mirror selfie and keeps her phone raised in one hand in this shot too - never empty-handed. Use the SAME person as in the FIRST reference image - identical face, hair, skin tone and body - only the pose, angle or framing changes. ABSOLUTE REQUIREMENT - override any other wording: the person wears a high-necked, fully-covering outfit that completely covers the chest, cleavage, shoulders, midriff and legs. NO exposed skin below the collarbone, NO cleavage, NO revealing, low-cut, plunging, strapless, off-shoulder or sheer clothing. If a necklace is worn it rests on a COVERED high neckline. Decent, elegant, family-friendly ONLY. Photorealistic editorial photograph, sharp detail.",
+  "negative_prompt": "changed clothing, different garment, altered colours, warped fabric, distorted face, extra limbs, deformed hands, blurry, low quality, jpeg artifacts, watermark",
+  "source_photo": "/workspace/runkarobar-gpu/reelkit/work/reel_29c7dec1/scene_1.png",
+  "anchor_used": true,
+  "extra_refs": [
+    "/workspace/runkarobar-gpu/reelkit/work/reel_29c7dec1/product_1.jpg"
+  ],
+  "shows_person": true
+}

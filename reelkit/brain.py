@@ -54,7 +54,7 @@ PRODUCT_GOALS = {"reveal", "showcase", "detail", "wear", "cta"}
 # It is gated by the template - only `ad` and `testimonial` ask for it - so no
 # other template ever pays the avatar cost.
 METHODS = {"compose_animate", "generate_animate", "edit_animate", "lipsync"}
-LIPSYNC_TEMPLATES = {"ad", "testimonial"}
+LIPSYNC_TEMPLATES = {"ad", "testimonial", "outfit-check"}
 MODES = {"product", "scene"}
 TRANSITIONS = {"cut", "fade", "whip", "zoom"}
 
@@ -124,7 +124,11 @@ HARD REQUIREMENTS
 - At least one scene must be edit_animate or compose_animate. Final scene = cta.
 - Scenes with goal "reveal", "showcase", "detail", "wear" or "cta" show the product,
   so they must NEVER use generate_animate.
-- "vo" must be written in {language} and be speakable in roughly its durationSec.
+- "vo" must be written in {language} and MUST fit its durationSec when spoken.
+  Budget about 2.2 words per second and stay UNDER it - e.g. a 5s scene gets at
+  most ~11 words, a 6s scene ~13. A line that overruns forces the clip to be
+  stretched to cover it, which visibly degrades the shot. Short and punchy beats
+  complete sentences.
 - CLAIMS: the voiceover may ONLY state benefits that are actually printed on the
   packaging as transcribed above. Do not invent or imply medical, dermatological or
   efficacy claims - no curing, removing or eliminating acne, pimples, spots,
@@ -253,11 +257,15 @@ TEMPLATES = {
             "raised in every shot. "
             "Write the vo as casual, trendy FIRST-PERSON lines - 'obsessed with this "
             "fit', 'the drape on this is unreal' - like a real girl showing off her "
-            "outfit, NOT an ad read. The last line is a call to action to shop."),
+            "outfit, NOT an ad read. The last line is a call to action to shop. "
+            "She is TALKING to camera while she films, so give EVERY scene method "
+            "'lipsync' - the vo is the exact words she says. Keep each line short "
+            "enough to say comfortably in the scene's durationSec."),
         "defaults": {"sceneBias": 3, "preferMode": "scene", "wantsCta": True,
                      "motionStyle": "dynamic", "lengthSec": 30,
                      "forceFemaleVoice": True, "anchorModel": True,
-                     "mirrorSelfie": True},
+                     "mirrorSelfie": True, "presenterFace": True,
+                     "preferMethod": "lipsync", "lipsyncScenes": 99},
     },
     "testimonial": {
         "persona": (
