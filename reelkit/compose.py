@@ -24,6 +24,7 @@ import os
 from PIL import Image, ImageFilter, ImageStat
 
 import common
+import guards
 
 # One global negative was being used for all three paths, which actively fought
 # two of them: an edit is told to KEEP the person and the logo while "people,
@@ -110,7 +111,8 @@ def generate_scene(prompt, w, h, out_prefix, seed=0, steps=None, cfg=None,
     return outs[0]
 
 
-def edit_scene(product_path, instruction, out_prefix, seed=0, steps=None, cfg=None):
+def edit_scene(product_path, instruction, out_prefix, seed=0, steps=None, cfg=None,
+               ref_paths=None):
     """
     Qwen-Image-Edit-2511: keep the supplied photograph's subject, change its
     world. This is the right tool when the product is photographed IN CONTEXT -
@@ -119,11 +121,37 @@ def edit_scene(product_path, instruction, out_prefix, seed=0, steps=None, cfg=No
     Compositing cannot handle those: segmenting a model shot yields the whole
     PERSON, which then gets pasted over a generated scene that also contains a
     person, producing two overlapping faces (observed on the Snitch run).
+
+    `ref_paths` are EXTRA reference images wired into the encoder's spare
+    `image2`/`image3` slots. That is how same-model anchoring works: a follow-on
+    scene passes the ANCHOR frame as `product_path` (so it is `image1`, the
+    thing being re-framed, which is what the SAME_MODEL guard calls "the FIRST
+    reference image") and the original product photo as a ref, so the garment
+    stays honest while the face carries over. Without this every edit re-rolled
+    the person and the model's face changed between scenes.
     """
     name = f"rk_edit_{os.path.basename(out_prefix)}{os.path.splitext(product_path)[1] or '.png'}"
     common.stage_input(product_path, name)
     wf = common.load_tpl("tpl_qwen_edit.api.json")
     common.set_class(wf, "LoadImage", image=name)
+
+    for slot, extra in enumerate(( ref_paths or [])[:2], start=2):
+        if not extra or not os.path.isfile(extra):
+            continue
+        rname = f"rk_ref{slot}_{os.path.basename(out_prefix)}.png"
+        Image.open(extra).convert("RGB").save(
+            os.path.join(common.COMFY_INPUT, rname))
+        load_id, scale_id = f"9{slot}0", f"9{slot}1"
+        wf[load_id] = {"class_type": "LoadImage",
+                       "inputs": {"image": rname, "upload": "image"}}
+        # Same scaling the template applies to image1 - an unscaled reference at
+        # a different resolution shifts the latent and washes the edit out.
+        wf[scale_id] = {"class_type": "FluxKontextImageScale",
+                        "inputs": {"image": [load_id, 0]}}
+        for _, node in common.nodes_of(wf, "TextEncodeQwenImageEditPlus"):
+            node["inputs"][f"image{slot}"] = [scale_id, 0]
+        common.log("compose", f"  + reference image{slot}: {os.path.basename(extra)}")
+
     if FAST:
         for _, node in common.nodes_of(wf, "PrimitiveBoolean"):
             node["inputs"]["value"] = True          # template's Lightning switch
@@ -210,7 +238,8 @@ def composite(cut_path, scene_path, out_path,
 # -------------------------------------------------------------------- per scene
 def scene_image(scene, product_path, w, h, job_dir, seed=0, cut_cache={},
                 bg_cache=None, height_frac=PRODUCT_HEIGHT_FRAC,
-                center_y=PRODUCT_CENTER_Y, tracer=None):
+                center_y=PRODUCT_CENTER_Y, tracer=None, tpl_defaults=None,
+                anchor=None):
     """
     Produce the still for one storyboard scene. Returns its path.
 
@@ -222,20 +251,44 @@ def scene_image(scene, product_path, w, h, job_dir, seed=0, cut_cache={},
     n = scene["n"]
     tag = f"s{n}"
     prefix = f"rk_{os.path.basename(job_dir)}_{tag}"
+    d = tpl_defaults or {}
+    # A scene shows a person when the brain framed it that way, or when the
+    # template is inherently about a person (outfit-check, ad, testimonial).
+    shows_person = (scene.get("mode") == "scene" or scene["method"] == "lipsync"
+                    or bool(d.get("anchorModel")))
 
-    if scene["method"] == "edit_animate":
+    if scene["method"] in ("edit_animate", "lipsync"):
         setting = (scene.get("background") or scene["visual"]).strip().rstrip(".")
-        instruction = (f"Keep the subject exactly as photographed - same face, same "
-                       f"pose, same garment, same colours, same fabric and the same "
-                       f"embroidered logo, unchanged. Change only the surroundings "
-                       f"to: {setting}. Photorealistic editorial fashion photograph.")
+        setting = guards.desexualise(setting)
+        # A follow-on person scene re-frames the ANCHOR instead of the product
+        # photo, so the same face carries the reel.
+        primary, refs = product_path, []
+        followon = False
+        if shows_person and d.get("anchorModel") and anchor and anchor != product_path:
+            primary, refs, followon = anchor, [product_path], True
+
+        shot = guards.desexualise((scene.get("visual") or "").strip().rstrip("."))
+        if followon:
+            lead = (f"Keep the SAME person and the SAME outfit exactly as in this "
+                    f"photograph - identical face, hair, skin tone and clothing. "
+                    f"Re-frame them for this new shot: {shot}. Setting: {setting}.")
+        else:
+            lead = (f"Keep the subject exactly as photographed - same face, same "
+                    f"garment, same colours, same fabric and the same printed "
+                    f"branding, unchanged. Change only the surroundings to: "
+                    f"{setting}.")
+        instruction = lead + (guards.person_guards(d, is_followon=followon)
+                              if shows_person else guards.product_guards())
+        instruction += " Photorealistic editorial photograph, sharp detail."
         if tracer:
             tracer.write_json(f"scene_{n}_compose.json", {
-                "path": "edit_animate", "model": "Qwen-Image-Edit-2511-fp8mixed",
+                "path": scene["method"], "model": "Qwen-Image-Edit-2511-fp8mixed",
                 "fast_lightning_4step": FAST, "seed": seed + n,
                 "positive_prompt": instruction, "negative_prompt": NEG_EDIT,
-                "source_photo": product_path})
-        out_edit = edit_scene(product_path, instruction, prefix + "_edit", seed=seed + n)
+                "source_photo": primary, "anchor_used": followon,
+                "extra_refs": refs, "shows_person": shows_person})
+        out_edit = edit_scene(primary, instruction, prefix + "_edit",
+                              seed=seed + n, ref_paths=refs)
         out = os.path.join(job_dir, f"scene_{n}.png")
         Image.open(out_edit).convert("RGB").save(out)
         common.log("compose", f"scene {n}: edited real photo -> {os.path.basename(out)}")

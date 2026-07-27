@@ -1,0 +1,18 @@
+{
+  "engine": "wan",
+  "path": "video_i2v",
+  "motion_prompt_verbatim": "slow push-in",
+  "energy_prompt_verbatim": "golden hour glow",
+  "full_prompt_sent": "slow push-in. Confident woman in full embroidered green lawn suit standing in front of large mirror, holding phone up for mirror selfie, head-to-toe view showing complete outfit. golden hour glow.",
+  "input_still": "/workspace/runkarobar-gpu/reelkit/work/reel_202dd60a/scene_1.png",
+  "requested_duration": 7.643,
+  "clip_path": "/workspace/runkarobar-gpu/reelkit/work/reel_202dd60a/clip_1.mp4",
+  "kenburns": {
+    "zoom": "in",
+    "start": 1.0,
+    "end": 1.15,
+    "xDrift": 0.0,
+    "yDrift": -0.03,
+    "rotateDeg": 0.0
+  }
+}

@@ -15,6 +15,15 @@ import costs
 
 TTS_URL = "https://api.elevenlabs.io/v1/text-to-speech/{voice}"
 
+# Highest-fidelity output first; the API 403s anything above your plan, so we
+# walk down. Measured on this account 2026-07-27:
+#   pcm_44100      -> 403, Pro tier and above
+#   mp3_44100_192  -> 403, Creator tier and above
+#   mp3_44100_128  -> 200  (what we actually get)
+# Upgrading the ElevenLabs plan is the ONLY way to improve the source audio -
+# everything downstream of here is already lossless (see assemble.py).
+OUTPUT_FORMATS = ("pcm_44100", "mp3_44100_192", "mp3_44100_128")
+
 # eleven_v3 is the current top-quality model (74 languages) and is a clear step
 # up on the multilingual_v2 this used to pin - noticeably better prosody and
 # code-switching, which is what Hinglish copy actually needs. Read at CALL time,
@@ -43,6 +52,16 @@ DEFAULT_VOICES = {
 }
 
 
+# Templates that are inherently fronted by a woman (outfit-check, ad) force a
+# female voice, mirroring StaffHQ. Explicit config.elevenVoiceId always wins.
+FEMALE_VOICES = {"en": BELLA_PRO, "hi": ZARA_SOCIAL,
+                 "hinglish": ZARA_SOCIAL, "ur": ZARA_SOCIAL}
+
+
+def female_voice(language=None):
+    return FEMALE_VOICES.get((language or "en").lower(), FEMALE_VOICES["en"])
+
+
 def pick_voice(config):
     vid = (config.get("elevenVoiceId") or "").strip()
     if vid:
@@ -66,7 +85,9 @@ def tts(text, out_path, voice_id, api_key=None, timeout=120):
     # ignores `style`; sending the v2 values gets you a 422 or silently odd
     # delivery. 0.5 is the natural read an ad wants.
     if mid.startswith("eleven_v3"):
-        settings = {"stability": 0.5, "similarity_boost": 0.75,
+        # similarity_boost high: stay close to the reference voice rather than
+        # drifting, which is what makes a read sound synthetic.
+        settings = {"stability": 0.5, "similarity_boost": 0.9,
                     "use_speaker_boost": True}
     else:
         settings = {"stability": 0.4, "similarity_boost": 0.75,
@@ -75,16 +96,30 @@ def tts(text, out_path, voice_id, api_key=None, timeout=120):
     body = _json.dumps({
         "text": text, "model_id": mid, "voice_settings": settings,
     }).encode()
-    req = urllib.request.Request(
-        TTS_URL.format(voice=voice_id), data=body, method="POST",
-        headers={"xi-api-key": api_key, "Content-Type": "application/json",
-                 "Accept": "audio/mpeg"})
-    try:
-        with urllib.request.urlopen(req, timeout=timeout) as r, open(out_path, "wb") as fh:
-            fh.write(r.read())
-    except urllib.error.HTTPError as e:
-        detail = e.read().decode(errors="replace")[:400]
-        raise RuntimeError(f"ElevenLabs HTTP {e.code}: {detail}")
+
+    last = None
+    for fmt in OUTPUT_FORMATS:
+        req = urllib.request.Request(
+            TTS_URL.format(voice=voice_id) + f"?output_format={fmt}",
+            data=body, method="POST",
+            headers={"xi-api-key": api_key, "Content-Type": "application/json",
+                     "Accept": "audio/mpeg"})
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as r, \
+                    open(out_path, "wb") as fh:
+                fh.write(r.read())
+            if fmt != OUTPUT_FORMATS[-1]:
+                common.log("vo", f"output_format={fmt}")
+            break
+        except urllib.error.HTTPError as e:
+            detail = e.read().decode(errors="replace")[:400]
+            # 403 = this format is above the plan; try the next one down.
+            if e.code == 403 and "output_format" in detail:
+                last = detail
+                continue
+            raise RuntimeError(f"ElevenLabs HTTP {e.code}: {detail}")
+    else:
+        raise RuntimeError(f"ElevenLabs refused every output format: {last}")
 
     dur = common.probe_duration(out_path)
     if dur <= 0:

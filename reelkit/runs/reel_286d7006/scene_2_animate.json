@@ -1,0 +1,18 @@
+{
+  "engine": "wan",
+  "path": "video_i2v",
+  "motion_prompt_verbatim": "subtle orbit around the detail",
+  "energy_prompt_verbatim": "shimmer effect",
+  "full_prompt_sent": "subtle orbit around the detail. Extreme close-up of the intricate silver embroidery patterns and delicate threadwork on the neckline. shimmer effect.",
+  "input_still": "/workspace/runkarobar-gpu/reelkit/work/reel_286d7006/scene_2.png",
+  "requested_duration": 5.004,
+  "clip_path": "/workspace/runkarobar-gpu/reelkit/work/reel_286d7006/clip_2.mp4",
+  "kenburns": {
+    "zoom": "in",
+    "start": 1.12,
+    "end": 1.3,
+    "xDrift": 0.1,
+    "yDrift": 0.0,
+    "rotateDeg": 3.0
+  }
+}

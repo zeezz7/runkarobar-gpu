@@ -1,0 +1,18 @@
+{
+  "engine": "wan",
+  "path": "video_i2v",
+  "motion_prompt_verbatim": "gentle crane down",
+  "energy_prompt_verbatim": "",
+  "full_prompt_sent": "gentle crane down. Model gracefully wearing the complete suit ensemble, showcasing the flowing silhouette and coordinated dupatta.",
+  "input_still": "/workspace/runkarobar-gpu/reelkit/work/reel_286d7006/scene_3.png",
+  "requested_duration": 6.128,
+  "clip_path": "/workspace/runkarobar-gpu/reelkit/work/reel_286d7006/clip_3.mp4",
+  "kenburns": {
+    "zoom": "out",
+    "start": 1.15,
+    "end": 1.12,
+    "xDrift": -0.05,
+    "yDrift": 0.08,
+    "rotateDeg": 1.0
+  }
+}

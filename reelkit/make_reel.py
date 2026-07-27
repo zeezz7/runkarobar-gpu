@@ -84,6 +84,31 @@ def _upload(path, prefix, key=None):
     return p.stdout.strip().split()[0]
 
 
+def _lipsync_scene(jid, n, still, vo_track, sb, jd):
+    """
+    Render one talking-presenter scene. Returns a clip path, or None to fall back.
+
+    The avatar service fetches its inputs itself, so the still and the scene's
+    mp3 must be PUBLIC first - hence the two uploads. Failure is never fatal: the
+    caller animates the still normally instead, so a flaky avatar costs polish,
+    not the reel.
+    """
+    import avatar
+    try:
+        img_url = _upload(still, "images", f"{jid}_s{n}_presenter.png")
+        aud_url = _upload(vo_track["audio"], "audio", f"{jid}_s{n}_vo.mp3")
+    except Exception as e:
+        common.log("avatar", f"scene {n}: could not publish inputs ({e})")
+        return None
+    out = os.path.join(jd, f"clip_{n}_talk.mp4")
+    got = avatar.lipsync(img_url, aud_url, out,
+                         item_name=(sb.get("concept") or "the product")[:60])
+    if got:
+        avatar.note_cost(float(vo_track.get("duration") or 5))
+        common.log("avatar", f"scene {n}: lip-synced presenter clip")
+    return got
+
+
 def make_reel(request):
     """request -> result, both exactly as specified in the brief."""
     t_start = time.time()
@@ -97,6 +122,20 @@ def make_reel(request):
         raise ValueError("product_images is required")
     if not brief:
         raise ValueError("brief is required")
+
+    # Template defaults. The REQUEST shape is untouched - config.template already
+    # travels in it - but a template carries its own natural length and voice, so
+    # apply those unless the caller stated one explicitly.
+    import brain as _brain
+    tpl_key, tpl_spec = _brain.resolve_template(cfg.get("template"))
+    tpl_defaults = tpl_spec.get("defaults") or {}
+    if "lengthSec" not in (request.get("config") or {}) and tpl_defaults.get("lengthSec"):
+        cfg["lengthSec"] = tpl_defaults["lengthSec"]
+        common.log("job", f"template '{tpl_key}' default length {cfg['lengthSec']}s")
+    if tpl_defaults.get("forceFemaleVoice") and not (cfg.get("elevenVoiceId") or "").strip():
+        import voiceover as _vo
+        cfg["elevenVoiceId"] = _vo.female_voice(cfg.get("language"))
+        common.log("job", f"template '{tpl_key}' forces a female voice")
 
     jid, jd = common.new_job("reel")
     # LOGGING ONLY - the tracer never affects what is rendered.
@@ -151,6 +190,8 @@ def make_reel(request):
     w, h = (1080, 1080) if aspect == "1:1" else (1080, 1920)
     guard_log, clips, stills = [], [], []
     cut_cache, bg_cache = {}, {}
+    anchor_still = None          # B1: the frame that fixes the model's identity
+    lipsync_budget = int(tpl_defaults.get("lipsyncScenes") or 0)
 
     for si, (sc, v) in enumerate(zip(sb["scenes"], vo)):
         n = sc["n"]
@@ -165,8 +206,16 @@ def make_reel(request):
         seed = abs(hash(jid)) % 10000
         still = compose.scene_image(sc, product, w, h, jd, seed=seed,
                                     cut_cache=cut_cache, bg_cache=bg_cache,
-                                    tracer=tr)
+                                    tracer=tr, tpl_defaults=tpl_defaults,
+                                    anchor=anchor_still)
         stills.append(still)
+        # The FIRST person scene becomes the anchor; every later person scene is
+        # re-framed FROM it, so one face carries the whole reel.
+        if anchor_still is None and tpl_defaults.get("anchorModel") and (
+                sc.get("mode") == "scene" or sc["method"] == "lipsync"):
+            anchor_still = still
+            common.log("compose", f"scene {n}: ANCHOR set - later person scenes "
+                                  f"re-frame this model")
 
         if sc["method"] in ("compose_animate", "edit_animate"):
             ok, detail = animate.guard_composite(still, product)
@@ -197,6 +246,17 @@ def make_reel(request):
         # Ken-Burns renders at full delivery resolution (it is pure ffmpeg, so
         # there is no reason to downscale). Wan is capped internally at 480x832
         # by VRAM, which is a model limit rather than a choice.
+        # A lipsync scene is rendered by the remote avatar model instead of i2v.
+        # It needs the scene's OWN voiceover audio, which stage 3 already made.
+        if sc["method"] == "lipsync" and lipsync_budget > 0 and v.get("audio"):
+            lipsync_budget -= 1
+            talk = _lipsync_scene(jid, n, still, v, sb, jd)
+            if talk:
+                clips.append(talk)
+                tr.mark(f"scene_{n}")
+                continue
+            common.log("avatar", f"scene {n}: falling back to i2v")
+
         clip, _ = animate.animate_scene(sc, still, product, jd, w, h,
                                         v["duration"], guard_log=None, tracer=tr)
         clips.append(clip)

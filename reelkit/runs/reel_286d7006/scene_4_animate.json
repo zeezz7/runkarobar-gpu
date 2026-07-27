@@ -1,0 +1,18 @@
+{
+  "engine": "wan",
+  "path": "video_i2v",
+  "motion_prompt_verbatim": "slow pull-back",
+  "energy_prompt_verbatim": "soft glow",
+  "full_prompt_sent": "slow pull-back. Elegant flat lay of the complete three-piece suit with dupatta artfully arranged. soft glow.",
+  "input_still": "/workspace/runkarobar-gpu/reelkit/work/reel_286d7006/scene_4.png",
+  "requested_duration": 3.176,
+  "clip_path": "/workspace/runkarobar-gpu/reelkit/work/reel_286d7006/clip_4.mp4",
+  "kenburns": {
+    "zoom": "out",
+    "start": 1.2,
+    "end": 1.0,
+    "xDrift": 0.0,
+    "yDrift": 0.0,
+    "rotateDeg": 0.0
+  }
+}

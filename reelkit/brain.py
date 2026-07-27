@@ -50,7 +50,11 @@ VL_DIR = os.environ.get(
 GOALS = {"reveal", "showcase", "detail", "wear", "lifestyle", "cta"}
 # goals whose whole point is showing the real product
 PRODUCT_GOALS = {"reveal", "showcase", "detail", "wear", "cta"}
-METHODS = {"compose_animate", "generate_animate", "edit_animate"}
+# "lipsync" renders a presenter speaking the scene's vo (avatar.py, remote).
+# It is gated by the template - only `ad` and `testimonial` ask for it - so no
+# other template ever pays the avatar cost.
+METHODS = {"compose_animate", "generate_animate", "edit_animate", "lipsync"}
+LIPSYNC_TEMPLATES = {"ad", "testimonial"}
 MODES = {"product", "scene"}
 TRANSITIONS = {"cut", "fade", "whip", "zoom"}
 
@@ -77,7 +81,7 @@ Return EXACTLY this JSON shape:
     {{
       "n": 1,
       "goal": "reveal|showcase|detail|wear|lifestyle|cta",
-      "method": "edit_animate|compose_animate|generate_animate",
+      "method": "edit_animate|compose_animate|generate_animate|lipsync",
       "mode": "product|scene",
       "visual": "<the on-screen shot description>",
       "background": "<ONLY the setting/environment for this shot - the place, surface, light and mood. Never mention the product, clothing or any person.>",
@@ -90,6 +94,7 @@ Return EXACTLY this JSON shape:
       "vo": "<the spoken line for this scene, in {language}>"
     }}
   ],
+  "badges": [{{"text": "<short on-screen badge, max 16 chars>", "color": "#RRGGBB"}}],
   "notes": "<director rationale>"
 }}
 
@@ -109,6 +114,11 @@ HARD REQUIREMENTS
     product, the model invents a DIFFERENT product and the ad shows the wrong
     item - so any shot featuring the product, or a person wearing it, MUST be
     edit_animate (or compose_animate for an isolated product).
+  * "lipsync" + mode "scene" - a PRESENTER speaks straight to camera. Only use it
+    when the STYLE DIRECTIVE below asks for it; it is rendered by a remote
+    talking-avatar model and costs real money per scene, so never add it
+    uninvited. Its "vo" is the exact words the presenter says, and its "visual"
+    must describe a person facing camera with an unobstructed face.
   Compositing a photo that contains a PERSON produces two overlapping people, so
   never pick compose_animate for a model shot.
 - At least one scene must be edit_animate or compose_animate. Final scene = cta.
@@ -130,6 +140,9 @@ HARD REQUIREMENTS
 - "energy" is your free choice per scene - describe the effect in plain words, or
   leave it "" for a clean shot. Do not repeat the same energy in every scene.
 - "motion" should vary between scenes; name a concrete camera move.
+- "badges" are short on-screen text chips burned over the reel (a price, an offer,
+  a one-word benefit). Return an EMPTY array unless the STYLE DIRECTIVE asks for
+  them. Max 6, each at most 16 characters, colour as #RRGGBB or omitted.
 - "background" is used to build the scene BEHIND the product, so it must describe
   ONLY the environment: the place, the surface it sits on, the light and the mood.
   Never name the product, clothing, packaging or a person in "background" - if you
@@ -176,6 +189,11 @@ Return only the JSON object."""
 #
 #   "ai-director" (the default) injects nothing, so its output is identical to
 #   the behaviour before templates existed.
+#   Every `defaults` key is consumed generically by the executor - compose.py
+#   reads anchorModel/mirrorSelfie/presenterFace to pick guard clauses,
+#   animate.py reads preferMethod to decide whether a scene is lip-synced, and
+#   make_reel reads lengthSec/forceFemaleVoice/wantsBadges. Nothing branches on
+#   what the product is.
 TEMPLATES = {
     "ai-director": {
         "persona": "",
@@ -185,40 +203,74 @@ TEMPLATES = {
         "persona": (
             "Clean, minimal, premium product showcase. Let the product be the hero "
             "with elegant hero shots and subtle camera moves. Minimal on-screen text. "
-            "Calm, confident, aspirational tone. No gimmicks."),
+            "Calm, confident, aspirational tone. No gimmicks. Vary the framing across "
+            "scenes - a hero, a tight macro on the key detail (texture, stitching, "
+            "hardware, stones), and a styled lifestyle beat - never three of the same "
+            "shot. Stage the product on a tasteful real surface with soft depth, "
+            "never a flat solid-colour wall."),
         "defaults": {"sceneBias": 3, "wantsBadges": False, "wantsCta": False,
-                     "motionStyle": "subtle"},
+                     "motionStyle": "subtle", "lengthSec": 15},
     },
     "ad": {
         "persona": (
-            "High-energy direct-response ad. Hook the viewer in the first 2 seconds, "
-            "state one clear benefit, and end on a strong call to action. Punchy, "
-            "fast-cut, bold. Use dynamic energy where it fits the product."),
+            "High-energy direct-response ad fronted by a brand presenter. Hook the "
+            "viewer in the first 2 seconds, state one clear benefit, and end on a "
+            "strong call to action. Punchy, bold, fast. "
+            "Scene 1 is the PRESENTER: a friendly, confident female presenter facing "
+            "camera, holding or wearing the product, speaking straight to the viewer "
+            "- give it method 'lipsync' and write its vo as the words she actually "
+            "says. The remaining scenes are product beats that sell the benefit, with "
+            "energy where it genuinely fits the product. "
+            "Also propose 2-3 short on-screen badges in the storyboard's 'badges' "
+            "array - a price, an offer or a one-word benefit (e.g. '₹499', 'FREE "
+            "SHIPPING', 'LIMITED'). Keep each under 16 characters."),
         "defaults": {"sceneBias": 4, "wantsBadges": True, "wantsCta": True,
-                     "motionStyle": "dynamic"},
+                     "motionStyle": "dynamic", "lengthSec": 20,
+                     "forceFemaleVoice": True, "presenterFace": True,
+                     "anchorModel": True, "preferMethod": "lipsync",
+                     "lipsyncScenes": 1},
     },
     "unboxing": {
         "persona": (
-            "Anticipation-first reveal. Open on the packaging/box, build a moment of "
-            "suspense, then reveal the product as the payoff hero shot. Tactile, "
-            "satisfying, premium."),
+            "Anticipation-first reveal. Open on the closed packaging or box with the "
+            "product still hidden, build a moment of suspense, then reveal the product "
+            "as the payoff hero shot. Tactile and satisfying - hands opening a lid, a "
+            "sleeve sliding off, tissue parting. The reveal scene must be the "
+            "sharpest, most premium frame in the reel."),
         "defaults": {"sceneBias": 4, "revealFirst": True, "wantsCta": True,
-                     "motionStyle": "reveal"},
+                     "motionStyle": "reveal", "lengthSec": 20},
     },
     "outfit-check": {
         "persona": (
-            "Aspirational try-on / outfit-check. A real, stylish person wearing or "
-            "using the product in an on-trend setting - street, mirror, cafe. Show "
-            "fit, movement and how it looks in real life. Confident, human."),
-        "defaults": {"sceneBias": 4, "preferMode": "scene", "wantsCta": True,
-                     "motionStyle": "dynamic"},
+            "A first-person 'outfit check' mirror-selfie reel, the way it is actually "
+            "posted: ONE confident woman standing in front of a large full-length "
+            "mirror in a tastefully styled modern room, holding her phone up to take "
+            "the mirror photo, wearing the exact outfit, visible head-to-toe. "
+            "The SAME woman carries every scene - she never changes. Each scene is a "
+            "fresh beat: establish the full look, then turn to a flattering "
+            "three-quarter angle, then a closer waist-up framing on the fabric and "
+            "detailing, ending on a confident look to camera. She keeps the phone "
+            "raised in every shot. "
+            "Write the vo as casual, trendy FIRST-PERSON lines - 'obsessed with this "
+            "fit', 'the drape on this is unreal' - like a real girl showing off her "
+            "outfit, NOT an ad read. The last line is a call to action to shop."),
+        "defaults": {"sceneBias": 3, "preferMode": "scene", "wantsCta": True,
+                     "motionStyle": "dynamic", "lengthSec": 30,
+                     "forceFemaleVoice": True, "anchorModel": True,
+                     "mirrorSelfie": True},
     },
     "testimonial": {
         "persona": (
-            "Authentic UGC testimonial. A person talks to camera about the product in "
-            "a natural, believable way - like a friend's recommendation. Warm, honest, "
-            "relatable."),
-        "defaults": {"sceneBias": 3, "preferMethod": "lipsync", "wantsCta": True},
+            "Authentic UGC testimonial. ONE real-feeling person talks straight to "
+            "camera about the product like a friend's recommendation - warm, honest, "
+            "specific, a little imperfect. Not a polished ad read. "
+            "EVERY scene is that person speaking to camera: give each scene method "
+            "'lipsync' and write its vo as the exact words they say. The same person "
+            "throughout. Cut away only if a scene genuinely needs to show the product "
+            "detail they are describing."),
+        "defaults": {"sceneBias": 3, "preferMethod": "lipsync", "wantsCta": True,
+                     "lengthSec": 20, "presenterFace": True, "anchorModel": True,
+                     "lipsyncScenes": 99},
     },
 }
 DEFAULT_TEMPLATE = "ai-director"
@@ -363,7 +415,7 @@ def _clean_kenburns(kb):
             "rotateDeg": round(rot, 3)}
 
 
-def validate(sb, length):
+def validate(sb, length, template=None):
     """Raise ValueError with a specific reason the model can act on."""
     if not isinstance(sb, dict):
         raise ValueError("top level is not an object")
@@ -421,9 +473,38 @@ def validate(sb, length):
         raise ValueError(
             f"scenes {[s['n'] for s in kb_scenes]} use motionEngine 'kenburns'. "
             f"Every scene must be a real animated shot - set motionEngine to 'video'")
-    if not any(s["method"] in ("compose_animate", "edit_animate") for s in scenes):
+    if not any(s["method"] in ("compose_animate", "edit_animate", "lipsync")
+               for s in scenes):
         raise ValueError("at least one scene must use 'edit_animate' or "
                          "'compose_animate' so the real product appears")
+    # lipsync is billed per scene by a remote avatar model, so it is allowed ONLY
+    # where the template asked for it. A brain that volunteers it anywhere else
+    # gets the scene downgraded rather than the whole storyboard rejected - the
+    # shot is still renderable, just without the talking head.
+    if template not in LIPSYNC_TEMPLATES:
+        for sc in scenes:
+            if sc["method"] == "lipsync":
+                common.log("brain", f"scene {sc['n']}: lipsync is not enabled for "
+                                    f"template {template!r} - rendering as edit_animate")
+                sc["method"] = "edit_animate"
+
+    # Badges are on-screen text chips (assemble.py burns them). Clamp hard: they
+    # are drawn at a fixed size, so a long string runs off frame.
+    badges = sb.get("badges")
+    clean_badges = []
+    if isinstance(badges, list):
+        for b in badges[:6]:
+            if not isinstance(b, dict):
+                continue
+            text = str(b.get("text") or "").strip()[:16]
+            if not text:
+                continue
+            colour = str(b.get("color") or "").strip()
+            if not re.fullmatch(r"#[0-9a-fA-F]{6}", colour):
+                colour = ""
+            clean_badges.append({"text": text, "color": colour})
+    sb["badges"] = clean_badges
+
     sb.setdefault("notes", "")
     return sb
 
@@ -484,7 +565,7 @@ def storyboard(brief, config, product_images, retries=3, tracer=None,
         raw = wavespeed.chat(ask, system=SYSTEM, images=urls, model=model,
                              temperature=0.85, max_tokens=1600)
         try:
-            sb = validate(_extract_json(raw), length)
+            sb = validate(_extract_json(raw), length, template=tpl_key)
             common.log("brain", f"storyboard ok on attempt {attempt}: "
                                 f"{len(sb['scenes'])} scenes, "
                                 f"{sum(s['durationSec'] for s in sb['scenes']):.0f}s")

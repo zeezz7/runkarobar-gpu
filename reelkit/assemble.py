@@ -52,26 +52,117 @@ def fit_clip(src, dst, duration, w, h, fade_in=False, fade_out=False):
     return dst
 
 
+# Every intermediate is LOSSLESS PCM. This chain used to re-encode the voiceover
+# to mp3 128k mono here, then to AAC for the master, then to AAC AGAIN for the
+# final encode - four lossy generations stacked on top of ElevenLabs' own mp3,
+# each one adding swirl to sibilants. Now there is exactly ONE lossy step, the
+# final AAC.
+A_RATE, A_CH = 48000, 2
+# -16 LUFS / -1.5 dBTP is the loudness social platforms normalise to; hitting it
+# here means they leave the audio alone instead of pulling it around.
+LOUDNORM = "loudnorm=I=-16:TP=-1.5:LRA=11"
+
+
 def silence(dst, duration):
     common.run([
         "ffmpeg", "-v", "error", "-y", "-f", "lavfi",
-        "-i", f"anullsrc=channel_layout=mono:sample_rate=44100",
-        "-t", f"{duration:.3f}", "-c:a", "libmp3lame", "-b:a", "128k", dst,
+        "-i", f"anullsrc=channel_layout=stereo:sample_rate={A_RATE}",
+        "-t", f"{duration:.3f}", "-c:a", "pcm_s16le", dst,
     ])
     return dst
 
 
 def pad_audio(src, dst, duration):
-    """Force one scene's audio to exactly the scene duration."""
+    """Force one scene's audio to exactly the scene duration (lossless)."""
     common.run([
         "ffmpeg", "-v", "error", "-y", "-i", src,
-        "-af", f"apad", "-t", f"{duration:.3f}",
-        "-c:a", "libmp3lame", "-b:a", "128k", "-ar", "44100", "-ac", "1", dst,
+        "-af", f"{LOUDNORM},aresample={A_RATE},apad",
+        "-t", f"{duration:.3f}",
+        "-c:a", "pcm_s16le", "-ar", str(A_RATE), "-ac", str(A_CH), dst,
     ])
     return dst
 
 
 # ------------------------------------------------------------------- captions
+def _hex_to_ass(hex_colour, fallback="&H001C6BE8&"):
+    """
+    #RRGGBB -> ASS &HBBGGRR&. ASS is BGR, not RGB - swapping the bytes is the
+    whole trick, and getting it wrong silently gives you the complementary
+    colour rather than an error.
+    """
+    h = (hex_colour or "").strip().lstrip("#")
+    if len(h) != 6:
+        return fallback
+    try:
+        r, g, b = h[0:2], h[2:4], h[4:6]
+        return f"&H00{b}{g}{r}".upper() + "&"
+    except Exception:
+        return fallback
+
+
+def write_badges_ass(badges, total, path, w, h):
+    """
+    IG-story badges: big white text on a solid colour block, popping in and out,
+    spread evenly across the reel.
+
+    Ported from StaffHQ's ffmpeg.assembler.ts. Pure libass, so it costs nothing
+    and adds no dependency. Two details carried over deliberately:
+      * BorderStyle=3 with a fat Outline is what makes the solid box - there is
+        no "background box" property in ASS;
+      * anchored to the LOWER third (alignment 2) with a generous MarginV so a
+        badge never lands on a talking presenter's face, and sits above where
+        the caption line would go.
+    """
+    badges = [b for b in (badges or []) if (b.get("text") or "").strip()][:6]
+    if not badges or total <= 0:
+        return None
+    fs = max(int(h / 17), 48)              # ~112px at 1080x1920
+    margin_h = int(w * 0.065)
+    margin_v = int(h * 0.22)               # clear of captions and the very bottom
+
+    def ts(t):
+        hh = int(t // 3600); mm = int(t % 3600 // 60); ss = t % 60
+        return f"{hh:d}:{mm:02d}:{ss:05.2f}"
+
+    styles = []
+    for i, b in enumerate(badges):
+        c = _hex_to_ass(b.get("color"))
+        styles.append(
+            f"Style: Badge{i},DejaVu Sans,{fs},&H00FFFFFF,&H00FFFFFF,{c},{c},"
+            f"-1,0,0,0,100,100,0,0,3,20,0,2,{margin_h},{margin_h},{margin_v},1")
+
+    head = ("[Script Info]\n"
+            "ScriptType: v4.00+\n"
+            f"PlayResX: {w}\nPlayResY: {h}\n"
+            "WrapStyle: 0\nScaledBorderAndShadow: yes\n\n"
+            "[V4+ Styles]\n"
+            "Format: Name,Fontname,Fontsize,PrimaryColour,SecondaryColour,"
+            "OutlineColour,BackColour,Bold,Italic,Underline,StrikeOut,ScaleX,"
+            "ScaleY,Spacing,Angle,BorderStyle,Outline,Shadow,Alignment,MarginL,"
+            "MarginR,MarginV,Encoding\n"
+            + "\n".join(styles) + "\n\n[Events]\n"
+            "Format: Layer,Start,End,Style,Name,MarginL,MarginR,MarginV,Effect,Text\n")
+
+    seg = total / len(badges)
+    gap = min(0.5, seg * 0.15)
+    events = []
+    for i, b in enumerate(badges):
+        start = i * seg + gap
+        stop = min((i + 1) * seg - gap, start + 3.5)
+        if stop <= start:
+            continue
+        text = "".join(ch for ch in b["text"].strip() if ch.isprintable())
+        # fade in/out + a small pop: 72% -> 100% over 220ms.
+        fx = r"{\fad(220,220)\fscx72\fscy72\t(0,220,\fscx100\fscy100)}"
+        events.append(
+            f"Dialogue: 0,{ts(start)},{ts(stop)},Badge{i},,0,0,0,,{fx}{text}")
+    if not events:
+        return None
+    open(path, "w").write(head + "\n".join(events) + "\n")
+    common.log("assemble", f"{len(events)} badge(s) burned")
+    return path
+
+
 def write_ass(scenes, durations, path, w, h):
     """
     Burned-in captions as a real ASS file.
@@ -177,20 +268,21 @@ def assemble(scene_clips, vo_tracks, storyboard, job_dir, name, aspect="9:16",
     # ---- one continuous VO track ------------------------------------------
     aparts = []
     for v, d in zip(vo_tracks, durations):
-        a = os.path.join(tmp, f"a_{v['n']}.mp3")
+        a = os.path.join(tmp, f"a_{v['n']}.wav")
         aparts.append(pad_audio(v["audio"], a, d) if v.get("audio")
                       else silence(a, d))
     alst = os.path.join(tmp, "aconcat.txt")
     with open(alst, "w") as fh:
         for p in aparts:
             fh.write(f"file '{p}'\n")
-    vo_track = os.path.join(tmp, "vo.mp3")
+    vo_track = os.path.join(tmp, "vo.wav")
     common.run(["ffmpeg", "-v", "error", "-y", "-f", "concat", "-safe", "0",
                 "-i", alst, "-c", "copy", vo_track])
 
     master = os.path.join(tmp, "master.mp4")
     common.run(["ffmpeg", "-v", "error", "-y", "-i", silent_master, "-i", vo_track,
-                "-c:v", "copy", "-c:a", "aac", "-b:a", "160k", "-shortest", master])
+                "-c:v", "copy", "-c:a", "aac", "-b:a", "192k",
+                "-ar", str(A_RATE), "-ac", str(A_CH), "-shortest", master])
 
     # ---- captions ----------------------------------------------------------
     total = common.probe_duration(master)
@@ -209,6 +301,14 @@ def assemble(scene_clips, vo_tracks, storyboard, job_dir, name, aspect="9:16",
                if captions else None)
         if ass:
             vf.append(f"ass={ass}")
+        # Badges are a SEPARATE ass pass from captions: they use their own styles
+        # and must render even when captions are off (the `ad` template wants
+        # badges without subtitles).
+        badge_ass = write_badges_ass(
+            storyboard.get("badges"), sum(durations),
+            os.path.join(tmp, f"badges_{label}.ass"), w, h)
+        if badge_ass:
+            vf.append(f"ass={badge_ass}")
         vf.append("format=yuv420p")
         common.run(["ffmpeg", "-v", "error", "-y", "-i", master,
                     "-vf", ",".join(vf),
@@ -216,7 +316,10 @@ def assemble(scene_clips, vo_tracks, storyboard, job_dir, name, aspect="9:16",
                     "-crf", "21" if label == "1080p" else "23",
                     "-maxrate", "6M" if label == "1080p" else "2M",
                     "-bufsize", "12M" if label == "1080p" else "4M",
-                    "-c:a", "aac", "-b:a", "160k",
+                    # stream-copy the audio: it is already the 192k AAC written
+                    # for the master, and re-encoding it here was a second,
+                    # pointless lossy generation.
+                    "-c:a", "copy",
                     "-movflags", "+faststart", "-r", str(FPS), dst])
         outs[label] = dst
         common.log("assemble", f"{label}: {dst} ({os.path.getsize(dst)/1e6:.1f} MB)")

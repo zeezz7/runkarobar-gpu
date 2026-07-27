@@ -1,0 +1,18 @@
+{
+  "engine": "wan",
+  "path": "video_i2v",
+  "motion_prompt_verbatim": "gentle orbit",
+  "energy_prompt_verbatim": "subtle shimmer",
+  "full_prompt_sent": "gentle orbit. Same woman turned to flattering three-quarter angle, phone still raised, showcasing the intricate embroidery work and fabric drape from waist-up. subtle shimmer.",
+  "input_still": "/workspace/runkarobar-gpu/reelkit/work/reel_202dd60a/scene_2.png",
+  "requested_duration": 7.172,
+  "clip_path": "/workspace/runkarobar-gpu/reelkit/work/reel_202dd60a/clip_2.mp4",
+  "kenburns": {
+    "zoom": "in",
+    "start": 1.12,
+    "end": 1.25,
+    "xDrift": 0.05,
+    "yDrift": 0.0,
+    "rotateDeg": 3.0
+  }
+}

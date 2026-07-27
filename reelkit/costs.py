@@ -43,6 +43,8 @@ class Meter:
         self.wavespeed_usd = 0.0
         self.wavespeed_calls = 0
         self.eleven_chars = 0
+        self.avatar_usd = 0.0
+        self.avatar_scenes = 0
         self.gpu_seconds = 0.0
         self._t0 = time.time()
 
@@ -50,6 +52,12 @@ class Meter:
         with self._lock:
             self.wavespeed_usd += WAVESPEED_PRICES.get(kind, 0.0)
             self.wavespeed_calls += 1
+
+    def avatar(self, usd):
+        """Talking-avatar lip-sync - billed per scene, only for ad/testimonial."""
+        with self._lock:
+            self.avatar_usd += float(usd or 0)
+            self.avatar_scenes += 1
 
     def eleven(self, text):
         with self._lock:
@@ -65,13 +73,15 @@ class Meter:
         eleven_rate = _f("COST_ELEVEN_USD_PER_1K", 0.30)
         gpu = self.gpu_seconds / 3600.0 * gpu_rate
         eleven = self.eleven_chars / 1000.0 * eleven_rate
-        total = gpu + eleven + self.wavespeed_usd
+        total = gpu + eleven + self.wavespeed_usd + self.avatar_usd
         return {
             "total_usd": round(total, 4),
             "gpu_usd": round(gpu, 4),
             "gpu_seconds": self.gpu_seconds,
             "wavespeed_usd": round(self.wavespeed_usd, 4),
             "wavespeed_calls": self.wavespeed_calls,
+            "avatar_usd": round(self.avatar_usd, 4),
+            "avatar_scenes": self.avatar_scenes,
             "elevenlabs_usd": round(eleven, 4),
             "elevenlabs_chars": self.eleven_chars,
             "rates": {"gpu_usd_per_hour": gpu_rate,

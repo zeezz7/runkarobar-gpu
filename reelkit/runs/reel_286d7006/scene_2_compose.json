@@ -1,0 +1,12 @@
+{
+  "path": "edit_animate",
+  "model": "Qwen-Image-Edit-2511-fp8mixed",
+  "fast_lightning_4step": true,
+  "seed": 4015,
+  "positive_prompt": "Keep the subject exactly as photographed - same face, same garment, same colours, same fabric and the same printed branding, unchanged. Change only the surroundings to: pristine white silk draped surface with soft studio lighting, creating gentle highlights on metallic threads. The product itself MUST be the exact SAME item as the reference - identical design, colours, materials, shape AND all of its OWN printed branding: keep the real brand name, logo and label text exactly as they are and fully legible. Do NOT invent, restyle, swap or blank out any logo, emblem, label or text, and NEVER turn it into a generic unbranded version. You may re-angle, zoom, crop, re-light and place it into the new setting the scene describes - but the product and its branding stay faithful. Keep the product - INCLUDING its own printed brand name, logo and label - exactly as the reference and fully legible; do not add any new overlaid text, watermark or logo of your own, and do not blank or replace the product's real branding. Photorealistic editorial photograph, sharp detail.",
+  "negative_prompt": "changed clothing, different garment, altered colours, warped fabric, distorted face, extra limbs, deformed hands, blurry, low quality, jpeg artifacts, watermark",
+  "source_photo": "/workspace/runkarobar-gpu/reelkit/work/reel_286d7006/product_1.jpg",
+  "anchor_used": false,
+  "extra_refs": [],
+  "shows_person": false
+}

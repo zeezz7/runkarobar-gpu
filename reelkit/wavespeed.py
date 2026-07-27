@@ -143,6 +143,38 @@ def chat(prompt, system=None, images=None, model=None, temperature=0.85,
     raise WaveSpeedError(f"job {jid} exceeded {timeout}s (last status {st!r})")
 
 
+def run(model_id, payload, timeout=900, poll=3.0):
+    """
+    Submit ANY WaveSpeed model and return its output URLs.
+
+    `chat()` is the any-llm special case; this is the general one (avatar
+    lip-sync uses it). Same submit-then-poll contract, same failure modes -
+    notably an exhausted balance arriving as HTTP 200 with code 400.
+    """
+    res = _request("POST", f"{BASE_URL}/api/v3/{model_id}", payload)
+    if res.get("code") != 200 or not (res.get("data") or {}).get("id"):
+        msg = res.get("message", json.dumps(res)[:300])
+        raise WaveSpeedError(f"{model_id} submit rejected: {msg}")
+    jid = res["data"]["id"]
+    get_url = (res["data"].get("urls") or {}).get(
+        "get", f"{BASE_URL}/api/v3/predictions/{jid}/result")
+    common.log("wavespeed", f"{model_id} job {jid[:12]} submitted")
+
+    t0 = time.time()
+    while time.time() - t0 < timeout:
+        d = _request("GET", get_url).get("data") or {}
+        st = d.get("status")
+        if st == "completed":
+            outs = [u for u in (d.get("outputs") or []) if u]
+            if not outs:
+                raise WaveSpeedError(f"job {jid} completed with no outputs")
+            return outs
+        if st == "failed":
+            raise WaveSpeedError(f"job {jid} failed: {d.get('error') or 'no reason'}")
+        time.sleep(poll)
+    raise WaveSpeedError(f"job {jid} exceeded {timeout}s (last status {st!r})")
+
+
 if __name__ == "__main__":
     common.load_env()
     print(f"balance: ${balance():.4f}")

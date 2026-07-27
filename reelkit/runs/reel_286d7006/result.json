@@ -1,0 +1,147 @@
+{
+  "reel_1080p_url": "https://staging-storage.runkarobar.com/reels/reel_286d7006_1080p.mp4",
+  "reel_720p_url": "",
+  "scene_image_urls": [
+    "https://staging-storage.runkarobar.com/images/reel_286d7006_s1.png",
+    "https://staging-storage.runkarobar.com/images/reel_286d7006_s2.png",
+    "https://staging-storage.runkarobar.com/images/reel_286d7006_s3.png",
+    "https://staging-storage.runkarobar.com/images/reel_286d7006_s4.png"
+  ],
+  "storyboard": {
+    "concept": "Premium embroidered elegance meets modern sophistication",
+    "voice": "warm female Hinglish",
+    "scenes": [
+      {
+        "n": 1,
+        "goal": "reveal",
+        "method": "edit_animate",
+        "mode": "product",
+        "visual": "Full elegant reveal of the emerald green embroidered lawn suit with intricate silver threadwork",
+        "background": "soft cream marble surface with warm golden hour light streaming from above, subtle shadows creating depth",
+        "motion": "slow push-in with gentle tilt",
+        "energy": "golden light rays",
+        "transitionIn": "fade",
+        "durationSec": 6.0,
+        "motionEngine": "video",
+        "kenburns": {
+          "zoom": "in",
+          "start": 1.12,
+          "end": 1.2,
+          "xDrift": 0.0,
+          "yDrift": -0.1,
+          "rotateDeg": -2.0
+        },
+        "vo": "Jab elegance aur tradition ka milna ho... The Collection ka premium embroidered lawn"
+      },
+      {
+        "n": 2,
+        "goal": "detail",
+        "method": "edit_animate",
+        "mode": "product",
+        "visual": "Extreme close-up of the intricate silver embroidery patterns and delicate threadwork on the neckline",
+        "background": "pristine white silk draped surface with soft studio lighting, creating gentle highlights on metallic threads",
+        "motion": "subtle orbit around the detail",
+        "energy": "shimmer effect",
+        "transitionIn": "cut",
+        "durationSec": 5.0,
+        "motionEngine": "video",
+        "kenburns": {
+          "zoom": "in",
+          "start": 1.12,
+          "end": 1.3,
+          "xDrift": 0.1,
+          "yDrift": 0.0,
+          "rotateDeg": 3.0
+        },
+        "vo": "Har thread mein craftmanship ka jaadu... handpicked detailing"
+      },
+      {
+        "n": 3,
+        "goal": "wear",
+        "method": "edit_animate",
+        "mode": "product",
+        "visual": "Model gracefully wearing the complete suit ensemble, showcasing the flowing silhouette and coordinated dupatta",
+        "background": "luxurious textured wall with warm ambient lighting, creating an upscale boutique atmosphere",
+        "motion": "gentle crane down",
+        "energy": "",
+        "transitionIn": "whip",
+        "durationSec": 6.0,
+        "motionEngine": "video",
+        "kenburns": {
+          "zoom": "out",
+          "start": 1.15,
+          "end": 1.12,
+          "xDrift": -0.05,
+          "yDrift": 0.08,
+          "rotateDeg": 1.0
+        },
+        "vo": "Premium lawn ka comfort... designer embroidery ka charm... ye hai true luxury"
+      },
+      {
+        "n": 4,
+        "goal": "cta",
+        "method": "edit_animate",
+        "mode": "product",
+        "visual": "Elegant flat lay of the complete three-piece suit with dupatta artfully arranged",
+        "background": "polished dark wood surface with soft overhead lighting and subtle reflections",
+        "motion": "slow pull-back",
+        "energy": "soft glow",
+        "transitionIn": "fade",
+        "durationSec": 3.0,
+        "motionEngine": "video",
+        "kenburns": {
+          "zoom": "out",
+          "start": 1.2,
+          "end": 1.0,
+          "xDrift": 0.0,
+          "yDrift": 0.0,
+          "rotateDeg": 0.0
+        },
+        "vo": "The Collection... apna style statement banao"
+      }
+    ],
+    "badges": [],
+    "notes": "Aspirational showcase highlighting the premium embroidered lawn suit's craftsmanship and elegance. Clean framing progression from reveal to intricate detail to lifestyle wear, finishing with an artful product display. Warm Hinglish voiceover emphasizes luxury and tradition without making unsubstantiated claims."
+  },
+  "durationSec": 20.17,
+  "cost_usd": 0.2039,
+  "_cost": {
+    "total_usd": 0.2039,
+    "gpu_usd": 0.0741,
+    "gpu_seconds": 242.5,
+    "wavespeed_usd": 0.05,
+    "wavespeed_calls": 1,
+    "avatar_usd": 0.0,
+    "avatar_scenes": 0,
+    "elevenlabs_usd": 0.0798,
+    "elevenlabs_chars": 266,
+    "rates": {
+      "gpu_usd_per_hour": 1.1,
+      "eleven_usd_per_1k_chars": 0.3
+    },
+    "note": "estimate - rates are configurable, see costs.py"
+  },
+  "_guard": [
+    {
+      "scene": 1,
+      "ok": true,
+      "detail": "source had no readable label text - guard skipped"
+    },
+    {
+      "scene": 2,
+      "ok": true,
+      "detail": "source had no readable label text - guard skipped"
+    },
+    {
+      "scene": 3,
+      "ok": true,
+      "detail": "source had no readable label text - guard skipped"
+    },
+    {
+      "scene": 4,
+      "ok": true,
+      "detail": "source had no readable label text - guard skipped"
+    }
+  ],
+  "_elapsedSec": 242.5
+}
