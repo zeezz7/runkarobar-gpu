@@ -93,7 +93,14 @@ def chat(prompt, system=None, images=None, model=None, temperature=0.85,
     `images` is a list of http(s) URLs; when present the vision endpoint is used
     (5x the price of the text one), otherwise the text endpoint.
     """
-    model = model or os.environ.get("WAVESPEED_BRAIN_MODEL", "google/gemini-2.5-pro")
+    # Default is a NON-thinking model on purpose. google/gemini-2.5-pro (the old
+    # default) is a thinking model: WaveSpeed's any-llm passthrough ignores
+    # reasoning:False, so it spends the whole max_tokens budget on hidden
+    # reasoning and the visible JSON comes back truncated (~199 chars, no closing
+    # brace) -> _extract_json fails on every retry. claude-sonnet-4 emits the
+    # storyboard JSON directly and validates first try. Override per-endpoint
+    # with WAVESPEED_BRAIN_MODEL if needed.
+    model = model or os.environ.get("WAVESPEED_BRAIN_MODEL", "anthropic/claude-sonnet-4")
     images = [u for u in (images or []) if u]
     path, price = (VISION_PATH, 0.05) if images else (TEXT_PATH, 0.01)
 
