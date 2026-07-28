@@ -302,16 +302,32 @@ def make_reel(request):
                   if not by_scene.get(sc["n"], {}).get("pass", True)]
         if not failed:
             break
-        common.log("validate", f"gate: regenerating {len(failed)} flagged "
-                              f"scene(s) from the anchor before motion")
+        # Reference = the FIRST scene Sonnet PASSED (a verified-correct still),
+        # not just scene 1. Regenerate every flagged scene FROM that known-good
+        # image, and tell the model exactly what went wrong so it matches the
+        # reference outfit instead of re-drifting. Falls back to the scene-1
+        # anchor if nothing passed yet.
+        good_i = next((i for i, sc in enumerate(sb["scenes"])
+                       if by_scene.get(sc["n"], {}).get("pass", True)), None)
+        ref = stills[good_i] if good_i is not None else anchor_still
+        common.log("validate", f"gate: regenerating {len(failed)} flagged scene(s) "
+                              f"from the verified still"
+                              + (f" (scene {sb['scenes'][good_i]['n']})"
+                                 if good_i is not None else ""))
         for i in failed:
             sc = sb["scenes"][i]
+            issue = by_scene.get(sc["n"], {}).get("issue", "")
+            emphasis = (
+                f"CRITICAL: a previous attempt was WRONG ({issue}). The person MUST "
+                f"wear the EXACT SAME outfit as in the reference image - identical "
+                f"colours, embroidery, prints and design. Do NOT invent a different "
+                f"garment.")
             reseed = abs(hash(f"{jid}fix{sc['n']}")) % 10000
             stills[i] = compose.scene_image(
                 sc, products[i % len(products)], w, h, jd, seed=reseed,
                 cut_cache=cut_cache, bg_cache=bg_cache, tracer=tr,
-                tpl_defaults=tpl_defaults, anchor=anchor_still,
-                include_human=include_human)
+                tpl_defaults=tpl_defaults, anchor=ref,
+                include_human=include_human, emphasis=emphasis)
             scene_image_urls[i] = _upload(stills[i], "images", f"{jid}_s{i + 1}.png")
             common.log("time", f"refix scene {sc['n']}  {_gpu_str()}")
         directions = brain.direct_from_stills(scene_image_urls, sb, cfg,

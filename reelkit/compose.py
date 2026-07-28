@@ -269,7 +269,7 @@ def scene_shows_person(scene, tpl_defaults=None):
 def scene_image(scene, product_path, w, h, job_dir, seed=0, cut_cache={},
                 bg_cache=None, height_frac=PRODUCT_HEIGHT_FRAC,
                 center_y=PRODUCT_CENTER_Y, tracer=None, tpl_defaults=None,
-                anchor=None, include_human=True):
+                anchor=None, include_human=True, emphasis=""):
     """
     Produce the still for one storyboard scene. Returns its path.
 
@@ -335,7 +335,8 @@ def scene_image(scene, product_path, w, h, job_dir, seed=0, cut_cache={},
         # so it must get the person/wear guards even if the brain tagged the
         # scene mode 'product'.
         person_shot = shows_person or followon
-        instruction = lead + (guards.person_guards(d, is_followon=followon)
+        instruction = ((emphasis + " ") if emphasis else "") + lead + (
+                              guards.person_guards(d, is_followon=followon)
                               if person_shot else guards.product_guards())
         negative = NEG_EDIT if person_shot else NEG_PRODUCT
         if not include_human:
