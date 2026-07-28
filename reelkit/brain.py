@@ -552,9 +552,19 @@ def validate(sb, length, template=None, include_human=True):
                 f"scenes {bad} use mode 'scene' but this reel is PRODUCT ONLY "
                 f"(includeHuman is false) - every scene must be mode 'product' "
                 f"with nobody on screen")
-        human = re.compile(r"\b(model|person|woman|man|girl|boy|hand|hands|"
-                           r"finger|fingers|arm|arms|wrist|neck|face|she|he|her|"
-                           r"his|wearing|worn by|holding|held by)\b", re.I)
+        # Person indicators only. "face" and "neck" are deliberately NOT blanket
+        # matches: they collide with product words (a FACE wash, a bottle NECK),
+        # so "face" is flagged only when it is NOT a product phrase, and "neck"
+        # is dropped. The real human-free enforcement is downstream anyway (the
+        # ghost-mannequin edit removes any person, and the Sonnet gate checks the
+        # rendered stills), so this text check just catches the obvious cases.
+        human = re.compile(
+            r"\bface(?!\s*(?:wash|cream|cleanser|cleansing|scrub|mask|serum|gel|"
+            r"foam|wipe|care|moistur|oil|pack|lotion|toner|cloth))\b"
+            r"|\b(model|person|people|someone|somebody|human|woman|women|girl|"
+            r"boy|man|guy|lady|hand|hands|finger|fingers|palm|palms|arm|arms|"
+            r"wrist|shoulder|torso|chest|wearing|worn by|holding|held by|holds|"
+            r"wears|she|he|her|his|him)\b", re.I)
         for s_ in scenes:
             hit = human.search(f"{s_.get('visual','')} {s_.get('background','')}")
             if hit:
