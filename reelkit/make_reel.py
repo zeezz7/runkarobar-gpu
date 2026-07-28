@@ -67,6 +67,35 @@ def _free_comfy_vram():
         common.log("vram", f"comfy free failed (non-fatal): {e}")
 
 
+# Peak VRAM across the whole run. ComfyUI runs in its OWN process, so torch.cuda
+# in THIS process can't see the diffusion models' usage - nvidia-smi reports the
+# whole-GPU total, which is exactly the ceiling that decides what card fits.
+_VRAM_PEAK_MB = 0
+
+
+def _gpu_mem_mb():
+    """(used_mb, total_mb) for GPU 0 across all processes, or (-1, -1)."""
+    global _VRAM_PEAK_MB
+    try:
+        out = subprocess.run(
+            ["nvidia-smi", "--query-gpu=memory.used,memory.total",
+             "--format=csv,noheader,nounits"],
+            capture_output=True, text=True, timeout=10).stdout.strip().splitlines()[0]
+        used, total = (int(x.strip()) for x in out.split(","))
+        _VRAM_PEAK_MB = max(_VRAM_PEAK_MB, used)
+        return used, total
+    except Exception:
+        return -1, -1
+
+
+def _gpu_str():
+    used, total = _gpu_mem_mb()
+    if used < 0:
+        return "vram n/a"
+    return (f"vram {used / 1024:.1f}/{total / 1024:.1f}GB "
+            f"(peak {_VRAM_PEAK_MB / 1024:.1f}GB)")
+
+
 def _upload(path, prefix, key=None):
     """
     Upload via minio_upload.py (its nginx bucket-rewrite signing is untouched).
@@ -179,31 +208,41 @@ def make_reel(request):
     guard_log, clips, stills = [], [], []
     cut_cache, bg_cache = {}, {}
     anchor_still = None          # B1: the frame that fixes the model's identity
+    # Default: free the edit models ONCE before motion (Stage 2 peak = just Wan,
+    # ~28GB - safe on any card). Set REELKIT_KEEP_RESIDENT=1 to hold edit+Wan
+    # resident (no free at all) once the VRAM probe confirms it fits the card.
+    keep_resident = os.environ.get("REELKIT_KEEP_RESIDENT", "0").lower() in (
+        "1", "true", "yes")
+    common.log("vram", f"render start - {_gpu_str()}")
 
+    # ===== STAGE 1: ALL scene images, edit model loaded ONCE =================
+    # Batched on purpose. Generating every still before any motion keeps the edit
+    # model resident across scenes instead of reloading it once per scene. On
+    # serverless the weights live on the network volume, so a reload is a slow
+    # network read - the biggest slice of render time. The old per-scene
+    # _free_comfy_vram() existed to survive a 34GB LOCAL brain that is gone (the
+    # brain is a remote WaveSpeed call now), so it is removed; we free at most
+    # ONCE, between images and motion, and not at all when REELKIT_KEEP_RESIDENT
+    # is set (a >=80GB card holds edit+Wan together, ~48GB of weights).
+    t_img = time.time()
     for si, (sc, v) in enumerate(zip(sb["scenes"], vo)):
         n = sc["n"]
-        # A reel mixes three model families - Qwen-Image-Edit (20GB), Qwen-Image
-        # (20GB) and Wan 2.2 (28GB). ComfyUI will happily hold all of them, which
-        # reached 80.5GB of this 95GB card and then OOMed on the next allocation.
-        # Freeing between scenes costs a reload but keeps the job alive.
-        _free_comfy_vram()
-        # rotate through the supplied product photos so multiple angles get used
-        # rather than repeating image 1 in every scene
         product = products[si % len(products)]
         seed = abs(hash(jid)) % 10000
+        t_s = time.time()
         still = compose.scene_image(sc, product, w, h, jd, seed=seed,
                                     cut_cache=cut_cache, bg_cache=bg_cache,
                                     tracer=tr, tpl_defaults=tpl_defaults,
                                     anchor=anchor_still, include_human=include_human)
         stills.append(still)
-        # The FIRST person scene becomes the anchor; every later person scene is
-        # re-framed FROM it, so one face carries the whole reel.
+        common.log("time", f"image scene {n}: {time.time() - t_s:.1f}s  {_gpu_str()}")
+        # The FIRST person scene becomes the anchor; later person scenes re-frame
+        # from it, so one face carries the whole reel.
         if (anchor_still is None and tpl_defaults.get("anchorModel")
                 and compose.scene_shows_person(sc, tpl_defaults)):
             anchor_still = still
             common.log("compose", f"scene {n}: ANCHOR set - later person scenes "
                                   f"re-frame this model")
-
         if sc["method"] in ("compose_animate", "edit_animate"):
             ok, detail = animate.guard_composite(still, product)
             guard_log.append({"scene": n, "ok": ok, "detail": detail})
@@ -217,7 +256,7 @@ def make_reel(request):
                 still = compose.scene_image(
                     sc, product, w, h, jd, seed=abs(hash(jid)) % 10000,
                     cut_cache=cut_cache, bg_cache=bg_cache,
-                    height_frac=0.62, center_y=0.50)
+                    height_frac=0.62, center_y=0.50, include_human=include_human)
                 ok2, detail2 = animate.guard_composite(still, product)
                 guard_log.append({"scene": n, "ok": ok2, "detail": detail2,
                                   "retry": True})
@@ -227,24 +266,50 @@ def make_reel(request):
                 common.log("guard", f"scene {n} retry: "
                                     f"{'PASS' if ok2 else 'STILL FAIL'} - {detail2}")
                 stills[-1] = still
+    common.log("time", f"ALL {len(stills)} images in {time.time() - t_img:.1f}s  "
+                       f"{_gpu_str()}")
+    animate.unload_guard()      # release the 16GB VL guard before motion
 
-        animate.unload_guard()      # release 16GB before the diffusion work
+    # ===== STAGE 1b: Sonnet validation gate (remote vision) =================
+    # Upload the stills now - these URLs are the final ones too, so nothing is
+    # re-uploaded later - show them to Sonnet and check each is usable BEFORE
+    # spending GPU minutes on Wan. Log-only for now: flagged, not blocked.
+    from concurrent.futures import ThreadPoolExecutor
+    with ThreadPoolExecutor(max_workers=6) as ex:
+        scene_image_urls = list(ex.map(
+            lambda ip: _upload(ip[1], "images", f"{jid}_s{ip[0]}.png"),
+            list(enumerate(stills, 1))))
+    tr.mark("images")
+    sonnet_checks = brain.validate_stills(scene_image_urls, cfg, include_human,
+                                          tracer=tr)
+    for c in sonnet_checks:
+        common.log("validate", f"scene {c.get('scene')}: "
+                              f"{'PASS' if c.get('pass') else 'FAIL'} "
+                              f"{c.get('issue') or ''}")
+    if any(not c.get("pass") for c in sonnet_checks):
+        common.log("validate", "some scenes flagged by Sonnet - proceeding "
+                              "(gate is log-only for now)")
 
-        # Ken-Burns renders at full delivery resolution (it is pure ffmpeg, so
-        # there is no reason to downscale). Wan is capped internally at 480x832
-        # by VRAM, which is a model limit rather than a choice.
-        #
-        # Product-only reels must use REAL generative motion, never a Ken-Burns
-        # zoom (it reads as a slideshow). The brain sometimes picks
-        # motionEngine="kenburns" for a clean product scene, so override it to
-        # Wan i2v for every scene when includeHuman is False.
+    if not keep_resident:
+        _free_comfy_vram()      # single edit->motion swap on a smaller card
+        common.log("vram", f"freed edit models before motion - {_gpu_str()}")
+
+    # ===== STAGE 2: ALL motion clips, Wan loaded ONCE =======================
+    t_vid = time.time()
+    for si, (sc, v) in enumerate(zip(sb["scenes"], vo)):
+        n = sc["n"]
+        product = products[si % len(products)]
+        # Product-only reels use REAL generative motion, never a Ken-Burns zoom.
         if not include_human:
             sc["motionEngine"] = "video"
-
-        clip, _ = animate.animate_scene(sc, still, product, jd, w, h,
+        t_s = time.time()
+        clip, _ = animate.animate_scene(sc, stills[si], product, jd, w, h,
                                         v["duration"], guard_log=None, tracer=tr)
         clips.append(clip)
+        common.log("time", f"video scene {n}: {time.time() - t_s:.1f}s  {_gpu_str()}")
         tr.mark(f"scene_{n}")
+    common.log("time", f"ALL {len(clips)} videos in {time.time() - t_vid:.1f}s  "
+                       f"{_gpu_str()}")
 
     # ---- STAGE 4: assemble ---------------------------------------------------
     import assemble
@@ -253,16 +318,11 @@ def make_reel(request):
     tr.mark("assemble")
 
     # ---- STAGE 5: upload + return -------------------------------------------
-    # Uploads are network-bound and independent, so run them together: serial
-    # upload of 2 videos + N stills was ~60s of pure waiting.
-    from concurrent.futures import ThreadPoolExecutor
+    # Stills were already uploaded in Stage 1b (for the Sonnet gate) - reuse
+    # those URLs, no re-upload. Here we ship the final reel + the per-scene motion
+    # clips (raw Wan renders, before the VO + captions + crossfades of assemble),
+    # which the VPS keeps as reusable b-roll.
     jobs = [("reel1080", outs["1080p"], "reels", None)]
-    jobs += [(f"still{i}", p, "images", f"{jid}_s{i}.png")
-             for i, p in enumerate(stills, 1)]
-    # Also ship the per-scene generated stills AND the per-scene motion clips so
-    # the VPS can keep them as reusable assets (product photos + b-roll), not
-    # just the final cut. Clips are the raw Wan/Ken-Burns renders before the VO
-    # + captions + crossfades of assemble().
     jobs += [(f"clip{i}", p, "clips", f"{jid}_c{i}.mp4")
              for i, p in enumerate(clips, 1) if p and os.path.isfile(p)]
     t_up = time.time()
@@ -276,7 +336,7 @@ def make_reel(request):
         "reel_1080p_url": urls["reel1080"],
         # kept in the contract for compatibility; 720p is no longer rendered
         "reel_720p_url": "",
-        "scene_image_urls": [urls[f"still{i}"] for i in range(1, len(stills) + 1)],
+        "scene_image_urls": scene_image_urls,
         "scene_clip_urls": [urls[k] for i in range(1, len(clips) + 1)
                             if (k := f"clip{i}") in urls],
         "storyboard": sb,
@@ -310,6 +370,9 @@ def make_reel(request):
          "retry": bool(g.get("retry"))}
         for g in guard_log
     ]
+    # Sonnet's pre-motion QA verdicts (the gate that ran before Wan).
+    result["sonnet_validation"] = sonnet_checks
+    result["_vramPeakGB"] = round(_VRAM_PEAK_MB / 1024, 1) if _VRAM_PEAK_MB else None
     json.dump(result, open(os.path.join(jd, "result.json"), "w"),
               indent=2, ensure_ascii=False)
     tr.mark("upload")

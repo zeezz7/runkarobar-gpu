@@ -567,6 +567,59 @@ def validate(sb, length, template=None, include_human=True):
     return sb
 
 
+def validate_stills(still_urls, config, include_human, tracer=None):
+    """
+    Sonnet vision GATE between the image and motion stages: look at the generated
+    scene stills and check each is usable BEFORE the expensive Wan pass. One
+    WaveSpeed vision call (~$0.05), cheap next to a minute of GPU per clip.
+
+    Returns [{"scene": n, "pass": bool, "issue": str}]. NEVER raises - a flaky
+    validator must not sink a reel, so any error passes everything through.
+    """
+    urls = [u for u in (still_urls or []) if u]
+    if not urls:
+        return []
+    human_rule = (
+        "There must be NO person, model, face, hands, arms or body anywhere - the "
+        "PRODUCT ONLY (a ghost-mannequin / hollow-garment / flat product shot is "
+        "correct and should PASS)."
+        if not include_human else
+        "A person may appear; that is fine.")
+    prompt = (
+        f"You are QA for a product video. Below are {len(urls)} generated scene "
+        f"image(s), in order (scene 1 first). Judge EACH one:\n"
+        f"1. Product integrity - correct shape, colours, logos and text; no "
+        f"warping, melting, extra/duplicated items or gibberish lettering.\n"
+        f"2. {human_rule}\n"
+        f"Return ONLY a JSON array, one object per image IN ORDER:\n"
+        f'[{{"scene":1,"pass":true,"issue":""}}]\n'
+        f'Set "pass" false only if the product is clearly broken or the person '
+        f'rule is violated. Keep "issue" a short phrase.')
+    try:
+        raw = wavespeed.chat(prompt, system="You output ONLY strict JSON.",
+                             images=urls, model=brain_model(),
+                             temperature=0.2, max_tokens=900)
+        data = _extract_json(raw)
+        if isinstance(data, dict):
+            data = data.get("scenes") or data.get("results") or [data]
+        out = []
+        for i, item in enumerate(data if isinstance(data, list) else [], 1):
+            if not isinstance(item, dict):
+                continue
+            out.append({"scene": item.get("scene", i),
+                        "pass": bool(item.get("pass", True)),
+                        "issue": str(item.get("issue") or "")[:120]})
+        if tracer:
+            tracer.write_json("sonnet_validation.json",
+                              {"prompt": prompt, "raw": raw, "verdicts": out})
+        return out or [{"scene": i + 1, "pass": True, "issue": ""}
+                       for i in range(len(urls))]
+    except Exception as e:
+        common.log("validate", f"Sonnet still-check failed (non-fatal, pass-through): {e}")
+        return [{"scene": i + 1, "pass": True, "issue": "validator error"}
+                for i in range(len(urls))]
+
+
 # ------------------------------------------------------------------- generate
 def storyboard(brief, config, product_images, retries=3, tracer=None,
                image_urls=None):
