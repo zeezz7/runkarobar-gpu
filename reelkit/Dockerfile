@@ -92,7 +92,14 @@ COPY reelkit/workflows/ ./workflows/
 #  container runs ComfyUI on the conventional :8188.
 #  QWEN_VL_DIR: the OCR guard is a transformers checkpoint, so it sits OUTSIDE
 #  the ComfyUI tree and is not covered by extra_model_paths.yaml.
+#  COMFY_INPUT/COMFY_OUTPUT: ComfyUI here runs from /opt/ComfyUI, so its input/
+#  output dirs are /opt/ComfyUI/{input,output}. common.py stages product images
+#  into COMFY_INPUT and reads results from COMFY_OUTPUT; these MUST match the
+#  running ComfyUI or LoadImage fails with "Invalid image file" (HTTP 400). The
+#  common.py default (/workspace/ComfyUI) is the old box layout, hence override.
 ENV COMFY_URL=http://127.0.0.1:8188 \
+    COMFY_INPUT=/opt/ComfyUI/input \
+    COMFY_OUTPUT=/opt/ComfyUI/output \
     QWEN_VL_DIR=/runpod-volume/models/qwen2.5-vl/Qwen2.5-VL-7B-Instruct \
     REELKIT_VIDEO_MODEL=wan \
     PYTHONPATH=/opt/reelkit

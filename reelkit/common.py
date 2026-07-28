@@ -17,8 +17,16 @@ import urllib.request
 import uuid
 
 COMFY = os.environ.get("COMFY_URL", "http://127.0.0.1:18188")
-COMFY_INPUT = "/workspace/ComfyUI/input"
-COMFY_OUTPUT = "/workspace/ComfyUI/output"
+# WHERE COMFYUI READS/WRITES. These MUST match the ComfyUI process's own input/
+# output dirs, because stage_input() copies product images into COMFY_INPUT and
+# comfy_run() reads results back from COMFY_OUTPUT. The default is the old box
+# layout (/workspace/ComfyUI). On RunPod serverless ComfyUI runs from
+# /opt/ComfyUI, so the Dockerfile sets COMFY_INPUT=/opt/ComfyUI/input and
+# COMFY_OUTPUT=/opt/ComfyUI/output. Getting this wrong makes LoadImage fail
+# validation with "Invalid image file" (HTTP 400) even though everything is
+# staged correctly - just in a directory ComfyUI never looks in.
+COMFY_INPUT = os.environ.get("COMFY_INPUT", "/workspace/ComfyUI/input")
+COMFY_OUTPUT = os.environ.get("COMFY_OUTPUT", "/workspace/ComfyUI/output")
 REELKIT = os.path.dirname(os.path.abspath(__file__))
 WORK = os.path.join(REELKIT, "work")
 TPL = os.path.join(REELKIT, "workflows")

@@ -49,11 +49,16 @@ def handler(job):
         # breaks the caller, which reads reel_1080p_url off the top level.
         return result
     except Exception as e:
-        # RunPod marks the job FAILED and surfaces this string, so make it
-        # readable. The traceback goes to the worker log, not to the caller.
+        # RunPod marks the job FAILED and surfaces the "error" string in
+        # /status, so make it self-diagnosing: the full traceback goes to the
+        # worker log AND a compact tail (last frames + message) rides along in
+        # the returned error, so the caller/poller sees WHERE it broke without
+        # opening the Logs tab.
+        tb = traceback.format_exc()
         common.log("handler", f"job failed: {type(e).__name__}: {e}")
-        common.log("handler", traceback.format_exc()[-2000:])
-        return {"error": f"{type(e).__name__}: {e}"}
+        common.log("handler", tb[-3000:])
+        tail = " | ".join(ln.strip() for ln in tb.strip().splitlines()[-6:] if ln.strip())
+        return {"error": f"{type(e).__name__}: {e} :: {tail}"[:1600]}
 
 
 runpod.serverless.start({"handler": handler})
