@@ -269,7 +269,7 @@ def scene_shows_person(scene, tpl_defaults=None):
 def scene_image(scene, product_path, w, h, job_dir, seed=0, cut_cache={},
                 bg_cache=None, height_frac=PRODUCT_HEIGHT_FRAC,
                 center_y=PRODUCT_CENTER_Y, tracer=None, tpl_defaults=None,
-                anchor=None):
+                anchor=None, include_human=True):
     """
     Produce the still for one storyboard scene. Returns its path.
 
@@ -285,8 +285,12 @@ def scene_image(scene, product_path, w, h, job_dir, seed=0, cut_cache={},
     # A scene shows a person when the brain framed it that way, or when the
     # template is inherently about a person (outfit-check, ad, testimonial).
     shows_person = scene_shows_person(scene, d)
-
-    if scene["method"] in ("edit_animate", "lipsync"):
+    # includeHuman=False is a hard promise the reel has NO person. It is only
+    # offered on product templates, so honour it for every scene regardless of
+    # how the brain framed the shot - otherwise a "product only" reel still
+    # animates the model who happens to wear the item in the source photo.
+    if not include_human:
+        shows_person = False
         setting = (scene.get("background") or scene["visual"]).strip().rstrip(".")
         setting = guards.desexualise(setting)
         # A follow-on person scene re-frames the ANCHOR instead of the product
@@ -301,6 +305,22 @@ def scene_image(scene, product_path, w, h, job_dir, seed=0, cut_cache={},
             lead = (f"Keep the SAME person and the SAME outfit exactly as in this "
                     f"photograph - identical face, hair, skin tone and clothing. "
                     f"Re-frame them for this new shot: {shot}. Setting: {setting}.")
+        elif not include_human:
+            # PRODUCT-ONLY reel from a photo that may show a model wearing the
+            # item. "Keep the product, change the background" would keep the
+            # person, so instead order them removed and the garment presented as
+            # a ghost-mannequin product shot (hollow, holds its worn shape,
+            # nobody inside). This is what makes includeHuman=False actually
+            # human-free instead of just re-backgrounding the model.
+            lead = (
+                "Show ONLY the product itself, with absolutely NO person in frame. "
+                "If a model or any person wears or holds it in this photograph, "
+                "remove them completely - no body, no head, no face, no arms, no "
+                "hands, no skin, no legs, no one inside the garment. Present it as a "
+                "premium ghost-mannequin product shot: a hollow garment that keeps "
+                "its natural worn shape with nobody in it. Keep its exact shape, "
+                "colours, materials, prints, logos and every detail identical. "
+                f"Place it in: {setting}.")
         else:
             lead = (f"Keep the product exactly as photographed - identical shape, "
                     f"colours, materials and every detail, unchanged. Change only "
@@ -308,6 +328,10 @@ def scene_image(scene, product_path, w, h, job_dir, seed=0, cut_cache={},
         instruction = lead + (guards.person_guards(d, is_followon=followon)
                               if shows_person else guards.product_guards())
         negative = NEG_EDIT if shows_person else NEG_PRODUCT
+        if not include_human:
+            # Push the person out hard on the negative side too.
+            negative += (", person, people, model, human, man, woman, body, face, "
+                         "head, arms, hands, fingers, skin, legs, portrait")
         instruction += " Photorealistic editorial photograph, sharp detail."
         if tracer:
             tracer.write_json(f"scene_{n}_compose.json", {

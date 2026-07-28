@@ -172,6 +172,10 @@ def make_reel(request):
     # delivery resolution keeps product scenes genuinely sharp instead of
     # upscaling a small still at assembly time.
     w, h = (1080, 1080) if aspect == "1:1" else (1080, 1920)
+    include_human = bool(cfg.get("includeHuman", False))
+    common.log("job", f"includeHuman={include_human} - "
+                      + ("a person may feature" if include_human
+                         else "PRODUCT ONLY, no person in any scene"))
     guard_log, clips, stills = [], [], []
     cut_cache, bg_cache = {}, {}
     anchor_still = None          # B1: the frame that fixes the model's identity
@@ -190,7 +194,7 @@ def make_reel(request):
         still = compose.scene_image(sc, product, w, h, jd, seed=seed,
                                     cut_cache=cut_cache, bg_cache=bg_cache,
                                     tracer=tr, tpl_defaults=tpl_defaults,
-                                    anchor=anchor_still)
+                                    anchor=anchor_still, include_human=include_human)
         stills.append(still)
         # The FIRST person scene becomes the anchor; every later person scene is
         # re-framed FROM it, so one face carries the whole reel.
@@ -248,6 +252,12 @@ def make_reel(request):
     jobs = [("reel1080", outs["1080p"], "reels", None)]
     jobs += [(f"still{i}", p, "images", f"{jid}_s{i}.png")
              for i, p in enumerate(stills, 1)]
+    # Also ship the per-scene generated stills AND the per-scene motion clips so
+    # the VPS can keep them as reusable assets (product photos + b-roll), not
+    # just the final cut. Clips are the raw Wan/Ken-Burns renders before the VO
+    # + captions + crossfades of assemble().
+    jobs += [(f"clip{i}", p, "clips", f"{jid}_c{i}.mp4")
+             for i, p in enumerate(clips, 1) if p and os.path.isfile(p)]
     t_up = time.time()
     with ThreadPoolExecutor(max_workers=6) as ex:
         futs = {name: ex.submit(_upload, path, prefix, key)
@@ -260,6 +270,8 @@ def make_reel(request):
         # kept in the contract for compatibility; 720p is no longer rendered
         "reel_720p_url": "",
         "scene_image_urls": [urls[f"still{i}"] for i in range(1, len(stills) + 1)],
+        "scene_clip_urls": [urls[k] for i in range(1, len(clips) + 1)
+                            if (k := f"clip{i}") in urls],
         "storyboard": sb,
         "durationSec": outs["durationSec"],
     }
@@ -270,6 +282,27 @@ def make_reel(request):
     result["_cost"] = _cost
     result["_guard"] = guard_log
     result["_elapsedSec"] = round(time.time() - t_start, 1)
+    # What Sonnet actually decided (its "vision" of the reel) + the per-scene
+    # validation verdicts, surfaced as first-class fields so the VPS can show
+    # them next to the reel URL instead of digging into the raw storyboard.
+    result["includeHuman"] = include_human
+    result["brain"] = {
+        "model": _brain.brain_model(),
+        "concept": sb.get("concept"),
+        "voice": sb.get("voice"),
+        "notes": sb.get("notes"),
+        "scenes": [
+            {"n": s.get("n"), "goal": s.get("goal"), "method": s.get("method"),
+             "visual": s.get("visual"), "motion": s.get("motion"),
+             "vo": s.get("vo"), "durationSec": s.get("durationSec")}
+            for s in sb.get("scenes", [])
+        ],
+    }
+    result["validations"] = [
+        {"scene": g.get("scene"), "pass": g.get("ok"), "detail": g.get("detail"),
+         "retry": bool(g.get("retry"))}
+        for g in guard_log
+    ]
     json.dump(result, open(os.path.join(jd, "result.json"), "w"),
               indent=2, ensure_ascii=False)
     tr.mark("upload")
