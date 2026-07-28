@@ -25,7 +25,8 @@ FROM pytorch/pytorch:2.10.0-cuda13.0-cudnn9-runtime
 
 ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1
+    PIP_NO_CACHE_DIR=1 \
+    PIP_BREAK_SYSTEM_PACKAGES=1
 
 # ffmpeg is not optional - assemble.py is ffmpeg from end to end.
 RUN apt-get update && apt-get install -y --no-install-recommends \
