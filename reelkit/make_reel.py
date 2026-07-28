@@ -233,6 +233,13 @@ def make_reel(request):
         # Ken-Burns renders at full delivery resolution (it is pure ffmpeg, so
         # there is no reason to downscale). Wan is capped internally at 480x832
         # by VRAM, which is a model limit rather than a choice.
+        #
+        # Product-only reels must use REAL generative motion, never a Ken-Burns
+        # zoom (it reads as a slideshow). The brain sometimes picks
+        # motionEngine="kenburns" for a clean product scene, so override it to
+        # Wan i2v for every scene when includeHuman is False.
+        if not include_human:
+            sc["motionEngine"] = "video"
 
         clip, _ = animate.animate_scene(sc, still, product, jd, w, h,
                                         v["duration"], guard_log=None, tracer=tr)
