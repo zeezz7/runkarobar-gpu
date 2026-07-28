@@ -86,6 +86,12 @@ if (( VERIFY_ONLY == 0 )); then
         "$M/loras/Qwen-Image-2512-Lightning-4steps.safetensors"
   fetch "$HF/lightx2v/Qwen-Image-Edit-2511-Lightning/resolve/main/Qwen-Image-Edit-2511-Lightning-4steps-V1.0-bf16.safetensors" \
         "$M/loras/Qwen-Image-Edit-2511-Lightning-4steps.safetensors"
+  # 8-step Lightning LoRAs — the pipeline DEFAULT (see compose.py). A clear quality
+  # step up from 4-step for a few extra seconds; still ~12-25x faster than base.
+  fetch "$HF/lightx2v/Qwen-Image-2512-Lightning/resolve/main/Qwen-Image-2512-Lightning-8steps-V1.0-bf16.safetensors" \
+        "$M/loras/Qwen-Image-2512-Lightning-8steps.safetensors"
+  fetch "$HF/lightx2v/Qwen-Image-Edit-2511-Lightning/resolve/main/Qwen-Image-Edit-2511-Lightning-8steps-V1.0-bf16.safetensors" \
+        "$M/loras/Qwen-Image-Edit-2511-Lightning-8steps.safetensors"
   fetch "$QE/loras/Qwen-Image-Edit-2509-White_to_Scene.safetensors" \
         "$M/loras/Qwen-Image-Edit-2509-White_to_Scene.safetensors"
 
