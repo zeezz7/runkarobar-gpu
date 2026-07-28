@@ -77,10 +77,14 @@ RUN printf '%s\n' \
 #  Explicit file list, not COPY . . - that would drag in runs/, work/, any
 #  stray .env and every rendered mp4.
 WORKDIR /opt/reelkit
-COPY handler.py make_reel.py brain.py compose.py animate.py voiceover.py \
-     assemble.py minio_upload.py validate_image.py common.py costs.py \
-     wavespeed.py guards.py avatar.py tracer.py ./
-COPY workflows/ ./workflows/
+#  NOTE: sources are repo-root-relative (prefixed reelkit/) because RunPod's
+#  GitHub build uses the REPOSITORY ROOT as the build context, not this folder.
+COPY reelkit/handler.py reelkit/make_reel.py reelkit/brain.py reelkit/compose.py \
+     reelkit/animate.py reelkit/voiceover.py reelkit/assemble.py \
+     reelkit/minio_upload.py reelkit/validate_image.py reelkit/common.py \
+     reelkit/costs.py reelkit/wavespeed.py reelkit/guards.py reelkit/avatar.py \
+     reelkit/tracer.py ./
+COPY reelkit/workflows/ ./workflows/
 
 # --- runtime wiring ----------------------------------------------------------
 #  COMFY_URL: common.py defaults to :18188 (this box's supervisor port); the
@@ -99,6 +103,6 @@ ENV COMFY_URL=http://127.0.0.1:8188 \
 #  ComfyUI must be UP before the first job, or that job fails on a connection
 #  refused. The script starts it in the background, blocks on /system_stats,
 #  then execs the handler.
-COPY start.sh /opt/start.sh
+COPY reelkit/start.sh /opt/start.sh
 RUN chmod +x /opt/start.sh
 ENTRYPOINT ["/opt/start.sh"]
