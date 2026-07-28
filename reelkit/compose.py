@@ -293,17 +293,23 @@ def scene_image(scene, product_path, w, h, job_dir, seed=0, cut_cache={},
         shows_person = False
         setting = (scene.get("background") or scene["visual"]).strip().rstrip(".")
         setting = guards.desexualise(setting)
-        # A follow-on person scene re-frames the ANCHOR instead of the product
-        # photo, so the same face carries the reel.
+        # Re-frame the SAME subject from the ANCHOR (the first scene's still)
+        # once one exists: for anchor templates AND for ANY includeHuman reel.
+        # This is what keeps ONE model in the EXACT SAME outfit across every
+        # angle - without it, each scene re-dresses a fresh model from the
+        # flat-lay and drifts to a different outfit (the kurti-reel failure).
         primary, refs = product_path, []
         followon = False
-        if shows_person and d.get("anchorModel") and anchor and anchor != product_path:
+        want_anchor = bool(d.get("anchorModel")) or include_human
+        if want_anchor and anchor and anchor != product_path:
             primary, refs, followon = anchor, [product_path], True
 
         shot = guards.desexualise((scene.get("visual") or "").strip().rstrip("."))
         if followon:
-            lead = (f"Keep the SAME person and the SAME outfit exactly as in this "
-                    f"photograph - identical face, hair, skin tone and clothing. "
+            lead = (f"Keep the SAME person and the EXACT SAME outfit as in this "
+                    f"photograph - identical face, hair and skin tone, and the "
+                    f"identical garment: same colours, same embroidery and prints, "
+                    f"same fabric, every detail unchanged. Do NOT change the outfit. "
                     f"Re-frame them for this new shot: {shot}. Setting: {setting}.")
         elif not include_human:
             # PRODUCT-ONLY reel from a photo that may show a model wearing the
@@ -325,9 +331,13 @@ def scene_image(scene, product_path, w, h, job_dir, seed=0, cut_cache={},
             lead = (f"Keep the product exactly as photographed - identical shape, "
                     f"colours, materials and every detail, unchanged. Change only "
                     f"the surroundings to: {setting}.")
+        # A followon shot is always a person shot (it re-frames the worn outfit),
+        # so it must get the person/wear guards even if the brain tagged the
+        # scene mode 'product'.
+        person_shot = shows_person or followon
         instruction = lead + (guards.person_guards(d, is_followon=followon)
-                              if shows_person else guards.product_guards())
-        negative = NEG_EDIT if shows_person else NEG_PRODUCT
+                              if person_shot else guards.product_guards())
+        negative = NEG_EDIT if person_shot else NEG_PRODUCT
         if not include_human:
             # Push the person out hard on the negative side too.
             negative += (", person, people, model, human, man, woman, body, face, "

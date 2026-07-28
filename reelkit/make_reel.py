@@ -228,13 +228,17 @@ def make_reel(request):
                                     anchor=anchor_still, include_human=include_human)
         stills.append(still)
         common.log("time", f"image scene {n}: {time.time() - t_s:.1f}s  {_gpu_str()}")
-        # The FIRST person scene becomes the anchor; later person scenes re-frame
-        # from it, so one face carries the whole reel.
-        if (anchor_still is None and tpl_defaults.get("anchorModel")
-                and compose.scene_shows_person(sc, tpl_defaults)):
+        # The FIRST scene becomes the anchor; later scenes re-frame from it so ONE
+        # model in the EXACT SAME outfit carries the whole reel. Set it for anchor
+        # templates AND for ANY includeHuman reel (the first still is the model
+        # wearing the item; every later angle must match it, not re-dress afresh).
+        if anchor_still is None and (
+                include_human
+                or (tpl_defaults.get("anchorModel")
+                    and compose.scene_shows_person(sc, tpl_defaults))):
             anchor_still = still
-            common.log("compose", f"scene {n}: ANCHOR set - later person scenes "
-                                  f"re-frame this model")
+            common.log("compose", f"scene {n}: ANCHOR set - later scenes re-frame "
+                                  f"this SAME model + outfit")
         if sc["method"] in ("compose_animate", "edit_animate"):
             ok, detail = animate.guard_composite(still, product)
             guard_log.append({"scene": n, "ok": ok, "detail": detail})
@@ -287,14 +291,48 @@ def make_reel(request):
             sc["motion"] = d["motion"]
         if d.get("vo"):
             sc["vo"] = d["vo"]
+    # BLOCKING GATE: act on Sonnet's verdicts instead of shipping them. Any scene
+    # it rejects (e.g. "wrong outfit") is regenerated - re-framed from the anchor
+    # so it matches the exact outfit - and re-checked, up to REELKIT_MAX_FIX
+    # passes. With the anchor now carrying the outfit this rarely fires, but it
+    # catches the odd drift before we spend Wan minutes on a bad still.
+    max_fix = int(os.environ.get("REELKIT_MAX_FIX", "1") or 1)
+    for _ in range(max_fix):
+        failed = [i for i, sc in enumerate(sb["scenes"])
+                  if not by_scene.get(sc["n"], {}).get("pass", True)]
+        if not failed:
+            break
+        common.log("validate", f"gate: regenerating {len(failed)} flagged "
+                              f"scene(s) from the anchor before motion")
+        for i in failed:
+            sc = sb["scenes"][i]
+            reseed = abs(hash(f"{jid}fix{sc['n']}")) % 10000
+            stills[i] = compose.scene_image(
+                sc, products[i % len(products)], w, h, jd, seed=reseed,
+                cut_cache=cut_cache, bg_cache=bg_cache, tracer=tr,
+                tpl_defaults=tpl_defaults, anchor=anchor_still,
+                include_human=include_human)
+            scene_image_urls[i] = _upload(stills[i], "images", f"{jid}_s{i + 1}.png")
+            common.log("time", f"refix scene {sc['n']}  {_gpu_str()}")
+        directions = brain.direct_from_stills(scene_image_urls, sb, cfg,
+                                              include_human, tracer=tr)
+        by_scene = {d.get("scene"): d for d in directions}
+        for sc in sb["scenes"]:
+            d = by_scene.get(sc["n"])
+            if d:
+                if d.get("motion"):
+                    sc["motion"] = d["motion"]
+                if d.get("vo"):
+                    sc["vo"] = d["vo"]
     sonnet_checks = [{"scene": d.get("scene"), "pass": bool(d.get("pass", True)),
                       "issue": d.get("issue", "")} for d in directions]
     for c in sonnet_checks:
         common.log("validate", f"scene {c['scene']}: "
                               f"{'PASS' if c['pass'] else 'FAIL'} {c['issue']}")
-    if any(not c["pass"] for c in sonnet_checks):
-        common.log("validate", "some scenes flagged by Sonnet - proceeding "
-                              "(gate is log-only for now)")
+    still_bad = [c["scene"] for c in sonnet_checks if not c["pass"]]
+    if still_bad:
+        common.log("validate", f"scenes {still_bad} still flagged after "
+                              f"{max_fix} fix pass(es) - shipping best effort")
 
     # ---- STAGE 3: voiceover (now, from the grounded lines) -------------------
     # Audio leads video: the VO's measured durations drive the Wan clip lengths.
