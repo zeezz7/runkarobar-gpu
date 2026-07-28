@@ -577,38 +577,57 @@ def validate(sb, length, template=None, include_human=True):
     return sb
 
 
-def validate_stills(still_urls, config, include_human, tracer=None):
+def direct_from_stills(still_urls, sb, config, include_human, tracer=None):
     """
-    Sonnet vision GATE between the image and motion stages: look at the generated
-    scene stills and check each is usable BEFORE the expensive Wan pass. One
-    WaveSpeed vision call (~$0.05), cheap next to a minute of GPU per clip.
+    The gate AND the director, in one WaveSpeed vision call, AFTER the stills
+    exist. Looks at the ACTUAL generated images (not the pre-render plan) and per
+    scene returns:
+      pass/issue - QA: product intact + human-free when required, and
+      motion     - a camera/motion prompt GROUNDED in that real image, and
+      vo         - the spoken line, tuned to what's shown while keeping the
+                   storyboard's story and any exact call to action.
 
-    Returns [{"scene": n, "pass": bool, "issue": str}]. NEVER raises - a flaky
-    validator must not sink a reel, so any error passes everything through.
+    Grounding motion + VO in the real pixels is what lifts video quality: the old
+    flow wrote motion blind, against a plan the image often didn't match. NEVER
+    raises - on any error it falls back to the storyboard's own motion + vo so
+    the reel still renders.
     """
     urls = [u for u in (still_urls or []) if u]
+    scenes = (sb or {}).get("scenes", [])
     if not urls:
         return []
     human_rule = (
-        "There must be NO person, model, face, hands, arms or body anywhere - the "
-        "PRODUCT ONLY (a ghost-mannequin / hollow-garment / flat product shot is "
-        "correct and should PASS)."
-        if not include_human else
-        "A person may appear; that is fine.")
+        "There must be NO person/model/face/hands/arms/body - PRODUCT ONLY (a "
+        "ghost-mannequin / hollow-garment / flat product shot is correct)."
+        if not include_human else "A person may appear; that is fine.")
+    length = int(float(config.get("lengthSec") or 20))
+    per = max(2, length // max(1, len(urls)))
+    draft = "\n".join(f'  scene {s.get("n")}: planned VO "{s.get("vo", "")}"'
+                      for s in scenes)
     prompt = (
-        f"You are QA for a product video. Below are {len(urls)} generated scene "
-        f"image(s), in order (scene 1 first). Judge EACH one:\n"
-        f"1. Product integrity - correct shape, colours, logos and text; no "
-        f"warping, melting, extra/duplicated items or gibberish lettering.\n"
-        f"2. {human_rule}\n"
-        f"Return ONLY a JSON array, one object per image IN ORDER:\n"
-        f'[{{"scene":1,"pass":true,"issue":""}}]\n'
-        f'Set "pass" false only if the product is clearly broken or the person '
-        f'rule is violated. Keep "issue" a short phrase.')
+        f"You are directing a {length}s {config.get('language', 'en')} product "
+        f"video for {config.get('brandName') or 'the brand'}. "
+        f"Concept: {(sb or {}).get('concept', '')}.\n"
+        f"Below are the {len(urls)} generated scene stills IN ORDER. The writer's "
+        f"planned voiceover:\n{draft}\n\n"
+        f"Looking ONLY at what is ACTUALLY in each image, return for EACH, in "
+        f"order:\n"
+        f"1. pass/issue - QA: product intact (shape, colours, logos, text; no "
+        f"warping or gibberish) and: {human_rule} pass=false only if clearly "
+        f"broken.\n"
+        f"2. motion - ONE short camera/motion instruction for an image-to-video "
+        f"model, grounded in THIS image (its surface, props, light). Premium and "
+        f"subtle: a camera move plus any natural motion truly present (droplets, "
+        f"steam, reflections). Never invent people or objects not in the image.\n"
+        f"3. vo - the spoken line for this scene, ~{per}s of speech. The lines "
+        f"together tell ONE story and MUST keep the planned message and any exact "
+        f"call to action; the last scene closes it.\n"
+        f"Return ONLY a JSON array in order:\n"
+        f'[{{"scene":1,"pass":true,"issue":"","motion":"...","vo":"..."}}]')
     try:
         raw = wavespeed.chat(prompt, system="You output ONLY strict JSON.",
                              images=urls, model=brain_model(),
-                             temperature=0.2, max_tokens=900)
+                             temperature=0.4, max_tokens=1400)
         data = _extract_json(raw)
         if isinstance(data, dict):
             data = data.get("scenes") or data.get("results") or [data]
@@ -618,16 +637,21 @@ def validate_stills(still_urls, config, include_human, tracer=None):
                 continue
             out.append({"scene": item.get("scene", i),
                         "pass": bool(item.get("pass", True)),
-                        "issue": str(item.get("issue") or "")[:120]})
+                        "issue": str(item.get("issue") or "")[:120],
+                        "motion": str(item.get("motion") or "").strip()[:300],
+                        "vo": str(item.get("vo") or "").strip()[:300]})
         if tracer:
-            tracer.write_json("sonnet_validation.json",
-                              {"prompt": prompt, "raw": raw, "verdicts": out})
-        return out or [{"scene": i + 1, "pass": True, "issue": ""}
-                       for i in range(len(urls))]
+            tracer.write_json("sonnet_direction.json",
+                              {"prompt": prompt, "raw": raw, "directions": out})
+        if out:
+            return out
     except Exception as e:
-        common.log("validate", f"Sonnet still-check failed (non-fatal, pass-through): {e}")
-        return [{"scene": i + 1, "pass": True, "issue": "validator error"}
-                for i in range(len(urls))]
+        common.log("validate",
+                   f"Sonnet direction failed (non-fatal, using plan): {e}")
+    # Fallback: keep the storyboard's own motion + vo, pass everything.
+    return [{"scene": s.get("n", i + 1), "pass": True, "issue": "",
+             "motion": s.get("motion", ""), "vo": s.get("vo", "")}
+            for i, s in enumerate(scenes)]
 
 
 # ------------------------------------------------------------------- generate

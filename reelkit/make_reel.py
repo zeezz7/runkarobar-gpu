@@ -181,17 +181,9 @@ def make_reel(request):
               indent=2, ensure_ascii=False)
     tr.write_json("storyboard.json", sb)
 
-    # ---- STAGE 3 first: audio leads video ------------------------------------
-    import voiceover
-    vo = voiceover.voice_scenes(sb, cfg, jd)
-    for v in vo:
-        sc = next(x for x in sb["scenes"] if x["n"] == v["n"])
-        tr.write_json(f"scene_{v['n']}_vo.json", {
-            "vo_text": sc.get("vo"), "voice_id": voiceover.pick_voice(cfg),
-            "model_id": voiceover.model_id(), "mp3_path": v.get("audio"),
-            "measured_duration": v["duration"],
-            "planned_duration": sc.get("durationSec")})
-    tr.mark("voiceover")
+    # NOTE: voiceover is generated LATER now - after the stills exist and Sonnet
+    # has re-written the VO grounded in the ACTUAL images (see Stage 1b). Audio
+    # still leads video: the VO's measured durations drive the Wan clip lengths.
 
     # ---- STAGE 1 + 2 + 2b ----------------------------------------------------
     import animate
@@ -225,7 +217,7 @@ def make_reel(request):
     # ONCE, between images and motion, and not at all when REELKIT_KEEP_RESIDENT
     # is set (a >=80GB card holds edit+Wan together, ~48GB of weights).
     t_img = time.time()
-    for si, (sc, v) in enumerate(zip(sb["scenes"], vo)):
+    for si, sc in enumerate(sb["scenes"]):
         n = sc["n"]
         product = products[si % len(products)]
         seed = abs(hash(jid)) % 10000
@@ -280,15 +272,43 @@ def make_reel(request):
             lambda ip: _upload(ip[1], "images", f"{jid}_s{ip[0]}.png"),
             list(enumerate(stills, 1))))
     tr.mark("images")
-    sonnet_checks = brain.validate_stills(scene_image_urls, cfg, include_human,
-                                          tracer=tr)
+    # Sonnet DIRECTS from the real stills: validate each + write the motion and
+    # VO grounded in what was ACTUALLY generated (not the pre-render plan). This
+    # is the video-quality lift - the motion now matches the image, and the VO
+    # describes what is really on screen while keeping the brief's story + CTA.
+    directions = brain.direct_from_stills(scene_image_urls, sb, cfg,
+                                          include_human, tracer=tr)
+    by_scene = {d.get("scene"): d for d in directions}
+    for sc in sb["scenes"]:
+        d = by_scene.get(sc["n"])
+        if not d:
+            continue
+        if d.get("motion"):
+            sc["motion"] = d["motion"]
+        if d.get("vo"):
+            sc["vo"] = d["vo"]
+    sonnet_checks = [{"scene": d.get("scene"), "pass": bool(d.get("pass", True)),
+                      "issue": d.get("issue", "")} for d in directions]
     for c in sonnet_checks:
-        common.log("validate", f"scene {c.get('scene')}: "
-                              f"{'PASS' if c.get('pass') else 'FAIL'} "
-                              f"{c.get('issue') or ''}")
-    if any(not c.get("pass") for c in sonnet_checks):
+        common.log("validate", f"scene {c['scene']}: "
+                              f"{'PASS' if c['pass'] else 'FAIL'} {c['issue']}")
+    if any(not c["pass"] for c in sonnet_checks):
         common.log("validate", "some scenes flagged by Sonnet - proceeding "
                               "(gate is log-only for now)")
+
+    # ---- STAGE 3: voiceover (now, from the grounded lines) -------------------
+    # Audio leads video: the VO's measured durations drive the Wan clip lengths.
+    import voiceover
+    vo = voiceover.voice_scenes(sb, cfg, jd)
+    for v in vo:
+        sc = next((x for x in sb["scenes"] if x["n"] == v["n"]), None)
+        if sc:
+            tr.write_json(f"scene_{v['n']}_vo.json", {
+                "vo_text": sc.get("vo"), "voice_id": voiceover.pick_voice(cfg),
+                "model_id": voiceover.model_id(), "mp3_path": v.get("audio"),
+                "measured_duration": v["duration"],
+                "planned_duration": sc.get("durationSec")})
+    tr.mark("voiceover")
 
     if not keep_resident:
         _free_comfy_vram()      # single edit->motion swap on a smaller card
