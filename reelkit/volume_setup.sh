@@ -140,7 +140,17 @@ if (( VERIFY_ONLY == 0 )); then
   #  one flag makes the CLI treat the extras as positional FILENAMES, download
   #  nothing, and still exit 0 - a silent false success.
   echo; echo "== Qwen2.5-VL-7B-Instruct (OCR guard)"
-  hf download Qwen/Qwen2.5-VL-7B-Instruct \
+  # The guard is a multi-file transformers model, so it comes via the HuggingFace
+  # CLI, not a single-file fetch. A bare pod may not have it - install on demand
+  # (this runs on the populate pod only; the endpoint just READS the result).
+  if ! command -v hf >/dev/null 2>&1 && ! command -v huggingface-cli >/dev/null 2>&1; then
+    echo "  hf CLI missing - installing huggingface_hub[cli]"
+    pip install -q -U "huggingface_hub[cli]" 2>/dev/null \
+      || pip3 install -q -U "huggingface_hub[cli]" 2>/dev/null \
+      || echo "  !! could not install the HuggingFace CLI"
+  fi
+  HFCLI=hf; command -v hf >/dev/null 2>&1 || HFCLI=huggingface-cli
+  "$HFCLI" download Qwen/Qwen2.5-VL-7B-Instruct \
       --local-dir "$X/qwen2.5-vl/Qwen2.5-VL-7B-Instruct" \
       --exclude "*.pth" --exclude "*.bin" --exclude "original/*" \
       --max-workers 8 || echo "  !! qwen guard download failed"
