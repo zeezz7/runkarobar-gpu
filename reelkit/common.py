@@ -12,6 +12,7 @@ import os
 import shutil
 import subprocess
 import time
+import urllib.error
 import urllib.request
 import uuid
 
@@ -65,8 +66,22 @@ def _post(path, payload):
     req = urllib.request.Request(
         f"{COMFY}{path}", data=json.dumps(payload).encode(),
         headers={"Content-Type": "application/json"}, method="POST")
-    with urllib.request.urlopen(req, timeout=180) as r:
-        return json.loads(r.read())
+    try:
+        with urllib.request.urlopen(req, timeout=180) as r:
+            return json.loads(r.read())
+    except urllib.error.HTTPError as e:
+        # ComfyUI signals a bad workflow with HTTP 400 and a JSON body
+        # {"error": ..., "node_errors": {...}} that names the exact node +
+        # input that failed (e.g. a lora_name/ckpt_name not on disk). urlopen
+        # raises before we can read it, so a plain "HTTP Error 400" is useless.
+        # Recover the body: if it is the JSON rejection, hand it back so
+        # comfy_run() surfaces node_errors; otherwise raise it verbatim.
+        body = e.read().decode("utf-8", "replace")
+        try:
+            return json.loads(body)
+        except ValueError:
+            raise RuntimeError(
+                f"ComfyUI POST {path} -> HTTP {e.code}: {body[:1200]}") from None
 
 
 def _get(path):
