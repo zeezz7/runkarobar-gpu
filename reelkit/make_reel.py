@@ -340,8 +340,27 @@ def make_reel(request):
                     sc["motion"] = d["motion"]
                 if d.get("vo"):
                     sc["vo"] = d["vo"]
+    # FALLBACK (option A): any scene STILL wrong after the fix passes is replaced
+    # with the verified reference still (the first scene Sonnet passed). The reel
+    # then repeats a correct angle instead of shipping a wrong-outfit shot - a
+    # consistent reel always beats a broken one. Only applies when at least one
+    # scene passed.
+    good_i = next((i for i, sc in enumerate(sb["scenes"])
+                   if by_scene.get(sc["n"], {}).get("pass", True)), None)
+    if good_i is not None:
+        for i, sc in enumerate(sb["scenes"]):
+            if not by_scene.get(sc["n"], {}).get("pass", True):
+                common.log("validate", f"scene {sc['n']}: still wrong after retries "
+                                      f"- substituting the verified still from "
+                                      f"scene {sb['scenes'][good_i]['n']}")
+                stills[i] = stills[good_i]
+                scene_image_urls[i] = scene_image_urls[good_i]
+                by_scene.setdefault(sc["n"], {})["substituted"] = True
     sonnet_checks = [{"scene": d.get("scene"), "pass": bool(d.get("pass", True)),
-                      "issue": d.get("issue", "")} for d in directions]
+                      "issue": d.get("issue", ""),
+                      "substituted": bool(by_scene.get(d.get("scene"), {})
+                                          .get("substituted"))}
+                     for d in directions]
     for c in sonnet_checks:
         common.log("validate", f"scene {c['scene']}: "
                               f"{'PASS' if c['pass'] else 'FAIL'} {c['issue']}")
