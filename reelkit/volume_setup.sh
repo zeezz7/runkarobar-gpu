@@ -112,21 +112,13 @@ if (( VERIFY_ONLY == 0 )); then
   fetch "$WB/loras/wan2.2_i2v_lightx2v_4steps_lora_v1_low_noise.safetensors" \
         "$M/loras/wan2.2_i2v_lightx2v_4steps_lora_v1_low_noise.safetensors"
 
-  # --- HunyuanVideo I2V: the alternative engine, off by default -------------
-  #  Kept because REELKIT_VIDEO_MODEL=hunyuan can select it. clip_vision is the
-  #  easy one to miss: I2V needs it, the T2V variant does not.
-  #  Licence: Tencent Hunyuan Community - EXCLUDES the EU, UK and South Korea.
-  echo; echo "== HunyuanVideo I2V 720p"
-  HB=$HF/Comfy-Org/HunyuanVideo_repackaged/resolve/main/split_files
-  fetch "$HB/diffusion_models/hunyuan_video_image_to_video_720p_bf16.safetensors" \
-        "$M/diffusion_models/hunyuan_video_image_to_video_720p_bf16.safetensors"
-  fetch "$HB/text_encoders/llava_llama3_fp8_scaled.safetensors" \
-        "$M/text_encoders/llava_llama3_fp8_scaled.safetensors"
-  fetch "$HB/text_encoders/clip_l.safetensors" "$M/text_encoders/clip_l.safetensors"
-  fetch "$HB/clip_vision/llava_llama3_vision.safetensors" \
-        "$M/clip_vision/llava_llama3_vision.safetensors"
-  fetch "$HB/vae/hunyuan_video_vae_bf16.safetensors" \
-        "$M/vae/hunyuan_video_vae_bf16.safetensors"
+  # --- HunyuanVideo I2V: REMOVED ------------------------------------------
+  #  The pipeline always uses Wan (REELKIT_VIDEO_MODEL defaults to "wan"), so
+  #  HunyuanVideo's ~36GB (model + llava text encoders + clip_l + vae) was dead
+  #  weight on the volume. Dropped to fit a smaller drive and populate faster.
+  #  animate.hunyuan_i2v still exists but is only reachable with
+  #  REELKIT_VIDEO_MODEL=hunyuan - do NOT set that unless you re-add these files.
+  echo; echo "== HunyuanVideo: SKIPPED (Wan-only pipeline, saves ~36GB)"
 
   # --- segmentation + upscaler ----------------------------------------------
   echo; echo "== BiRefNet + 4x-UltraSharp"
@@ -189,7 +181,8 @@ check_dir() {                      # <label> <path> <find-args...>
   printf '   %-34s %3s file(s)  %s\n' "$label" "$n" "$status"
 }
 
-for d in diffusion_models text_encoders clip_vision vae loras upscale_models \
+# clip_vision is intentionally empty now (only HunyuanVideo used it, removed).
+for d in diffusion_models text_encoders vae loras upscale_models \
          background_removal; do
   check_dir "ComfyUI/models/$d" "$M/$d" \( -name '*.safetensors' -o -name '*.pth' \)
 done
