@@ -475,6 +475,19 @@ def make_reel(request):
     if trace_dir:
         result["_traceDir"] = trace_dir
         common.log("trace", f"audit trail -> {trace_dir}")
+        # Bundle the WHOLE audit trail (every compose prompt + which images each
+        # scene used + Sonnet's full direction I/O + timings) and upload it, so
+        # the exact reason for any drift is inspectable from anywhere - not lost
+        # on the ephemeral worker.
+        try:
+            if os.path.isdir(trace_dir):
+                tgz = os.path.join(jd, f"trace_{jid}.tgz")
+                common.run(["tar", "-czf", tgz, "-C", os.path.dirname(trace_dir),
+                            os.path.basename(trace_dir)])
+                result["trace_url"] = _upload(tgz, "traces", f"{jid}_trace.tgz")
+                common.log("trace", f"trace bundle -> {result['trace_url']}")
+        except Exception as e:
+            common.log("trace", f"trace bundle upload failed (non-fatal): {e}")
     common.log("job", f"done in {result['_elapsedSec']}s -> {result['reel_1080p_url']}")
     return result
 

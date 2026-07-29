@@ -327,6 +327,19 @@ def scene_image(scene, product_path, w, h, job_dir, seed=0, cut_cache={},
                 "its natural worn shape with nobody in it. Keep its exact shape, "
                 "colours, materials, prints, logos and every detail identical. "
                 f"Place it in: {setting}.")
+        elif shows_person and include_human:
+            # includeHuman ESTABLISHING scene. The source is usually a flat-lay or
+            # a product shot, so ORDER the garment worn on a model - "keep exactly
+            # as photographed" (flat) fought WEAR_GUARD ("worn by a model") and the
+            # edit drifted to a random outfit. Be explicit: dress a model in THIS
+            # exact garment, changing nothing about the garment itself.
+            lead = (
+                "Show this EXACT outfit worn by a full-body model. Take the "
+                "garment(s) in the photograph and dress the model in them, keeping "
+                "the identical fabric, colours, prints, embroidery, lace and cut of "
+                "EVERY piece completely unchanged - do NOT restyle, recolour, "
+                "simplify or swap it for a different garment. The complete outfit "
+                f"worn naturally on the body. Setting: {setting}.")
         else:
             lead = (f"Keep the product exactly as photographed - identical shape, "
                     f"colours, materials and every detail, unchanged. Change only "
@@ -351,6 +364,12 @@ def scene_image(scene, product_path, w, h, job_dir, seed=0, cut_cache={},
                 "positive_prompt": instruction, "negative_prompt": negative,
                 "source_photo": primary, "anchor_used": followon,
                 "extra_refs": refs, "shows_person": shows_person})
+        # Log the EXACT edit request so it shows in the worker logs - this is
+        # where outfit drift is born, so we want it visible, not buried.
+        common.log("compose", f"scene {n} EDIT primary={os.path.basename(primary)} "
+                              f"refs={[os.path.basename(r) for r in refs]} "
+                              f"followon={followon} shows_person={shows_person}")
+        common.log("compose", f"scene {n} INSTRUCTION: {instruction[:500]}")
         out_edit = edit_scene(primary, instruction, prefix + "_edit",
                               seed=seed + n, ref_paths=refs, negative=negative)
         out = os.path.join(job_dir, f"scene_{n}.png")
