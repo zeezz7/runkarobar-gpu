@@ -206,6 +206,14 @@ def make_reel(request):
     keep_resident = os.environ.get("REELKIT_KEEP_RESIDENT", "0").lower() in (
         "1", "true", "yes")
     common.log("vram", f"render start - {_gpu_str()}")
+    # CLEAN START. On serverless the ComfyUI process is REUSED across jobs on a
+    # warm worker, so a previous KEEP_RESIDENT job leaves ~75GB of edit+Wan
+    # weights pinned - the next job then OOMs trying to load the edit model into
+    # a nearly-full card. KEEP_RESIDENT must mean "resident within THIS reel",
+    # not "across jobs": free everything ComfyUI holds before we load anything,
+    # so each job starts on a clean GPU regardless of what ran before it.
+    _free_comfy_vram()
+    common.log("vram", f"freed leftover weights at job start - {_gpu_str()}")
 
     # ===== STAGE 1: ALL scene images, edit model loaded ONCE =================
     # Batched on purpose. Generating every still before any motion keeps the edit
