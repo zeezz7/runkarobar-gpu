@@ -86,9 +86,11 @@ Return EXACTLY this JSON shape:
       "goal": "reveal|showcase|detail|wear|lifestyle|cta",
       "method": "edit_animate|compose_animate|generate_animate|lipsync",
       "mode": "product|scene",
-      "visual": "<the on-screen shot description>",
+      "visual": "<the on-screen shot description - this is the START frame of the scene>",
+      "visualEnd": "<the END frame of the scene: the SAME model/product in the SAME outfit, only moved - a new pose, angle or framing that the camera motion arrives at. This end frame is ALSO the start of the next scene, so the reel flows continuously. Keep every identity detail identical to 'visual'; change ONLY pose/framing. Describe a clear, natural motion delta (e.g. front -> three-quarter turn, wide -> close detail).>",
       "background": "<ONLY the setting/environment for this shot - the place, surface, light and mood. Never mention the product, clothing or any person.>",
-      "motion": "<camera move, e.g. 'slow push-in', 'orbit', 'crane down'>",
+      "motion": "<camera move, e.g. 'slow push-in', 'orbit', 'crane down' - the movement that carries 'visual' to 'visualEnd'>",
+      "sfx": "<a SHORT natural real-world foley sound effect for this scene, e.g. 'soft fabric movement', 'single water droplet and light splash', 'gentle jewellery shimmer', 'quiet room ambience'. Diegetic sound ONLY. Absolutely NO music, NO melody, NO instruments, NO beat, NO song. Empty string for a silent scene.>",
       "energy": "<a visual effect such as 'water splash' or 'rising steam', or empty string for clean>",
       "transitionIn": "cut|fade|whip|zoom",
       "durationSec": 4,
@@ -471,6 +473,12 @@ def validate(sb, length, template=None, include_human=True):
                 raise ValueError(f"scene {i} missing '{k}'")
         sc["n"] = i
         sc.setdefault("energy", "")
+        # Optional fields for directed-motion (visualEnd) and sound effects (sfx).
+        # Absent on older brain output / when the feature is off -> harmless
+        # empty string, and the renderer falls back to classic single-still I2V
+        # and a silent track respectively.
+        sc.setdefault("visualEnd", "")
+        sc.setdefault("sfx", "")
         if sc["method"] not in METHODS:
             raise ValueError(f"scene {i} method must be one of {sorted(METHODS)}")
         if sc["mode"] not in MODES:

@@ -197,18 +197,28 @@ def hunyuan_i2v(image_path, prompt, out_path, job_tag, duration=5.0,
     return outs[0]
 
 
-def video_i2v(image_path, prompt, out_path, job_tag, duration=5.0):
-    """Dispatch to whichever i2v model is selected. Same signature either way."""
+def video_i2v(image_path, prompt, out_path, job_tag, duration=5.0, end_image=None):
+    """Dispatch to whichever i2v model is selected. Same signature either way.
+
+    `end_image` (directed motion) is Wan-only: HunyuanVideo has no first-last
+    frame path, so it is ignored there.
+    """
     if VIDEO_MODEL == "hunyuan":
         common.log("animate", f"i2v engine: HunyuanVideo 720p ({duration:.1f}s)")
         return hunyuan_i2v(image_path, prompt, out_path, job_tag, duration)
-    common.log("animate", f"i2v engine: Wan 2.2 480x832 ({duration:.1f}s)")
-    return wan_i2v(image_path, prompt, out_path, job_tag, duration)
+    common.log("animate", f"i2v engine: Wan 2.2 480x832 ({duration:.1f}s)"
+                          + (" [FLF2V start->end]" if end_image else ""))
+    return wan_i2v(image_path, prompt, out_path, job_tag, duration, end_image)
 
 
 # ------------------------------------------------------------------- wan i2v
-def wan_i2v(image_path, prompt, out_path, job_tag, duration=5.0):
-    """Wan 2.2 I2V + LightX2V 4-step. Returns the raw clip path."""
+def wan_i2v(image_path, prompt, out_path, job_tag, duration=5.0, end_image=None):
+    """Wan 2.2 I2V + LightX2V 4-step. Returns the raw clip path.
+
+    When `end_image` is given, wire it into WanImageToVideo's optional
+    `end_image` input so Wan morphs from the start still to the end still
+    (first-last-frame to video) instead of inventing motion from one frame.
+    """
     name = f"rk_wan_{job_tag}.png"
     common.stage_input(image_path, name)
     # 4n+1, and CAPPED: Wan 2.2 i2v is trained around 81 frames; past ~121 the
@@ -219,6 +229,15 @@ def wan_i2v(image_path, prompt, out_path, job_tag, duration=5.0):
 
     wf = common.load_tpl("tpl_wan_i2v.api.json")
     common.set_class(wf, "LoadImage", image=name)
+    if end_image:
+        # Add a second image loader and wire it into the video node's optional
+        # end_image slot. A fixed id ("rk_endimg") cannot collide with the
+        # template's numeric node ids.
+        end_name = f"rk_wanend_{job_tag}.png"
+        common.stage_input(end_image, end_name)
+        wf["rk_endimg"] = {"class_type": "LoadImage", "inputs": {"image": end_name}}
+        for _, node in common.nodes_of(wf, "WanImageToVideo"):
+            node["inputs"]["end_image"] = ["rk_endimg", 0]
     # `length` was computed here and then NEVER PASSED - so every clip came out
     # at the template's default 81 frames (5.06s) no matter what was asked for.
     # A 7.6s voiceover slot therefore got a 5.06s clip and assemble froze the
@@ -289,10 +308,13 @@ def screen_blend(base_clip, fx_clip, out_path, duration):
 
 # ------------------------------------------------------------------ per scene
 def animate_scene(scene, still_path, source_product, job_dir, w, h, duration,
-                  guard_log=None, tracer=None):
+                  guard_log=None, tracer=None, end_still=None):
     """
     Turn one scene's still into a clip of `duration` seconds.
     Returns (clip_path, guard_verdict_or_None).
+
+    `end_still`: when set (directed-motion mode), Wan morphs from `still_path`
+    to `end_still` (first-last-frame) instead of hallucinating the motion.
     """
     n = scene["n"]
     tag = f"{os.path.basename(job_dir)}_s{n}"
@@ -342,9 +364,11 @@ def animate_scene(scene, still_path, source_product, job_dir, w, h, duration,
             "motion_prompt_verbatim": motion, "energy_prompt_verbatim": energy,
             "full_prompt_sent": prompt, "input_still": still_path,
             "requested_duration": duration, "clip_path": out,
+            "directed_motion": bool(end_still), "end_still": end_still,
             "kenburns": scene.get("kenburns")})
         tracer.model(f"i2v:{VIDEO_MODEL}", "load")
-    common.log("animate", f"scene {n}: i2v '{motion[:40]}'")
-    clip = video_i2v(still_path, prompt, out, tag, duration)
+    common.log("animate", f"scene {n}: i2v '{motion[:40]}'"
+                          + (" [directed start->end]" if end_still else ""))
+    clip = video_i2v(still_path, prompt, out, tag, duration, end_image=end_still)
     os.replace(clip, out) if clip != out else None
     return out, verdict

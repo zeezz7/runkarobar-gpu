@@ -101,6 +101,23 @@ def pad_audio(src, dst, duration):
     return dst
 
 
+# Foley sits well under the voice; -14 dB keeps it as texture, never competing
+# with the read. No loudnorm here - we do NOT want the effect pushed up to voice
+# loudness.
+SFX_GAIN_DB = -14.0
+
+
+def pad_sfx(src, dst, duration):
+    """Pad/trim one scene's sound effect to the scene length, at foley volume."""
+    common.run([
+        "ffmpeg", "-v", "error", "-y", "-i", src,
+        "-af", f"volume={SFX_GAIN_DB}dB,aresample={A_RATE},apad",
+        "-t", f"{duration:.3f}",
+        "-c:a", "pcm_s16le", "-ar", str(A_RATE), "-ac", str(A_CH), dst,
+    ])
+    return dst
+
+
 # ------------------------------------------------------------------- captions
 def _hex_to_ass(hex_colour, fallback="&H001C6BE8&"):
     """
@@ -239,10 +256,12 @@ def write_ass(scenes, durations, path, w, h):
 
 # ------------------------------------------------------------------- assemble
 def assemble(scene_clips, vo_tracks, storyboard, job_dir, name, aspect="9:16",
-             captions=True, tracer=None):
+             captions=True, tracer=None, sfx_tracks=None):
     """
     scene_clips : [path,...] in scene order
     vo_tracks   : [{"n","audio","duration"},...] from voiceover.voice_scenes
+    sfx_tracks  : optional [{"n","audio","duration"},...] from sfx.scene_sfx -
+                  a natural-foley bed mixed UNDER the voice (never music).
     Returns {"1080p": path, "720p": path, "durationSec": float}
     """
     scenes = storyboard["scenes"]
@@ -297,10 +316,44 @@ def assemble(scene_clips, vo_tracks, storyboard, job_dir, name, aspect="9:16",
     common.run(["ffmpeg", "-v", "error", "-y", "-f", "concat", "-safe", "0",
                 "-i", alst, "-c", "copy", vo_track])
 
+    # ---- optional foley bed, mixed UNDER the voice -------------------------
+    # Built on the SAME per-scene timeline as the VO so effects land on their
+    # scene. Missing/failed effects become silence, so the track is always the
+    # full length. Never music (see sfx.py).
+    sfx_track = None
+    if sfx_tracks and any(s.get("audio") for s in sfx_tracks):
+        by_n = {s["n"]: s for s in sfx_tracks}
+        sparts = []
+        for v, d in zip(vo_tracks, durations):
+            s = os.path.join(tmp, f"s_{v['n']}.wav")
+            src = by_n.get(v["n"], {}).get("audio")
+            sparts.append(pad_sfx(src, s, d) if src else silence(s, d))
+        slst = os.path.join(tmp, "sconcat.txt")
+        with open(slst, "w") as fh:
+            for p in sparts:
+                fh.write(f"file '{p}'\n")
+        sfx_track = os.path.join(tmp, "sfx.wav")
+        common.run(["ffmpeg", "-v", "error", "-y", "-f", "concat", "-safe", "0",
+                    "-i", slst, "-c", "copy", sfx_track])
+
     master = os.path.join(tmp, "master.mp4")
-    common.run(["ffmpeg", "-v", "error", "-y", "-i", silent_master, "-i", vo_track,
-                "-c:v", "copy", "-c:a", "aac", "-b:a", "192k",
-                "-ar", str(A_RATE), "-ac", str(A_CH), "-shortest", master])
+    if sfx_track:
+        # amix the voice (full) with the foley bed (already attenuated in
+        # pad_sfx). dropout_transition=0 + normalize=0 stops amix from auto-
+        # ducking the voice when the effect drops to silence.
+        common.run([
+            "ffmpeg", "-v", "error", "-y", "-i", silent_master, "-i", vo_track,
+            "-i", sfx_track,
+            "-filter_complex",
+            "[1:a][2:a]amix=inputs=2:duration=first:dropout_transition=0:"
+            "normalize=0[a]",
+            "-map", "0:v", "-map", "[a]",
+            "-c:v", "copy", "-c:a", "aac", "-b:a", "192k",
+            "-ar", str(A_RATE), "-ac", str(A_CH), "-shortest", master])
+    else:
+        common.run(["ffmpeg", "-v", "error", "-y", "-i", silent_master, "-i", vo_track,
+                    "-c:v", "copy", "-c:a", "aac", "-b:a", "192k",
+                    "-ar", str(A_RATE), "-ac", str(A_CH), "-shortest", master])
 
     # ---- captions ----------------------------------------------------------
     total = common.probe_duration(master)
