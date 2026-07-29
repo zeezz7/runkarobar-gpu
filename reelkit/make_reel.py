@@ -219,6 +219,13 @@ def make_reel(request):
     t_img = time.time()
     for si, sc in enumerate(sb["scenes"]):
         n = sc["n"]
+        # includeHuman must EDIT the real garment, never generate a model from
+        # text. The brain often picks generate_animate (pure text-to-image), which
+        # ignores the product photo entirely and invents a random outfit - the
+        # real cause of the drift. Force edit_animate so scene 1 dresses a model
+        # in the actual flat-lay and later scenes re-frame from the anchor.
+        if include_human:
+            sc["method"] = "edit_animate"
         product = products[si % len(products)]
         seed = abs(hash(jid)) % 10000
         t_s = time.time()

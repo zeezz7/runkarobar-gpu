@@ -285,12 +285,13 @@ def scene_image(scene, product_path, w, h, job_dir, seed=0, cut_cache={},
     # A scene shows a person when the brain framed it that way, or when the
     # template is inherently about a person (outfit-check, ad, testimonial).
     shows_person = scene_shows_person(scene, d)
-    # includeHuman=False is a hard promise the reel has NO person. It is only
-    # offered on product templates, so honour it for every scene regardless of
-    # how the brain framed the shot - otherwise a "product only" reel still
-    # animates the model who happens to wear the item in the source photo.
+    # The includeHuman toggle is binary and authoritative: True = a model wears
+    # the product in EVERY scene, False = a hard no-person product reel. Force it
+    # regardless of how the brain framed the shot.
     if not include_human:
         shows_person = False
+    else:
+        shows_person = True
         setting = (scene.get("background") or scene["visual"]).strip().rstrip(".")
         setting = guards.desexualise(setting)
         # Re-frame the SAME subject from the ANCHOR (the first scene's still)
