@@ -37,7 +37,7 @@ import wavespeed
 # The remote brain. Overridable so the model can be changed without a code edit.
 # Read at CALL time, not import time: common.load_env() often runs after this
 # module is imported, so a module-level read would miss /workspace/.env.
-DEFAULT_BRAIN_MODEL = "google/gemini-2.5-pro"
+DEFAULT_BRAIN_MODEL = "anthropic/claude-sonnet-4"
 
 
 def brain_model():
