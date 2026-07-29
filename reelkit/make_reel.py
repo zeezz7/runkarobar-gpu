@@ -281,7 +281,8 @@ def make_reel(request):
     # is the video-quality lift - the motion now matches the image, and the VO
     # describes what is really on screen while keeping the brief's story + CTA.
     directions = brain.direct_from_stills(scene_image_urls, sb, cfg,
-                                          include_human, tracer=tr)
+                                          include_human,
+                                          product_urls=product_urls, tracer=tr)
     by_scene = {d.get("scene"): d for d in directions}
     for sc in sb["scenes"]:
         d = by_scene.get(sc["n"])
@@ -331,7 +332,8 @@ def make_reel(request):
             scene_image_urls[i] = _upload(stills[i], "images", f"{jid}_s{i + 1}.png")
             common.log("time", f"refix scene {sc['n']}  {_gpu_str()}")
         directions = brain.direct_from_stills(scene_image_urls, sb, cfg,
-                                              include_human, tracer=tr)
+                                              include_human,
+                                              product_urls=product_urls, tracer=tr)
         by_scene = {d.get("scene"): d for d in directions}
         for sc in sb["scenes"]:
             d = by_scene.get(sc["n"])

@@ -577,7 +577,8 @@ def validate(sb, length, template=None, include_human=True):
     return sb
 
 
-def direct_from_stills(still_urls, sb, config, include_human, tracer=None):
+def direct_from_stills(still_urls, sb, config, include_human, product_urls=None,
+                       tracer=None):
     """
     The gate AND the director, in one WaveSpeed vision call, AFTER the stills
     exist. Looks at the ACTUAL generated images (not the pre-render plan) and per
@@ -593,6 +594,7 @@ def direct_from_stills(still_urls, sb, config, include_human, tracer=None):
     the reel still renders.
     """
     urls = [u for u in (still_urls or []) if u]
+    refs = [u for u in (product_urls or []) if u][:1]
     scenes = (sb or {}).get("scenes", [])
     if not urls:
         return []
@@ -604,17 +606,30 @@ def direct_from_stills(still_urls, sb, config, include_human, tracer=None):
     per = max(2, length // max(1, len(urls)))
     draft = "\n".join(f'  scene {s.get("n")}: planned VO "{s.get("vo", "")}"'
                       for s in scenes)
+    # Show Sonnet the ORIGINAL product as image 1 so it COMPARES, not guesses.
+    # Without it, an all-grey outfit passed when the real product is a magenta
+    # kurti (the grey dupatta looked "close enough" from the text alone).
+    if refs:
+        intro = (f"IMAGE 1 is the REFERENCE PRODUCT - the exact item that MUST "
+                 f"appear in every scene. IMAGES 2-{len(urls) + 1} are the "
+                 f"generated scene stills, IN ORDER.\n")
+        qa = ("the SAME product as IMAGE 1 - same garment type and the SAME "
+              "colours (e.g. if the reference is a magenta kurti, an all-grey "
+              "outfit or a different dress or a suit is WRONG), same embroidery, "
+              "prints and design; no warping or gibberish text")
+    else:
+        intro = f"Below are the {len(urls)} generated scene stills IN ORDER.\n"
+        qa = ("the product intact - correct shape, colours, logos and text; no "
+              "warping or gibberish")
     prompt = (
-        f"You are directing a {length}s {config.get('language', 'en')} product "
-        f"video for {config.get('brandName') or 'the brand'}. "
+        f"You are QA + director for a {length}s {config.get('language', 'en')} "
+        f"product video for {config.get('brandName') or 'the brand'}. "
         f"Concept: {(sb or {}).get('concept', '')}.\n"
-        f"Below are the {len(urls)} generated scene stills IN ORDER. The writer's "
-        f"planned voiceover:\n{draft}\n\n"
-        f"Looking ONLY at what is ACTUALLY in each image, return for EACH, in "
-        f"order:\n"
-        f"1. pass/issue - QA: product intact (shape, colours, logos, text; no "
-        f"warping or gibberish) and: {human_rule} pass=false only if clearly "
-        f"broken.\n"
+        f"{intro}The writer's planned voiceover:\n{draft}\n\n"
+        f"For EACH generated scene still, IN ORDER, return:\n"
+        f"1. pass/issue - QA. pass=true ONLY if the still shows {qa}; and: "
+        f"{human_rule} If the product differs from the reference in any obvious "
+        f"way, set pass=false with a short issue.\n"
         f"2. motion - ONE short camera/motion instruction for an image-to-video "
         f"model, grounded in THIS image (its surface, props, light). Premium and "
         f"subtle: a camera move plus any natural motion truly present (droplets, "
@@ -622,12 +637,13 @@ def direct_from_stills(still_urls, sb, config, include_human, tracer=None):
         f"3. vo - the spoken line for this scene, ~{per}s of speech. The lines "
         f"together tell ONE story and MUST keep the planned message and any exact "
         f"call to action; the last scene closes it.\n"
-        f"Return ONLY a JSON array in order:\n"
+        f"Return ONLY a JSON array, ONE object per generated scene (do NOT include "
+        f"the reference image), in order:\n"
         f'[{{"scene":1,"pass":true,"issue":"","motion":"...","vo":"..."}}]')
     try:
         raw = wavespeed.chat(prompt, system="You output ONLY strict JSON.",
-                             images=urls, model=brain_model(),
-                             temperature=0.4, max_tokens=1400)
+                             images=refs + urls, model=brain_model(),
+                             temperature=0.3, max_tokens=1400)
         data = _extract_json(raw)
         if isinstance(data, dict):
             data = data.get("scenes") or data.get("results") or [data]
