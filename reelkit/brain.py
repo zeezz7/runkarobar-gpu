@@ -90,7 +90,7 @@ Return EXACTLY this JSON shape:
       "visualEnd": "<the END frame: SAME model/product/outfit, only pose/angle/framing changed (a clear motion delta). Also the next scene's start. Empty if not using directed motion.>",
       "background": "<ONLY the setting/environment for this shot - the place, surface, light and mood. Never mention the product, clothing or any person.>",
       "motion": "<camera move, e.g. 'slow push-in', 'orbit', 'crane down'>",
-      "sfx": "<SHORT natural foley for this scene, e.g. 'soft fabric movement', 'water droplet splash', 'gentle shimmer'. Diegetic ONLY - NO music/melody/instruments/beat. Empty for silent.>",
+      "sfx": "<SHORT natural foley for this scene, e.g. 'soft fabric movement', 'leather creak', 'gentle shimmer'. Diegetic ONLY - NO music/melody/instruments/beat. Empty for silent.>",
       "energy": "<a visual effect such as 'water splash' or 'rising steam', or empty string for clean>",
       "transitionIn": "cut|fade|whip|zoom",
       "durationSec": 4,
@@ -163,9 +163,11 @@ HARD REQUIREMENTS
   do, the backdrop is generated containing a second copy of the product.
   Describe a CLOSE, shallow-depth product surface and its light - not a wide room.
   A wide interior puts furniture and fixtures in shot and dwarfs the product.
-  Good: "wet dark stone surface, water droplets, cool morning light raking from
-  the left, soft blurred background". Bad: "a bathroom with a window and a sink"
-  (that renders the whole room, toilet included).
+  Good: "brushed steel pedestal, hard single spotlight, deep black falloff" or
+  "raw linen over aged oak, warm window light, soft blurred depth". Bad: "a
+  bathroom with a window and a sink" (renders the whole room, toilet included).
+  VARY the surface and mood per scene; wet/water staging is allowed in AT MOST
+  one scene and only when it genuinely suits the product.
 - For "generate_animate" scenes the "visual" must NOT mention the product, the
   garment or anyone wearing it - that shot is generated from nothing, so naming
   the product makes the model invent a DIFFERENT one and the ad shows the wrong
@@ -701,8 +703,12 @@ def direct_from_stills(still_urls, sb, config, include_human, product_urls=None,
         f"2. motion - ONE short camera/motion instruction for an image-to-video "
         f"model, grounded in THIS image (its surface, props, light). Confident "
         f"and cinematic: a camera move plus any natural motion truly present "
-        f"(droplets, steam, particles, reflections, fabric). Never invent "
-        f"people or objects not in the image.\n"
+        f"(steam rising, particles drifting, reflections shifting, fabric "
+        f"moving). Never invent people or objects not in the image, and NEVER "
+        f"describe water falling, raining or cascading unless the still "
+        f"already shows falling water - droplets sitting on a surface only "
+        f"glisten in place; the video model turns any 'droplets' mention into "
+        f"rain.\n"
         f"3. vo - the spoken line for this scene, ~{per}s of speech. The lines "
         f"together tell ONE story and MUST keep the planned message and any exact "
         f"call to action; the last scene closes it.\n"
