@@ -316,6 +316,15 @@ def scene_image(scene, product_path, w, h, job_dir, seed=0, cut_cache={},
         shows_person = False
     else:
         shows_person = True
+
+    # EDIT PATH: edit the REAL uploaded product photo via edit_scene. Runs for
+    # EVERY edit_animate scene - product-only AND include_human. This block used to
+    # be nested inside the include_human branch, so PRODUCT-ONLY reels never reached
+    # edit_scene and fell straight through to text-to-image (generate_scene) -
+    # inventing the product from the brain's words instead of editing the uploaded
+    # photo (the shoe-colourway drift, source_photo=None in the trace). Gate on the
+    # METHOD, not include_human, so the photo is used whenever the brain wants an edit.
+    if scene["method"] == "edit_animate":
         setting = (scene.get("background") or scene["visual"]).strip().rstrip(".")
         setting = guards.desexualise(setting)
         # Re-frame the SAME subject from the ANCHOR (the first scene's still)
