@@ -216,6 +216,7 @@ def make_reel(request):
                       + ("a person may feature" if include_human
                          else "PRODUCT ONLY, no person in any scene"))
     guard_log, clips, stills = [], [], []
+    guard_hard_fail = {}     # scene n -> OCR-proven defect the gate must honour
     cut_cache, bg_cache = {}, {}
     anchor_still = None          # B1: the frame that fixes the model's identity
     # Default: free the edit models ONCE before motion (Stage 2 peak = just Wan,
@@ -295,13 +296,22 @@ def make_reel(request):
                 "scene": n, "pass": ok, "detail": detail, "retries": 0})
             common.log("guard", f"scene {n}: {'PASS' if ok else 'FAIL'} - {detail}")
             if not ok:
-                # reuse the background; only change placement (PIL, ~1s)
-                common.log("guard", f"scene {n}: re-compositing larger/higher "
-                                    f"(reusing background)")
+                # Retry with a DIFFERENT seed and the guard's complaint as
+                # emphasis. The old retry reused the original seed formula, so
+                # an edit scene re-rendered the byte-identical wrong image and
+                # the "retry" was a no-op (observed: invented 'BERTEN ROYAL'
+                # lettering survived its retry unchanged).
+                common.log("guard", f"scene {n}: re-rendering (new seed) - {detail}")
                 still = compose.scene_image(
-                    sc, product, w, h, jd, seed=abs(hash(jid)) % 10000,
+                    sc, product, w, h, jd,
+                    seed=abs(hash(f"{jid}guard{n}")) % 10000,
                     cut_cache=cut_cache, bg_cache=bg_cache,
-                    height_frac=0.62, center_y=0.50, include_human=include_human)
+                    height_frac=0.62, center_y=0.50, include_human=include_human,
+                    emphasis=(f"CRITICAL: the previous render was WRONG "
+                              f"({detail}). Match the reference photograph "
+                              f"exactly - if a surface is blank in the photo it "
+                              f"must stay blank, with NO invented text or "
+                              f"logos."))
                 ok2, detail2 = animate.guard_composite(still, product)
                 guard_log.append({"scene": n, "ok": ok2, "detail": detail2,
                                   "retry": True})
@@ -311,6 +321,13 @@ def make_reel(request):
                 common.log("guard", f"scene {n} retry: "
                                     f"{'PASS' if ok2 else 'STILL FAIL'} - {detail2}")
                 stills[-1] = still
+                if not ok2:
+                    # The OCR verdict is objective (a blank product grew text /
+                    # lost its label) - remember it so the Sonnet gate cannot
+                    # wave this scene through: small neat lettering photographs
+                    # plausibly and Sonnet passed exactly that (trace
+                    # reel_8c56f34e scene 1).
+                    guard_hard_fail[n] = detail2
 
         # DIRECTED MOTION: generate this scene's END keyframe by editing the
         # START still to the brain's visualEnd - the SAME model in the SAME
@@ -364,6 +381,17 @@ def make_reel(request):
             sc["motion"] = d["motion"]
         if d.get("vo"):
             sc["vo"] = d["vo"]
+    # An OCR-proven defect (blank product grew lettering / label changed and the
+    # re-render didn't cure it) overrides a Sonnet pass: small neat lettering
+    # photographs plausibly, and Sonnet waved exactly that through. Marking the
+    # scene failed here routes it through the normal regen -> substitute ->
+    # paste machinery below.
+    for n_, why in guard_hard_fail.items():
+        d = by_scene.setdefault(n_, {"scene": n_})
+        if d.get("pass", True):
+            common.log("validate", f"scene {n_}: guard overrides Sonnet pass - {why}")
+            d["pass"] = False
+            d.setdefault("issue", why)
     # BLOCKING GATE: act on Sonnet's verdicts instead of shipping them. Any scene
     # it rejects (e.g. "wrong outfit") is regenerated - re-framed from the anchor
     # so it matches the exact outfit - and re-checked, up to REELKIT_MAX_FIX
@@ -380,8 +408,12 @@ def make_reel(request):
                      if j % nprod == i % nprod
                      and by_scene.get(sc2["n"], {}).get("pass", True)), None)
     for _ in range(max_fix):
+        # Guard-hard-fail scenes skip the regen: another edit re-invents the
+        # text more often than not and nothing re-OCRs it here (the VL guard is
+        # already unloaded), so their cure is the donor/paste stage below.
         failed = [i for i, sc in enumerate(sb["scenes"])
-                  if not by_scene.get(sc["n"], {}).get("pass", True)]
+                  if not by_scene.get(sc["n"], {}).get("pass", True)
+                  and sc["n"] not in guard_hard_fail]
         if not failed:
             break
         common.log("validate", f"gate: regenerating {len(failed)} flagged scene(s) "
@@ -424,6 +456,14 @@ def make_reel(request):
                     sc["motion"] = d["motion"]
                 if d.get("vo"):
                     sc["vo"] = d["vo"]
+    # Re-assert the OCR verdicts: the fix loop re-ran Sonnet and rebound
+    # by_scene, which would let a guard-hard-fail scene slip back to "pass".
+    for n_, why in guard_hard_fail.items():
+        d = by_scene.setdefault(n_, {"scene": n_})
+        if d.get("pass", True):
+            common.log("validate", f"scene {n_}: guard overrides Sonnet pass - {why}")
+            d["pass"] = False
+            d.setdefault("issue", why)
     # FALLBACK (option A): any scene STILL wrong after the fix passes is replaced
     # with a verified still OF THE SAME PRODUCT. The reel then repeats a correct
     # angle instead of shipping a wrong shot - a consistent reel always beats a
