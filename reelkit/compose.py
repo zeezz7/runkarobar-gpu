@@ -89,14 +89,19 @@ def segment(product_path, job_dir, tag):
 
 
 # ------------------------------------------------------------------ generation
-# FAST path uses the 4-step Lightning LoRAs. NOTE: the 8-step variant was tried as
-# the default (f005245, "sharper") but on real reels it visibly DROPPED product
-# detail/fidelity vs 4-step, so we reverted. Both LoRAs are on the volume, so this
-# is a code-only switch. The non-FAST base path (steps 40/50) stays for the rare
-# text-critical frame. Overridable per-call via REELKIT_EDIT_STEPS if needed.
+# FAST path uses the 8-step Lightning LoRAs, run at their proper 8 sampler steps.
+# HISTORY: f005245 swapped 4-step->8-step LoRAs but the workflow's KSampler steps
+# stay wired to the template's Lightning switch, which hardwires the fast branch to
+# 4 steps - so the 8-step LoRA was starved at 4 steps (soft, under-denoised). The
+# code below now OVERRIDES the sampler to run the LoRA's real step count, so 8-step
+# renders at 8 steps (sharper, the config it was distilled for). Both LoRAs are on
+# the volume. The non-FAST base path (40/50 steps) stays for text-critical frames.
 FAST = os.environ.get("REELKIT_FAST", "1") != "0"
-T2I_LORA = "Qwen-Image-2512-Lightning-4steps.safetensors"
-EDIT_LORA = "Qwen-Image-Edit-2511-Lightning-4steps.safetensors"
+# The Lightning LoRAs are distilled for a fixed step count - keep FAST_STEPS in
+# lockstep with the LoRA name (8-step LoRA -> 8 steps) or the output degrades.
+FAST_STEPS = int(os.environ.get("REELKIT_FAST_STEPS", "8"))
+T2I_LORA = "Qwen-Image-2512-Lightning-8steps.safetensors"
+EDIT_LORA = "Qwen-Image-Edit-2511-Lightning-8steps.safetensors"
 
 
 def _add_lora(wf, lora_name, after_node, sampler_node="17"):
@@ -112,7 +117,7 @@ def generate_scene(prompt, w, h, out_prefix, seed=0, steps=None, cfg=None,
     wf = common.load_tpl("tpl_t2i_qwen.api.json")
     if FAST:
         _add_lora(wf, T2I_LORA, "11")
-        steps, cfg = steps or 4, cfg if cfg is not None else 1.0
+        steps, cfg = steps or FAST_STEPS, cfg if cfg is not None else 1.0
     else:
         steps, cfg = steps or 50, cfg if cfg is not None else 4.0
     common.set_class(wf, "EmptySD3LatentImage", width=w, height=h, batch_size=1)
@@ -170,7 +175,7 @@ def edit_scene(product_path, instruction, out_prefix, seed=0, steps=None, cfg=No
     if FAST:
         for _, node in common.nodes_of(wf, "PrimitiveBoolean"):
             node["inputs"]["value"] = True          # template's Lightning switch
-        steps, cfg = steps or 4, cfg if cfg is not None else 1.0
+        steps, cfg = steps or FAST_STEPS, cfg if cfg is not None else 1.0
     else:
         for _, node in common.nodes_of(wf, "PrimitiveBoolean"):
             node["inputs"]["value"] = False
@@ -179,7 +184,13 @@ def edit_scene(product_path, instruction, out_prefix, seed=0, steps=None, cfg=No
         node["inputs"]["lora_name"] = EDIT_LORA
     common.set_prompts(wf, instruction, negative or NEG_EDIT,
                        cls="TextEncodeQwenImageEditPlus", field="prompt")
-    common.set_class(wf, "KSampler", seed=seed or 1, denoise=1.0)
+    # THE FIX: the template's KSampler steps/cfg are wired to the Lightning switch,
+    # which hardwires the fast branch to 4 steps - so edit_scene (unlike
+    # generate_scene) was NOT honouring `steps` and the 8-step LoRA ran starved at
+    # 4. Set steps/cfg as scalars so they override the switch and the LoRA runs at
+    # its real step count.
+    common.set_class(wf, "KSampler", seed=seed or 1, steps=steps, cfg=cfg,
+                     denoise=1.0)
     common.set_class(wf, "SaveImage", filename_prefix=out_prefix)
     outs = common.comfy_run(wf)
     if not outs:
