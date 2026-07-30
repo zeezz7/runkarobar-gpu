@@ -146,11 +146,12 @@ HARD REQUIREMENTS
   would actually use (e.g. "Subah ki freshness, har din - deep clean, aloe vera ke
   saath"). Do NOT fall back to plain English. If {language} is "hi" or "ur", write in
   that language. The claims rule above still applies, in that language.
-- "energy" is a real PHYSICAL effect in the shot - "water splash", "rising
-  steam", "swirling mist", "drifting dust particles", "fabric ripple", "light
-  sweep" - not just a vague glow or shimmer. Give at least a third of the scenes
-  a non-empty energy that fits the product; "" only for a deliberately clean
-  shot, and never the same energy twice.
+- "energy" is a real PHYSICAL effect in the shot - "drifting dust particles",
+  "fabric ripple", "light sweep", "rising steam", "swirling smoke", "water
+  splash" - not just a vague glow or shimmer. Give at least a third of the
+  scenes a non-empty energy that fits the product; "" only for a deliberately
+  clean shot, and never the same energy twice. Water effects: at most ONE
+  scene, only when they suit the product.
 - "motion" names a concrete, confident camera move and must vary between
   scenes - include at least one bold move (fast orbit, sweeping crane,
   rise/float, whip pan); never make every scene a slow push-in.
@@ -202,7 +203,8 @@ TEMPLATES = {
             "Premium, DRAMATIC product-hero showcase - a high-end TV spot, not a "
             "catalogue packshot. Stage the product like a hero: suspended mid-air "
             "in a dark studio under hard directional light with deep shadows, or "
-            "on a bold surface mid-action (splash, mist, drifting particles). "
+            "on a bold surface mid-action (drifting particles, smoke wisps, a "
+            "burst of motion that fits the product). "
             "Vary the framing across scenes - a dramatic hero, a tight macro on "
             "the key detail (texture, stitching, hardware, stones), a styled "
             "lifestyle beat - never three of the same shot. Minimal on-screen "
