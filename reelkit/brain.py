@@ -86,11 +86,11 @@ Return EXACTLY this JSON shape:
       "goal": "reveal|showcase|detail|wear|lifestyle|cta",
       "method": "edit_animate|compose_animate|generate_animate|lipsync",
       "mode": "product|scene",
-      "visual": "<the on-screen shot description - this is the START frame of the scene>",
-      "visualEnd": "<the END frame of the scene: the SAME model/product in the SAME outfit, only moved - a new pose, angle or framing that the camera motion arrives at. This end frame is ALSO the start of the next scene, so the reel flows continuously. Keep every identity detail identical to 'visual'; change ONLY pose/framing. Describe a clear, natural motion delta (e.g. front -> three-quarter turn, wide -> close detail).>",
+      "visual": "<the on-screen shot - the START frame of the scene>",
+      "visualEnd": "<the END frame: SAME model/product/outfit, only pose/angle/framing changed (a clear motion delta). Also the next scene's start. Empty if not using directed motion.>",
       "background": "<ONLY the setting/environment for this shot - the place, surface, light and mood. Never mention the product, clothing or any person.>",
-      "motion": "<camera move, e.g. 'slow push-in', 'orbit', 'crane down' - the movement that carries 'visual' to 'visualEnd'>",
-      "sfx": "<a SHORT natural real-world foley sound effect for this scene, e.g. 'soft fabric movement', 'single water droplet and light splash', 'gentle jewellery shimmer', 'quiet room ambience'. Diegetic sound ONLY. Absolutely NO music, NO melody, NO instruments, NO beat, NO song. Empty string for a silent scene.>",
+      "motion": "<camera move, e.g. 'slow push-in', 'orbit', 'crane down'>",
+      "sfx": "<SHORT natural foley for this scene, e.g. 'soft fabric movement', 'water droplet splash', 'gentle shimmer'. Diegetic ONLY - NO music/melody/instruments/beat. Empty for silent.>",
       "energy": "<a visual effect such as 'water splash' or 'rising steam', or empty string for clean>",
       "transitionIn": "cut|fade|whip|zoom",
       "durationSec": 4,
@@ -315,13 +315,10 @@ PEOPLE_RULE_OFF = (
     "product and its setting only.")
 PEOPLE_RULE_ON = (
     "\n\nWHO IS ON SCREEN:\n"
-    "  A real person features with the product - wearing, holding or using it "
-    "ON-BODY. The SAME person must be present in EVERY scene, from the VERY FIRST "
-    "frame to the last (same face, hair and build throughout). NEVER open on an "
-    "empty, flat or floating garment and have a person appear later, and never let "
-    "the person vanish mid-reel - a body that grows out of the product looks "
-    "broken. Every 'visual' AND every 'visualEnd' must show that same person "
-    "wearing the product. They must be fully and modestly dressed in every shot.")
+    "  The SAME real person wears/holds the product ON-BODY in EVERY scene, from "
+    "the VERY FIRST frame (same face, hair, build throughout). Never open on an "
+    "empty/flat garment and have a person appear later, and never let them vanish. "
+    "Fully and modestly dressed in every shot.")
 
 
 def people_directive(include_human):
@@ -329,24 +326,14 @@ def people_directive(include_human):
 
 
 DIRECTED_MOTION_RULE = (
-    "\n\nDIRECTED MOTION IS ON - this changes how scenes are built, read carefully:\n"
-    "  Each scene is rendered as a MORPH from its 'visual' (the first frame) to its "
-    "'visualEnd' (the last frame), and a scene's 'visualEnd' is ALSO the first "
-    "frame of the NEXT scene - so the whole reel is one continuous, flowing shot. "
-    "Three hard rules:\n"
-    "  1. SAME CAST in 'visual' and 'visualEnd'. If a person is in 'visual', the "
-    "SAME person (same face, hair, build, outfit) is in 'visualEnd'; if 'visual' "
-    "is product-only with no person, then 'visualEnd' is also product-only. A "
-    "person must NEVER appear or disappear between the two frames - that renders as "
-    "a body materialising out of the product.\n"
-    "  2. REAL MOVEMENT: 'visualEnd' must be a CLEARLY different pose, angle or "
-    "framing from 'visual' - a visible move (front -> three-quarter turn, wide -> "
-    "tight detail, hand at side -> hand adjusting the collar). If the two frames "
-    "are near-identical the scene looks frozen and dead.\n"
-    "  3. CONTINUITY: write each scene's 'visualEnd' so it matches the setup the "
-    "NEXT scene's 'visual' opens on, and make every scene a DISTINCT shot - vary "
-    "the distance (wide / medium / close macro) and angle so no two scenes look "
-    "alike.")
+    "\n\nDIRECTED MOTION: each scene morphs from 'visual' (first frame) to "
+    "'visualEnd' (last frame), and a scene's 'visualEnd' is the NEXT scene's first "
+    "frame. So: (1) SAME cast in both - if a person is in 'visual' the same person "
+    "is in 'visualEnd'; if 'visual' is product-only, 'visualEnd' is too. A person "
+    "must never appear or vanish between them. (2) 'visualEnd' must be a CLEARLY "
+    "different pose/angle/framing (front->3/4 turn, wide->macro detail) - not a "
+    "near-identical frame. (3) Match each 'visualEnd' to the next scene's 'visual', "
+    "and make every scene a distinct shot (vary distance and angle).")
 
 
 def _template_directive(key, spec, nmin, nmax):
@@ -746,6 +733,15 @@ def storyboard(brief, config, product_images, retries=3, tracer=None,
     prompt += people_directive(include_human)
     if bool(config.get("directedMotion", False)):
         prompt += DIRECTED_MOTION_RULE
+    # SAFETY CLAMP: WaveSpeed hard-caps the prompt at 10000 chars and 400s the
+    # whole call if exceeded (a rich directed-motion + style prompt, or a very long
+    # user brief, can approach it). Clamp with margin so a reel can never die on
+    # prompt length - worst case we drop the tail, the brain still runs.
+    MAX_PROMPT = 9800
+    if len(prompt) > MAX_PROMPT:
+        common.log("brain", f"prompt {len(prompt)} chars > {MAX_PROMPT} - clamping "
+                            f"(WaveSpeed caps at 10000)")
+        prompt = prompt[:MAX_PROMPT]
     common.log("brain", f"includeHuman={include_human} - "
                         + ("a person features with the product"
                            if include_human else "PRODUCT ONLY, nobody on screen"))
