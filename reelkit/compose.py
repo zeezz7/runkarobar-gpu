@@ -102,12 +102,14 @@ FAST = os.environ.get("REELKIT_FAST", "1") != "0"
 FAST_STEPS = int(os.environ.get("REELKIT_FAST_STEPS", "8"))
 T2I_LORA = "Qwen-Image-2512-Lightning-8steps.safetensors"
 EDIT_LORA = "Qwen-Image-Edit-2511-Lightning-8steps.safetensors"
-# Product-only edits keep the product's OWN pixels as the img2img base by running
-# the sampler at denoise < 1.0 (the template VAEEncodes the source into the latent,
-# but denoise=1.0 was noising it fully away, so the shoe/label got redrawn). ~0.82
-# preserves shape/colour/logo while still restyling the surroundings. Worn/human
-# scenes stay at 1.0 (they need freedom to re-pose the model). Env-tunable.
-EDIT_DENOISE_PRODUCT = float(os.environ.get("REELKIT_EDIT_DENOISE", "0.82"))
+# Product-only img2img denoise. TESTED: denoise<1.0 with the LIGHTNING LoRA makes
+# fidelity WORSE, not better (0/3 vs 1/3 on the Nike shoe) - the distilled LoRA is
+# trained for full denoise and can't do a partial schedule, so at 0.82 it neither
+# preserves the product nor follows the prompt and drifts harder. So this DEFAULTS
+# to 1.0 (off). Partial-denoise img2img preservation only works on the full
+# non-Lightning model (REELKIT_FAST=0) - use REELKIT_EDIT_DENOISE there. The plumbing
+# stays for that path; with Lightning it must be 1.0.
+EDIT_DENOISE_PRODUCT = float(os.environ.get("REELKIT_EDIT_DENOISE", "1.0"))
 
 
 def _add_lora(wf, lora_name, after_node, sampler_node="17"):
