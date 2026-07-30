@@ -146,9 +146,14 @@ HARD REQUIREMENTS
   would actually use (e.g. "Subah ki freshness, har din - deep clean, aloe vera ke
   saath"). Do NOT fall back to plain English. If {language} is "hi" or "ur", write in
   that language. The claims rule above still applies, in that language.
-- "energy" is your free choice per scene - describe the effect in plain words, or
-  leave it "" for a clean shot. Do not repeat the same energy in every scene.
-- "motion" should vary between scenes; name a concrete camera move.
+- "energy" is a real PHYSICAL effect in the shot - "water splash", "rising
+  steam", "swirling mist", "drifting dust particles", "fabric ripple", "light
+  sweep" - not just a vague glow or shimmer. Give at least a third of the scenes
+  a non-empty energy that fits the product; "" only for a deliberately clean
+  shot, and never the same energy twice.
+- "motion" names a concrete, confident camera move and must vary between
+  scenes - include at least one bold move (fast orbit, sweeping crane,
+  rise/float, whip pan); never make every scene a slow push-in.
 - "badges" are short on-screen text chips burned over the reel (a price, an offer,
   a one-word benefit). Return an EMPTY array unless the STYLE DIRECTIVE asks for
   them. Max 6, each at most 16 characters, colour as #RRGGBB or omitted.
@@ -165,26 +170,8 @@ HARD REQUIREMENTS
   garment or anyone wearing it - that shot is generated from nothing, so naming
   the product makes the model invent a DIFFERENT one and the ad shows the wrong
   item. Describe only surroundings, texture or atmosphere.
-- "kenburns" gives the EXACT numbers for the camera move on product scenes, so the
-  renderer applies them directly instead of guessing from your words:
-    zoom   "in" or "out"
-    start  starting zoom factor, 1.0 = no zoom (range 0.9-1.6)
-    end    ending zoom factor   (range 0.9-1.6; use end<start for a pull-out)
-    xDrift horizontal pan across the whole shot, fraction of width  (-0.2 to 0.2)
-    yDrift vertical pan across the whole shot, fraction of height   (-0.2 to 0.2)
-    rotateDeg total rotation across the shot in degrees (-12 to 12). Use this for
-      any turning, tilting, orbiting or dutch-angle feel. 0 = no rotation.
-  Make these match your "motion" wording and VARY THEM between scenes - do not
-  make every scene a zoom. If your "motion" says orbit, turn, rotate, tilt or
-  dutch angle, rotateDeg MUST be non-zero.
-- "motionEngine" picks how the shot moves:
-    "kenburns" - the still is scaled, panned and rotated. Fast, and the product
-      stays pixel-perfect. Good for push-ins, pans, tilts and gentle turns.
-    "video" - ALWAYS use this. Every scene must be a real animated shot.
-  Do not use "kenburns"; a reel built from zooming stills looks cheap.
-- "vo" lines must be long enough to actually SPEAK for their durationSec at a
-  natural ad pace - roughly 2.5 words per second. A 4 second scene needs about
-  10 words, not 4.
+- "motionEngine" is ALWAYS "video" - every scene is a real animated shot. Copy
+  the "kenburns" object from the schema example as-is.
 Return only the JSON object."""
 
 
@@ -210,15 +197,19 @@ TEMPLATES = {
     },
     "showcase": {
         "persona": (
-            "Clean, minimal, premium product showcase. Let the product be the hero "
-            "with elegant hero shots and subtle camera moves. Minimal on-screen text. "
-            "Calm, confident, aspirational tone. No gimmicks. Vary the framing across "
-            "scenes - a hero, a tight macro on the key detail (texture, stitching, "
-            "hardware, stones), and a styled lifestyle beat - never three of the same "
-            "shot. Stage the product on a tasteful real surface with soft depth, "
-            "never a flat solid-colour wall."),
+            "Premium, DRAMATIC product-hero showcase - a high-end TV spot, not a "
+            "catalogue packshot. Stage the product like a hero: suspended mid-air "
+            "in a dark studio under hard directional light with deep shadows, or "
+            "on a bold surface mid-action (splash, mist, drifting particles). "
+            "Vary the framing across scenes - a dramatic hero, a tight macro on "
+            "the key detail (texture, stitching, hardware, stones), a styled "
+            "lifestyle beat - never three of the same shot. Minimal on-screen "
+            "text; confident, aspirational tone. At least two scenes carry a "
+            "real physical 'energy' effect that fits the product, and the camera "
+            "must feel alive - mix at least one bold move (fast orbit, sweeping "
+            "crane, rise/float) with the slow ones."),
         "defaults": {"sceneBias": 3, "wantsBadges": False, "wantsCta": False,
-                     "motionStyle": "subtle", "lengthSec": 15},
+                     "motionStyle": "dynamic", "lengthSec": 15},
     },
     "ad": {
         "persona": (
@@ -318,11 +309,34 @@ PEOPLE_RULE_ON = (
     "  The SAME real person wears/holds the product ON-BODY in EVERY scene, from "
     "the VERY FIRST frame (same face, hair, build throughout). Never open on an "
     "empty/flat garment and have a person appear later, and never let them vanish. "
-    "Fully and modestly dressed in every shot.")
+    "Fully and modestly dressed in every shot.\n"
+    "  Every scene's \"visual\" must describe the product EXACTLY as photographed "
+    "- same garment type, neckline/collar, closure, sleeves, colours and prints. "
+    "Never substitute a different garment (a zip polo must never become a "
+    "crew-neck t-shirt) and never add clothing or accessories that are not in "
+    "the photo.")
 
 
 def people_directive(include_human):
     return PEOPLE_RULE_ON if include_human else PEOPLE_RULE_OFF
+
+
+# Person indicators only. "face" and "neck" are deliberately NOT blanket
+# matches: they collide with product words (a FACE wash, a bottle NECK), so
+# "face" is flagged only when it is NOT a product phrase, and "neck" is
+# dropped. The real human-free enforcement is downstream anyway (the
+# ghost-mannequin edit removes any person, and the Sonnet gate checks the
+# rendered stills), so this text check just catches the obvious cases.
+# Shared: validate() rejects person mentions on product-only reels with it,
+# and direct_from_stills() uses it to decide which scenes of a person reel
+# actually feature the person (an ad's product beats don't).
+_PERSON_RX = re.compile(
+    r"\bface(?!\s*(?:wash|cream|cleanser|cleansing|scrub|mask|serum|gel|"
+    r"foam|wipe|care|moistur|oil|pack|lotion|toner|cloth))\b"
+    r"|\b(model|person|people|someone|somebody|human|woman|women|girl|"
+    r"boy|man|guy|lady|hand|hands|finger|fingers|palm|palms|arm|arms|"
+    r"wrist|shoulder|torso|chest|wearing|worn by|holding|held by|holds|"
+    r"wears|she|he|her|his|him|presenter)\b", re.I)
 
 
 DIRECTED_MOTION_RULE = (
@@ -571,21 +585,8 @@ def validate(sb, length, template=None, include_human=True):
                 f"scenes {bad} use mode 'scene' but this reel is PRODUCT ONLY "
                 f"(includeHuman is false) - every scene must be mode 'product' "
                 f"with nobody on screen")
-        # Person indicators only. "face" and "neck" are deliberately NOT blanket
-        # matches: they collide with product words (a FACE wash, a bottle NECK),
-        # so "face" is flagged only when it is NOT a product phrase, and "neck"
-        # is dropped. The real human-free enforcement is downstream anyway (the
-        # ghost-mannequin edit removes any person, and the Sonnet gate checks the
-        # rendered stills), so this text check just catches the obvious cases.
-        human = re.compile(
-            r"\bface(?!\s*(?:wash|cream|cleanser|cleansing|scrub|mask|serum|gel|"
-            r"foam|wipe|care|moistur|oil|pack|lotion|toner|cloth))\b"
-            r"|\b(model|person|people|someone|somebody|human|woman|women|girl|"
-            r"boy|man|guy|lady|hand|hands|finger|fingers|palm|palms|arm|arms|"
-            r"wrist|shoulder|torso|chest|wearing|worn by|holding|held by|holds|"
-            r"wears|she|he|her|his|him)\b", re.I)
         for s_ in scenes:
-            hit = human.search(f"{s_.get('visual','')} {s_.get('background','')}")
+            hit = _PERSON_RX.search(f"{s_.get('visual','')} {s_.get('background','')}")
             if hit:
                 raise ValueError(
                     f"scene {s_['n']} mentions '{hit.group(0)}' but this reel is "
@@ -613,28 +614,56 @@ def direct_from_stills(still_urls, sb, config, include_human, product_urls=None,
     the reel still renders.
     """
     urls = [u for u in (still_urls or []) if u]
-    refs = [u for u in (product_urls or []) if u][:1]
+    # ALL products go in as references, in order: scene i is judged against
+    # product (i % N) - the SAME mapping the renderer uses. Sending only
+    # product #1 made the gate fail every other product's (correct) scene as
+    # "wrong product" on multi-product reels, and the substitutions that
+    # followed morphed one product into another mid-clip.
+    refs = [u for u in (product_urls or []) if u][:8]
+    nref = len(refs)
     scenes = (sb or {}).get("scenes", [])
     if not urls:
         return []
-    human_rule = (
-        "There must be NO person/model/face/hands/arms/body - PRODUCT ONLY (a "
-        "ghost-mannequin / hollow-garment / flat product shot is correct); a "
-        "person appearing is WRONG."
-        if not include_human else
-        "The SAME real person MUST be present WEARING the product ON-BODY in this "
-        "still - NOT a flat, empty or floating garment, and NOT the bare product "
-        "alone. pass=false if there is no visible person, if the garment is shown "
-        "unworn/flat, or if the person's face or build changes from the other "
-        "stills (they must look like the same individual across every scene).")
     length = int(float(config.get("lengthSec") or 20))
     per = max(2, length // max(1, len(urls)))
-    draft = "\n".join(f'  scene {s.get("n")}: planned VO "{s.get("vo", "")}"'
-                      for s in scenes)
-    # Show Sonnet the ORIGINAL product as image 1 so it COMPARES, not guesses.
-    # Without it, an all-grey outfit passed when the real product is a magenta
-    # kurti (the grey dupatta looked "close enough" from the text alone).
-    if refs:
+    # Per-scene expectations: which reference it must match, whether a person
+    # belongs in THIS shot (a person reel may still have product-only beats -
+    # an ad's product close-ups must not fail for "no person"), and the planned
+    # shot (so a deliberately hidden product - a closed box before an unboxing
+    # reveal - is judged against the PLAN, not failed for hiding the product).
+    exp = []
+    for i in range(len(urls)):
+        s = scenes[i] if i < len(scenes) else {}
+        p = [f'  scene {s.get("n", i + 1)}:']
+        if nref:
+            p.append(f"product = REFERENCE {(i % nref) + 1};")
+        if not include_human:
+            p.append("person FORBIDDEN;")
+        elif (s.get("mode") == "scene"
+              or _PERSON_RX.search(s.get("visual") or "")):
+            p.append("person REQUIRED (the same person as in the other scenes, "
+                     "product worn/used on-body, never a flat empty garment);")
+        else:
+            p.append("person OPTIONAL;")
+        vis = (s.get("visual") or "").strip()
+        if vis:
+            p.append(f'planned shot: "{vis[:90]}";')
+        p.append(f'planned VO "{s.get("vo", "")}"')
+        exp.append(" ".join(p))
+    draft = "\n".join(exp)
+    # Show Sonnet the ORIGINAL product(s) so it COMPARES, not guesses. Without
+    # them, an all-grey outfit passed when the real product is a magenta kurti
+    # (the grey dupatta looked "close enough" from the text alone).
+    if nref > 1:
+        intro = (f"IMAGES 1-{nref} are the REFERENCE PRODUCTS, IN ORDER. Each "
+                 f"scene must show the product of ITS OWN reference given in the "
+                 f"scene expectations below - never a different one. IMAGES "
+                 f"{nref + 1}-{nref + len(urls)} are the generated scene "
+                 f"stills, IN ORDER.\n")
+        qa = ("the SAME product as ITS reference - same type and the SAME "
+              "colours, same design, prints and details; no warping or "
+              "gibberish text")
+    elif nref == 1:
         intro = (f"IMAGE 1 is the REFERENCE PRODUCT - the exact item that MUST "
                  f"appear in every scene. IMAGES 2-{len(urls) + 1} are the "
                  f"generated scene stills, IN ORDER.\n")
@@ -646,29 +675,46 @@ def direct_from_stills(still_urls, sb, config, include_human, product_urls=None,
         intro = f"Below are the {len(urls)} generated scene stills IN ORDER.\n"
         qa = ("the product intact - correct shape, colours, logos and text; no "
               "warping or gibberish")
+    ghost = ("" if include_human else
+             " A ghost-mannequin / hollow-garment / flat product shot is "
+             "correct; any person, face, hands or body parts appearing is "
+             "WRONG.")
     prompt = (
         f"You are QA + director for a {length}s {config.get('language', 'en')} "
         f"product video for {config.get('brandName') or 'the brand'}. "
         f"Concept: {(sb or {}).get('concept', '')}.\n"
-        f"{intro}The writer's planned voiceover:\n{draft}\n\n"
+        f"{intro}Scene expectations, one per still, IN ORDER:\n{draft}\n\n"
         f"For EACH generated scene still, IN ORDER, return:\n"
-        f"1. pass/issue - QA. pass=true ONLY if the still shows {qa}; and: "
-        f"{human_rule} If the product differs from the reference in any obvious "
+        f"1. pass/issue - QA. pass=true ONLY if the still shows {qa}, AND the "
+        f"scene's person expectation holds (FORBIDDEN = nobody and no body "
+        f"parts anywhere; REQUIRED = a person visibly wearing/using the "
+        f"product; OPTIONAL = either is fine).{ghost} EXCEPTION: when the "
+        f"planned shot deliberately hides the product (e.g. closed packaging "
+        f"before a reveal), judge against the plan instead - pass if the still "
+        f"matches the planned shot and no WRONG product is visible. If the "
+        f"still shows a different product than its reference in any obvious "
         f"way, set pass=false with a short issue.\n"
         f"2. motion - ONE short camera/motion instruction for an image-to-video "
-        f"model, grounded in THIS image (its surface, props, light). Premium and "
-        f"subtle: a camera move plus any natural motion truly present (droplets, "
-        f"steam, reflections). Never invent people or objects not in the image.\n"
+        f"model, grounded in THIS image (its surface, props, light). Confident "
+        f"and cinematic: a camera move plus any natural motion truly present "
+        f"(droplets, steam, particles, reflections, fabric). Never invent "
+        f"people or objects not in the image.\n"
         f"3. vo - the spoken line for this scene, ~{per}s of speech. The lines "
         f"together tell ONE story and MUST keep the planned message and any exact "
         f"call to action; the last scene closes it.\n"
+        f"4. fix - ONLY when pass=false: a one-line corrected 'visual' for "
+        f"regeneration, describing THIS scene's reference product EXACTLY "
+        f"(type, colours, design) in this scene's setting. Empty otherwise.\n"
         f"Return ONLY a JSON array, ONE object per generated scene (do NOT include "
-        f"the reference image), in order:\n"
-        f'[{{"scene":1,"pass":true,"issue":"","motion":"...","vo":"..."}}]')
+        f"the reference images), in order:\n"
+        f'[{{"scene":1,"pass":true,"issue":"","motion":"...","vo":"...",'
+        f'"fix":""}}]')
+    if len(prompt) > 9800:        # WaveSpeed hard-caps at 10000 and 400s over it
+        prompt = prompt[:9800]
     try:
         raw = wavespeed.chat(prompt, system="You output ONLY strict JSON.",
                              images=refs + urls, model=brain_model(),
-                             temperature=0.3, max_tokens=1400)
+                             temperature=0.3, max_tokens=1600)
         data = _extract_json(raw)
         if isinstance(data, dict):
             data = data.get("scenes") or data.get("results") or [data]
@@ -680,7 +726,8 @@ def direct_from_stills(still_urls, sb, config, include_human, product_urls=None,
                         "pass": bool(item.get("pass", True)),
                         "issue": str(item.get("issue") or "")[:120],
                         "motion": str(item.get("motion") or "").strip()[:300],
-                        "vo": str(item.get("vo") or "").strip()[:300]})
+                        "vo": str(item.get("vo") or "").strip()[:300],
+                        "fix": str(item.get("fix") or "").strip()[:300]})
         if tracer:
             tracer.write_json("sonnet_direction.json",
                               {"prompt": prompt, "raw": raw, "directions": out})
@@ -731,6 +778,19 @@ def storyboard(brief, config, product_images, retries=3, tracer=None,
     # nobody on screen.
     include_human = bool(config.get("includeHuman", False))
     prompt += people_directive(include_human)
+    # The renderer maps scene i onto product (i % N) - tell the brain the same
+    # contract, or it writes scenes that don't line up with the photo each one
+    # is composed from (observed: 6-product reel where the QA then "corrected"
+    # every scene to product #1 and Wan morphed shoes into heels mid-clip).
+    if len(urls) > 1:
+        prompt += (
+            f"\n\nMULTIPLE PRODUCTS - HARD RULE: the {len(urls)} attached "
+            f"photographs are {len(urls)} DIFFERENT products, in order. Scene 1 "
+            f"features product 1, scene 2 features product 2, and so on IN "
+            f"ORDER; with more scenes than products keep cycling through the "
+            f"products in the same order. Each scene's \"visual\" describes ITS "
+            f"OWN product exactly as photographed - never a different product, "
+            f"never two products in one scene.")
     if bool(config.get("directedMotion", False)):
         prompt += DIRECTED_MOTION_RULE
     # SAFETY CLAMP: WaveSpeed hard-caps the prompt at 10000 chars and 400s the

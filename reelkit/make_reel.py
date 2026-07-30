@@ -154,10 +154,15 @@ def make_reel(request):
     # outfit-check / testimonial / ad ARE about a person - StaffHQ only offers the
     # toggle on product-centric templates, so a person template implies it rather
     # than rendering an outfit-check with nobody in it.
+    # FORCED, not defaulted: StaffHQ always sends an explicit includeHuman
+    # (false by default), which used to defeat this implication - the brain then
+    # rejected the persona's presenter scenes as "PRODUCT ONLY" and burned all
+    # its retries. A person template makes no sense without the person.
     if (tpl_defaults.get("anchorModel") or tpl_defaults.get("presenterFace")) \
-            and "includeHuman" not in (request.get("config") or {}):
+            and not cfg.get("includeHuman"):
         cfg["includeHuman"] = True
-        common.log("job", f"template '{tpl_key}' features a person - includeHuman=True")
+        common.log("job", f"template '{tpl_key}' features a person - "
+                          f"includeHuman forced True (overrides caller)")
     if tpl_defaults.get("forceFemaleVoice") and not (cfg.get("elevenVoiceId") or "").strip():
         import voiceover as _vo
         cfg["elevenVoiceId"] = _vo.female_voice(cfg.get("language"))
@@ -365,34 +370,44 @@ def make_reel(request):
     # passes. With the anchor now carrying the outfit this rarely fires, but it
     # catches the odd drift before we spend Wan minutes on a bad still.
     max_fix = int(os.environ.get("REELKIT_MAX_FIX", "1") or 1)
+    nprod = max(1, len(products))
+    # A "verified still" only counts for the scenes that show the SAME product
+    # (scene i renders products[i % nprod]) - on a multi-product reel, scene 4's
+    # heels must never be regenerated from (or substituted with) scene 1's
+    # sneakers. With one product this is exactly the old behaviour.
+    def _good_for(i):
+        return next((j for j, sc2 in enumerate(sb["scenes"])
+                     if j % nprod == i % nprod
+                     and by_scene.get(sc2["n"], {}).get("pass", True)), None)
     for _ in range(max_fix):
         failed = [i for i, sc in enumerate(sb["scenes"])
                   if not by_scene.get(sc["n"], {}).get("pass", True)]
         if not failed:
             break
-        # Reference = the FIRST scene Sonnet PASSED (a verified-correct still),
-        # not just scene 1. Regenerate every flagged scene FROM that known-good
-        # image, and tell the model exactly what went wrong so it matches the
-        # reference outfit instead of re-drifting. Falls back to the scene-1
-        # anchor if nothing passed yet.
-        good_i = next((i for i, sc in enumerate(sb["scenes"])
-                       if by_scene.get(sc["n"], {}).get("pass", True)), None)
-        ref = stills[good_i] if good_i is not None else anchor_still
         common.log("validate", f"gate: regenerating {len(failed)} flagged scene(s) "
-                              f"from the verified still"
-                              + (f" (scene {sb['scenes'][good_i]['n']})"
-                                 if good_i is not None else ""))
+                              f"from verified same-product stills")
         for i in failed:
             sc = sb["scenes"][i]
-            issue = by_scene.get(sc["n"], {}).get("issue", "")
+            d_i = by_scene.get(sc["n"], {})
+            issue = d_i.get("issue", "")
+            # The director's corrected visual (grounded in the reference image)
+            # replaces the plan that produced the wrong shot - regenerating from
+            # the same wrong description just re-drifts (observed: a polo
+            # storyboarded as "crew-neck t-shirt" stayed a t-shirt through the
+            # retry because only the emphasis changed, not the visual).
+            if d_i.get("fix"):
+                sc["visual"] = d_i["fix"]
             emphasis = (
-                f"CRITICAL: a previous attempt was WRONG ({issue}). The person MUST "
-                f"wear the EXACT SAME outfit as in the reference image - identical "
-                f"colours, embroidery, prints and design. Do NOT invent a different "
-                f"garment.")
+                f"CRITICAL: a previous attempt was WRONG ({issue}). The product "
+                f"MUST match the reference photograph EXACTLY - same type, same "
+                f"colours, same design, prints and details. Do NOT invent a "
+                f"different product or garment.")
+            good_j = _good_for(i)
+            ref = (stills[good_j] if good_j is not None
+                   else (anchor_still if nprod == 1 else None))
             reseed = abs(hash(f"{jid}fix{sc['n']}")) % 10000
             stills[i] = compose.scene_image(
-                sc, products[i % len(products)], w, h, jd, seed=reseed,
+                sc, products[i % nprod], w, h, jd, seed=reseed,
                 cut_cache=cut_cache, bg_cache=bg_cache, tracer=tr,
                 tpl_defaults=tpl_defaults, anchor=ref,
                 include_human=include_human, emphasis=emphasis)
@@ -410,21 +425,54 @@ def make_reel(request):
                 if d.get("vo"):
                     sc["vo"] = d["vo"]
     # FALLBACK (option A): any scene STILL wrong after the fix passes is replaced
-    # with the verified reference still (the first scene Sonnet passed). The reel
-    # then repeats a correct angle instead of shipping a wrong-outfit shot - a
-    # consistent reel always beats a broken one. Only applies when at least one
-    # scene passed.
-    good_i = next((i for i, sc in enumerate(sb["scenes"])
-                   if by_scene.get(sc["n"], {}).get("pass", True)), None)
-    if good_i is not None:
-        for i, sc in enumerate(sb["scenes"]):
-            if not by_scene.get(sc["n"], {}).get("pass", True):
-                common.log("validate", f"scene {sc['n']}: still wrong after retries "
-                                      f"- substituting the verified still from "
-                                      f"scene {sb['scenes'][good_i]['n']}")
-                stills[i] = stills[good_i]
-                scene_image_urls[i] = scene_image_urls[good_i]
+    # with a verified still OF THE SAME PRODUCT. The reel then repeats a correct
+    # angle instead of shipping a wrong shot - a consistent reel always beats a
+    # broken one. The substituted scene ALSO adopts the donor's visual/motion/
+    # energy: the clip animates the donor's image now, and a prompt that still
+    # describes the discarded plan makes Wan morph one product into another
+    # mid-clip (observed on every scene of a 6-product reel). The scene keeps
+    # its own VO - same product, same story beat.
+    for i, sc in enumerate(sb["scenes"]):
+        if by_scene.get(sc["n"], {}).get("pass", True):
+            continue
+        donor = _good_for(i)
+        if donor is not None:
+            don_sc = sb["scenes"][donor]
+            common.log("validate", f"scene {sc['n']}: still wrong after retries "
+                                  f"- substituting the verified still from "
+                                  f"scene {don_sc['n']} (same product)")
+            stills[i] = stills[donor]
+            scene_image_urls[i] = scene_image_urls[donor]
+            sc["visual"] = don_sc.get("visual") or sc.get("visual")
+            sc["energy"] = don_sc.get("energy") or ""
+            don_dir = by_scene.get(don_sc["n"], {})
+            if don_dir.get("motion"):
+                sc["motion"] = don_dir["motion"]
+            by_scene.setdefault(sc["n"], {})["substituted"] = True
+        elif not include_human:
+            # NOTHING verified shows this product. Rebuild the scene as a
+            # pixel-exact paste (compose path): flatter than an edit, but
+            # provably the right product - never ship a known-wrong shot
+            # (observed: a face wash whose label was gibberish in all 3 scenes
+            # shipped anyway because nothing had passed). Person scenes have no
+            # faithful mechanical fallback, so they still ship flagged.
+            common.log("validate", f"scene {sc['n']}: no verified still shows "
+                                  f"this product - compose-paste fallback")
+            try:
+                sc2 = dict(sc)
+                sc2["method"] = "compose_animate"
+                stills[i] = compose.scene_image(
+                    sc2, products[i % nprod], w, h, jd,
+                    seed=abs(hash(f"{jid}paste{sc['n']}")) % 10000,
+                    cut_cache=cut_cache, bg_cache=bg_cache, tracer=tr,
+                    tpl_defaults=tpl_defaults, include_human=include_human)
+                scene_image_urls[i] = _upload(stills[i], "images",
+                                              f"{jid}_s{i + 1}.png")
+                sc["method"] = "compose_animate"
                 by_scene.setdefault(sc["n"], {})["substituted"] = True
+            except Exception as e:
+                common.log("validate", f"scene {sc['n']}: paste fallback failed "
+                                      f"({e}) - shipping the flagged still")
     # DIRECTED-MOTION CHAIN RE-SYNC: a scene's END keyframe is the NEXT scene's
     # START still, and those start stills were just Sonnet-validated (and possibly
     # regenerated/substituted) by the gate above. Re-point each morph's end at the

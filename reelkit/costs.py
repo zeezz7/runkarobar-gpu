@@ -69,7 +69,11 @@ class Meter:
             self.gpu_seconds = round(time.time() - self._t0, 1)
 
     def summary(self):
-        gpu_rate = _f("COST_GPU_USD_PER_HOUR", 1.10)
+        # Default = RunPod serverless H100 SXM ($4.55/hr). Override with
+        # COST_GPU_USD_PER_HOUR when the hardware changes - this number feeds
+        # tenant billing (credits charge = actual cost x markup), so a stale
+        # placeholder here undercharges every reel.
+        gpu_rate = _f("COST_GPU_USD_PER_HOUR", 4.55)
         eleven_rate = _f("COST_ELEVEN_USD_PER_1K", 0.30)
         gpu = self.gpu_seconds / 3600.0 * gpu_rate
         eleven = self.eleven_chars / 1000.0 * eleven_rate

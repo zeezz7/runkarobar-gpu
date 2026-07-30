@@ -45,7 +45,17 @@ class Tracer:
         if not self.enabled:
             return
         try:
-            with open(os.path.join(self.dir, name), "w", encoding="utf-8") as fh:
+            # Never overwrite: a retried stage (a regenerated scene still, a
+            # second Sonnet direction pass) gets name_2/_3..., so the trace
+            # keeps EVERY attempt instead of only the last one.
+            path = os.path.join(self.dir, name)
+            if os.path.exists(path):
+                base, ext = os.path.splitext(name)
+                k = 2
+                while os.path.exists(os.path.join(self.dir, f"{base}_{k}{ext}")):
+                    k += 1
+                path = os.path.join(self.dir, f"{base}_{k}{ext}")
+            with open(path, "w", encoding="utf-8") as fh:
                 fh.write(text)
         except OSError as e:                       # never break a render to log
             common.log("trace", f"could not write {name}: {e}")
