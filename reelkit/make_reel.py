@@ -501,8 +501,30 @@ def make_reel(request):
 
     # ---- STAGE 3: voiceover (now, from the grounded lines) -------------------
     # Audio leads video: the VO's measured durations drive the Wan clip lengths.
+    # The VO is a remote ElevenLabs call holding no VRAM, so it runs in a thread
+    # while the GPU does the edit->Wan swap and pre-loads the Wan weights (a
+    # multi-GB network-volume read): the two slowest serial chunks of the tail
+    # (~80s VO + ~40-60s load) now overlap instead of stacking.
+    import threading
     import voiceover
-    vo = voiceover.voice_scenes(sb, cfg, jd)
+    _vo_box = {}
+
+    def _vo_worker():
+        try:
+            _vo_box["vo"] = voiceover.voice_scenes(sb, cfg, jd)
+        except Exception as e:                     # re-raised after join
+            _vo_box["err"] = e
+
+    _vo_thread = threading.Thread(target=_vo_worker, daemon=True)
+    _vo_thread.start()
+    if not keep_resident:
+        _free_comfy_vram()      # single edit->motion swap on a smaller card
+        common.log("vram", f"freed edit models before motion - {_gpu_str()}")
+    animate.preload_video_model(jd)
+    _vo_thread.join()
+    if "err" in _vo_box:
+        raise _vo_box["err"]
+    vo = _vo_box["vo"]
     for v in vo:
         sc = next((x for x in sb["scenes"] if x["n"] == v["n"]), None)
         if sc:
@@ -526,9 +548,7 @@ def make_reel(request):
                                     "audio": s.get("audio")} for s in sfx_tracks])
         tr.mark("sfx")
 
-    if not keep_resident:
-        _free_comfy_vram()      # single edit->motion swap on a smaller card
-        common.log("vram", f"freed edit models before motion - {_gpu_str()}")
+    # (edit models were freed and Wan pre-loaded above, overlapped with the VO)
 
     # ===== STAGE 2: ALL motion clips, Wan loaded ONCE =======================
     t_vid = time.time()

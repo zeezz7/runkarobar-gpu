@@ -101,6 +101,14 @@ def guard_composite(composite_path, source_path, min_overlap=0.5):
     src_toks, _ = _label_tokens(source_path)
     out_toks, _ = _label_tokens(composite_path)
     if not src_toks:
+        # A blank product must STAY blank. The edit model loves stamping
+        # invented brand text on empty surfaces (observed: mirrored gibberish
+        # on a pump's blank insoles), and skipping the guard here let it ship.
+        # Two-token threshold because a single OCR misread on clean pixels is
+        # common (see docstring).
+        if len(out_toks) >= 2:
+            return False, (f"source has no printed text but the render shows "
+                           f"{sorted(out_toks)} - invented lettering")
         return True, "source had no readable label text - guard skipped"
     if len(src_toks) < MIN_TOKENS_FOR_GUARD:
         return True, (f"only {len(src_toks)} token(s) readable on the source "
@@ -257,11 +265,56 @@ def wan_i2v(image_path, prompt, out_path, job_tag, duration=5.0, end_image=None,
         return outs[0]
 
 
+# HD upscaler. 720p -> 1080p only needs 1.5x, so a 2x ESRGAN produces the
+# IDENTICAL final 1080p frames as the old 4x-UltraSharp for ~1/4 the compute
+# (4x rendered 2880x5120 per frame - 81 times per clip - then threw 3/4 of it
+# away in the downscale; measured as the bulk of the 145-186s/scene HD cost).
+# The model is fetched onto the network volume on first use; a fetch failure
+# falls back to the 4x model that is already there.
+X2_UPSCALER = "RealESRGAN_x2plus.pth"
+X2_UPSCALER_URL = ("https://github.com/xinntao/Real-ESRGAN/releases/download/"
+                   "v0.2.1/RealESRGAN_x2plus.pth")
+_UPSCALE_DIR = "/runpod-volume/ComfyUI/models/upscale_models"
+
+
+def _hd_upscaler():
+    p = os.path.join(_UPSCALE_DIR, X2_UPSCALER)
+    if os.path.isfile(p):
+        return X2_UPSCALER
+    try:
+        os.makedirs(_UPSCALE_DIR, exist_ok=True)
+        common.fetch_url(X2_UPSCALER_URL, p + ".part")
+        os.replace(p + ".part", p)
+        common.log("animate", f"fetched {X2_UPSCALER} onto the volume")
+        return X2_UPSCALER
+    except Exception as e:
+        common.log("animate", f"{X2_UPSCALER} fetch failed ({e}) - "
+                              f"falling back to 4x-UltraSharp")
+        return "4x-UltraSharp.pth"
+
+
+def preload_video_model(job_dir):
+    """
+    Force the Wan weights onto the GPU with a minimal throwaway render (black
+    frame, a few frames, 480p) so the multi-GB network-volume load overlaps
+    remote work (the ElevenLabs voiceover) instead of delaying scene 1.
+    Best-effort: any failure just means scene 1 pays the load as before.
+    """
+    try:
+        black = os.path.join(job_dir, "wan_warmup.png")
+        Image.new("RGB", (480, 832), (0, 0, 0)).save(black)
+        out = os.path.join(job_dir, "wan_warmup.mp4")
+        wan_i2v(black, "static frame, no motion", out, "warmup", duration=0.25)
+        common.log("animate", "Wan preloaded (warmup clip rendered)")
+    except Exception as e:
+        common.log("animate", f"Wan preload failed (non-fatal): {e}")
+
+
 def _build_wan_wf(name, prompt, length, job_tag, end_name=None, hd=False):
-    """Build the Wan I2V workflow. hd -> generate at 720x1280 and inject a
-    4x-UltraSharp ESRGAN upscale (native ComfyUI nodes) between the VAEDecode
-    frames and CreateVideo, then downscale to 1080x1920 - one GPU pass, no
-    per-frame round-trips. end_name -> wire the optional FLF2V end_image."""
+    """Build the Wan I2V workflow. hd -> generate at 720x1280 and inject an
+    ESRGAN upscale (native ComfyUI nodes) between the VAEDecode frames and
+    CreateVideo, then scale to exactly 1080x1920 - one GPU pass, no per-frame
+    round-trips. end_name -> wire the optional FLF2V end_image."""
     wf = common.load_tpl("tpl_wan_i2v.api.json")
     common.set_class(wf, "LoadImage", image=name)
     gw, gh = (720, 1280) if hd else (480, 832)
@@ -285,7 +338,7 @@ def _build_wan_wf(name, prompt, length, job_tag, end_name=None, hd=False):
             if not src:
                 break
             wf["rk_upmodel"] = {"class_type": "UpscaleModelLoader",
-                                "inputs": {"model_name": "4x-UltraSharp.pth"}}
+                                "inputs": {"model_name": _hd_upscaler()}}
             wf["rk_upscale"] = {"class_type": "ImageUpscaleWithModel",
                                 "inputs": {"upscale_model": ["rk_upmodel", 0],
                                            "image": src}}

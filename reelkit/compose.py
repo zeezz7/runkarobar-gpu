@@ -382,7 +382,16 @@ def scene_image(scene, product_path, w, h, job_dir, seed=0, cut_cache={},
         # so it must get the person/wear guards even if the brain tagged the
         # scene mode 'product'.
         person_shot = shows_person or followon
-        instruction = ((emphasis + " ") if emphasis else "") + lead + (
+        # The negative prompt alone does not stop the 8-step Lightning edit from
+        # stamping invented brand text on blank surfaces (observed: mirrored
+        # gibberish printed on the blank insoles of a pump). State it as a
+        # positive instruction too - blank stays blank, existing text is frozen.
+        text_rule = (
+            " Printed text rule: any text, logo or stamp on the product stays "
+            "EXACTLY as photographed, letter for letter - and every surface "
+            "that is blank in the photograph STAYS blank. Do not print, engrave "
+            "or stamp ANY new text, lettering, branding or label anywhere.")
+        instruction = ((emphasis + " ") if emphasis else "") + lead + text_rule + (
                               guards.person_guards(d, is_followon=followon)
                               if person_shot else guards.product_guards())
         negative = NEG_EDIT if person_shot else NEG_PRODUCT

@@ -126,6 +126,11 @@ if (( VERIFY_ONLY == 0 )); then
         "$M/background_removal/birefnet.safetensors"
   fetch "$HF/uwg/upscaler/resolve/main/ESRGAN/4x-UltraSharp.pth" \
         "$M/upscale_models/4x-UltraSharp.pth"
+  # 2x model for the HD path: 720p->1080p only needs 1.5x, and the 2x pass is
+  # ~4x cheaper than 4x-then-downscale for the same final frames. animate.py
+  # also lazy-fetches this on first HD render if it is missing.
+  fetch "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.1/RealESRGAN_x2plus.pth" \
+        "$M/upscale_models/RealESRGAN_x2plus.pth"
 
   # --- Qwen2.5-VL: the Stage 2b OCR guard (transformers, not ComfyUI) -------
   #  NOTE: --exclude must be REPEATED per pattern. Passing several patterns to
