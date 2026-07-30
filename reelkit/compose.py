@@ -102,6 +102,12 @@ FAST = os.environ.get("REELKIT_FAST", "1") != "0"
 FAST_STEPS = int(os.environ.get("REELKIT_FAST_STEPS", "8"))
 T2I_LORA = "Qwen-Image-2512-Lightning-8steps.safetensors"
 EDIT_LORA = "Qwen-Image-Edit-2511-Lightning-8steps.safetensors"
+# Product-only edits keep the product's OWN pixels as the img2img base by running
+# the sampler at denoise < 1.0 (the template VAEEncodes the source into the latent,
+# but denoise=1.0 was noising it fully away, so the shoe/label got redrawn). ~0.82
+# preserves shape/colour/logo while still restyling the surroundings. Worn/human
+# scenes stay at 1.0 (they need freedom to re-pose the model). Env-tunable.
+EDIT_DENOISE_PRODUCT = float(os.environ.get("REELKIT_EDIT_DENOISE", "0.82"))
 
 
 def _add_lora(wf, lora_name, after_node, sampler_node="17"):
@@ -132,7 +138,7 @@ def generate_scene(prompt, w, h, out_prefix, seed=0, steps=None, cfg=None,
 
 
 def edit_scene(product_path, instruction, out_prefix, seed=0, steps=None, cfg=None,
-               ref_paths=None, negative=None):
+               ref_paths=None, negative=None, denoise=1.0):
     """
     Qwen-Image-Edit-2511: keep the supplied photograph's subject, change its
     world. This is the right tool when the product is photographed IN CONTEXT -
@@ -189,8 +195,13 @@ def edit_scene(product_path, instruction, out_prefix, seed=0, steps=None, cfg=No
     # generate_scene) was NOT honouring `steps` and the 8-step LoRA ran starved at
     # 4. Set steps/cfg as scalars so they override the switch and the LoRA runs at
     # its real step count.
+    # denoise < 1.0 keeps the product's OWN VAEEncode'd pixels as the img2img base
+    # (KSampler.latent_image = VAEEncode of the source) instead of noising them
+    # fully away - so the real shape/colour/logo survive rather than being redrawn
+    # from the reference conditioning alone. 1.0 = full regeneration (worn/human
+    # scenes that need re-posing freedom).
     common.set_class(wf, "KSampler", seed=seed or 1, steps=steps, cfg=cfg,
-                     denoise=1.0)
+                     denoise=denoise)
     common.set_class(wf, "SaveImage", filename_prefix=out_prefix)
     outs = common.comfy_run(wf)
     if not outs:
@@ -382,8 +393,12 @@ def scene_image(scene, product_path, w, h, job_dir, seed=0, cut_cache={},
                               f"refs={[os.path.basename(r) for r in refs]} "
                               f"followon={followon} shows_person={shows_person}")
         common.log("compose", f"scene {n} INSTRUCTION: {instruction[:500]}")
+        # Product-only: preserve the real product as the img2img base (denoise
+        # < 1). Worn/human scenes keep full denoise so the model can re-pose.
+        edit_denoise = EDIT_DENOISE_PRODUCT if not include_human else 1.0
         out_edit = edit_scene(primary, instruction, prefix + "_edit",
-                              seed=seed + n, ref_paths=refs, negative=negative)
+                              seed=seed + n, ref_paths=refs, negative=negative,
+                              denoise=edit_denoise)
         out = os.path.join(job_dir, f"scene_{n}.png")
         Image.open(out_edit).convert("RGB").save(out)
         common.log("compose", f"scene {n}: edited real photo -> {os.path.basename(out)}")
