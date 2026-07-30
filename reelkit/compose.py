@@ -89,14 +89,14 @@ def segment(product_path, job_dir, tag):
 
 
 # ------------------------------------------------------------------ generation
-# FAST path uses the 8-step Lightning LoRAs. 8-step is a clear quality step up from
-# 4-step (sharper detail + text) for only a few extra seconds per image, and per
-# lightx2v's own comparison still runs ~12-25x faster than the 40-step base — so
-# it's the default. The non-FAST base path (steps 40/50) stays for text-critical
-# frames only.
+# FAST path uses the 4-step Lightning LoRAs. NOTE: the 8-step variant was tried as
+# the default (f005245, "sharper") but on real reels it visibly DROPPED product
+# detail/fidelity vs 4-step, so we reverted. Both LoRAs are on the volume, so this
+# is a code-only switch. The non-FAST base path (steps 40/50) stays for the rare
+# text-critical frame. Overridable per-call via REELKIT_EDIT_STEPS if needed.
 FAST = os.environ.get("REELKIT_FAST", "1") != "0"
-T2I_LORA = "Qwen-Image-2512-Lightning-8steps.safetensors"
-EDIT_LORA = "Qwen-Image-Edit-2511-Lightning-8steps.safetensors"
+T2I_LORA = "Qwen-Image-2512-Lightning-4steps.safetensors"
+EDIT_LORA = "Qwen-Image-Edit-2511-Lightning-4steps.safetensors"
 
 
 def _add_lora(wf, lora_name, after_node, sampler_node="17"):
@@ -112,7 +112,7 @@ def generate_scene(prompt, w, h, out_prefix, seed=0, steps=None, cfg=None,
     wf = common.load_tpl("tpl_t2i_qwen.api.json")
     if FAST:
         _add_lora(wf, T2I_LORA, "11")
-        steps, cfg = steps or 8, cfg if cfg is not None else 1.0
+        steps, cfg = steps or 4, cfg if cfg is not None else 1.0
     else:
         steps, cfg = steps or 50, cfg if cfg is not None else 4.0
     common.set_class(wf, "EmptySD3LatentImage", width=w, height=h, batch_size=1)
@@ -170,7 +170,7 @@ def edit_scene(product_path, instruction, out_prefix, seed=0, steps=None, cfg=No
     if FAST:
         for _, node in common.nodes_of(wf, "PrimitiveBoolean"):
             node["inputs"]["value"] = True          # template's Lightning switch
-        steps, cfg = steps or 8, cfg if cfg is not None else 1.0
+        steps, cfg = steps or 4, cfg if cfg is not None else 1.0
     else:
         for _, node in common.nodes_of(wf, "PrimitiveBoolean"):
             node["inputs"]["value"] = False
