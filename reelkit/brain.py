@@ -315,14 +315,38 @@ PEOPLE_RULE_OFF = (
     "product and its setting only.")
 PEOPLE_RULE_ON = (
     "\n\nWHO IS ON SCREEN:\n"
-    "  A real person features with the product - wearing, holding or using it. "
-    "Show them naturally and keep them consistent across scenes (same face, hair "
-    "and build throughout). They must be fully and modestly dressed in every "
-    "shot.")
+    "  A real person features with the product - wearing, holding or using it "
+    "ON-BODY. The SAME person must be present in EVERY scene, from the VERY FIRST "
+    "frame to the last (same face, hair and build throughout). NEVER open on an "
+    "empty, flat or floating garment and have a person appear later, and never let "
+    "the person vanish mid-reel - a body that grows out of the product looks "
+    "broken. Every 'visual' AND every 'visualEnd' must show that same person "
+    "wearing the product. They must be fully and modestly dressed in every shot.")
 
 
 def people_directive(include_human):
     return PEOPLE_RULE_ON if include_human else PEOPLE_RULE_OFF
+
+
+DIRECTED_MOTION_RULE = (
+    "\n\nDIRECTED MOTION IS ON - this changes how scenes are built, read carefully:\n"
+    "  Each scene is rendered as a MORPH from its 'visual' (the first frame) to its "
+    "'visualEnd' (the last frame), and a scene's 'visualEnd' is ALSO the first "
+    "frame of the NEXT scene - so the whole reel is one continuous, flowing shot. "
+    "Three hard rules:\n"
+    "  1. SAME CAST in 'visual' and 'visualEnd'. If a person is in 'visual', the "
+    "SAME person (same face, hair, build, outfit) is in 'visualEnd'; if 'visual' "
+    "is product-only with no person, then 'visualEnd' is also product-only. A "
+    "person must NEVER appear or disappear between the two frames - that renders as "
+    "a body materialising out of the product.\n"
+    "  2. REAL MOVEMENT: 'visualEnd' must be a CLEARLY different pose, angle or "
+    "framing from 'visual' - a visible move (front -> three-quarter turn, wide -> "
+    "tight detail, hand at side -> hand adjusting the collar). If the two frames "
+    "are near-identical the scene looks frozen and dead.\n"
+    "  3. CONTINUITY: write each scene's 'visualEnd' so it matches the setup the "
+    "NEXT scene's 'visual' opens on, and make every scene a DISTINCT shot - vary "
+    "the distance (wide / medium / close macro) and angle so no two scenes look "
+    "alike.")
 
 
 def _template_directive(key, spec, nmin, nmax):
@@ -608,8 +632,14 @@ def direct_from_stills(still_urls, sb, config, include_human, product_urls=None,
         return []
     human_rule = (
         "There must be NO person/model/face/hands/arms/body - PRODUCT ONLY (a "
-        "ghost-mannequin / hollow-garment / flat product shot is correct)."
-        if not include_human else "A person may appear; that is fine.")
+        "ghost-mannequin / hollow-garment / flat product shot is correct); a "
+        "person appearing is WRONG."
+        if not include_human else
+        "The SAME real person MUST be present WEARING the product ON-BODY in this "
+        "still - NOT a flat, empty or floating garment, and NOT the bare product "
+        "alone. pass=false if there is no visible person, if the garment is shown "
+        "unworn/flat, or if the person's face or build changes from the other "
+        "stills (they must look like the same individual across every scene).")
     length = int(float(config.get("lengthSec") or 20))
     per = max(2, length // max(1, len(urls)))
     draft = "\n".join(f'  scene {s.get("n")}: planned VO "{s.get("vo", "")}"'
@@ -714,6 +744,8 @@ def storyboard(brief, config, product_images, retries=3, tracer=None,
     # nobody on screen.
     include_human = bool(config.get("includeHuman", False))
     prompt += people_directive(include_human)
+    if bool(config.get("directedMotion", False)):
+        prompt += DIRECTED_MOTION_RULE
     common.log("brain", f"includeHuman={include_human} - "
                         + ("a person features with the product"
                            if include_human else "PRODUCT ONLY, nobody on screen"))

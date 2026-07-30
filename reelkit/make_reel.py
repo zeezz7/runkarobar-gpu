@@ -59,6 +59,10 @@ DEFAULT_CONFIG = {
     # Add a natural-foley sound-effects track (NO music - see no-music policy).
     # Only when the tenant opts in.
     "soundEffects": False,
+    # HD video: generate Wan at 720x1280 (vs 480x832) and AI-upscale each clip to
+    # 1080x1920 with 4x-UltraSharp ESRGAN, instead of a plain upscale of a low-res
+    # clip. Sharper, slower, more VRAM. Off = the fast 480x832 path.
+    "hdVideo": False,
     # write a full per-run audit trail under runs/<run_id>/ (logging only)
     "trace": True,
 }
@@ -217,8 +221,10 @@ def make_reel(request):
     # Directed motion (FLF2V keyframe chain) + foley SFX are opt-in per reel.
     directed_motion = bool(cfg.get("directedMotion", False))
     sound_effects = bool(cfg.get("soundEffects", False))
+    hd_video = bool(cfg.get("hdVideo", False))
     end_stills = []          # parallel to scenes; the END keyframe of each morph
-    common.log("job", f"directedMotion={directed_motion} soundEffects={sound_effects}")
+    common.log("job", f"directedMotion={directed_motion} soundEffects={sound_effects} "
+                      f"hdVideo={hd_video}")
     common.log("vram", f"render start - {_gpu_str()}")
     # CLEAN START. On serverless the ComfyUI process is REUSED across jobs on a
     # warm worker, so a previous KEEP_RESIDENT job leaves ~75GB of edit+Wan
@@ -419,6 +425,19 @@ def make_reel(request):
                 stills[i] = stills[good_i]
                 scene_image_urls[i] = scene_image_urls[good_i]
                 by_scene.setdefault(sc["n"], {})["substituted"] = True
+    # DIRECTED-MOTION CHAIN RE-SYNC: a scene's END keyframe is the NEXT scene's
+    # START still, and those start stills were just Sonnet-validated (and possibly
+    # regenerated/substituted) by the gate above. Re-point each morph's end at the
+    # VALIDATED next-start so the boundary is both consistent AND checked - this is
+    # what puts Sonnet validation on img2 (end of scene N = start of scene N+1) and
+    # stops a stale, unvalidated end frame from leaking a wrong/again-drifted shot
+    # (or a human appearing/disappearing) into the morph.
+    if directed_motion:
+        for i in range(len(sb["scenes"]) - 1):
+            if i + 1 < len(stills) and i < len(end_stills):
+                end_stills[i] = stills[i + 1]
+        common.log("validate", "directed motion: end keyframes re-synced to the "
+                              "validated next-scene starts (img2 boundaries checked)")
     sonnet_checks = [{"scene": d.get("scene"), "pass": bool(d.get("pass", True)),
                       "issue": d.get("issue", ""),
                       "substituted": bool(by_scene.get(d.get("scene"), {})
@@ -475,7 +494,7 @@ def make_reel(request):
         end_still = end_stills[si] if (directed_motion and si < len(end_stills)) else None
         clip, _ = animate.animate_scene(sc, stills[si], product, jd, w, h,
                                         v["duration"], guard_log=None, tracer=tr,
-                                        end_still=end_still)
+                                        end_still=end_still, hd=hd_video)
         clips.append(clip)
         common.log("time", f"video scene {n}: {time.time() - t_s:.1f}s  {_gpu_str()}")
         tr.mark(f"scene_{n}")

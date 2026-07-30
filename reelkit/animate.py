@@ -197,22 +197,24 @@ def hunyuan_i2v(image_path, prompt, out_path, job_tag, duration=5.0,
     return outs[0]
 
 
-def video_i2v(image_path, prompt, out_path, job_tag, duration=5.0, end_image=None):
+def video_i2v(image_path, prompt, out_path, job_tag, duration=5.0, end_image=None,
+              hd=False):
     """Dispatch to whichever i2v model is selected. Same signature either way.
 
-    `end_image` (directed motion) is Wan-only: HunyuanVideo has no first-last
-    frame path, so it is ignored there.
+    `end_image` (directed motion) and `hd` (720p + ESRGAN) are Wan-only:
+    HunyuanVideo has neither path, so they are ignored there.
     """
     if VIDEO_MODEL == "hunyuan":
         common.log("animate", f"i2v engine: HunyuanVideo 720p ({duration:.1f}s)")
         return hunyuan_i2v(image_path, prompt, out_path, job_tag, duration)
-    common.log("animate", f"i2v engine: Wan 2.2 480x832 ({duration:.1f}s)"
-                          + (" [FLF2V start->end]" if end_image else ""))
-    return wan_i2v(image_path, prompt, out_path, job_tag, duration, end_image)
+    common.log("animate", f"i2v engine: Wan 2.2 {'720x1280+ESRGAN' if hd else '480x832'}"
+                          f" ({duration:.1f}s)" + (" [FLF2V start->end]" if end_image else ""))
+    return wan_i2v(image_path, prompt, out_path, job_tag, duration, end_image, hd=hd)
 
 
 # ------------------------------------------------------------------- wan i2v
-def wan_i2v(image_path, prompt, out_path, job_tag, duration=5.0, end_image=None):
+def wan_i2v(image_path, prompt, out_path, job_tag, duration=5.0, end_image=None,
+            hd=False):
     """Wan 2.2 I2V + LightX2V 4-step. Returns the raw clip path.
 
     When `end_image` is given, wire it into WanImageToVideo's optional
@@ -227,31 +229,74 @@ def wan_i2v(image_path, prompt, out_path, job_tag, duration=5.0, end_image=None)
     length = max(int(round(duration * WAN_FPS / 4)) * 4 + 1, 33)
     length = min(length, WAN_MAX_FRAMES)
 
-    wf = common.load_tpl("tpl_wan_i2v.api.json")
-    common.set_class(wf, "LoadImage", image=name)
+    end_name = None
     if end_image:
-        # Add a second image loader and wire it into the video node's optional
-        # end_image slot. A fixed id ("rk_endimg") cannot collide with the
-        # template's numeric node ids.
         end_name = f"rk_wanend_{job_tag}.png"
         common.stage_input(end_image, end_name)
-        wf["rk_endimg"] = {"class_type": "LoadImage", "inputs": {"image": end_name}}
-        for _, node in common.nodes_of(wf, "WanImageToVideo"):
-            node["inputs"]["end_image"] = ["rk_endimg", 0]
-    # `length` was computed here and then NEVER PASSED - so every clip came out
-    # at the template's default 81 frames (5.06s) no matter what was asked for.
-    # A 7.6s voiceover slot therefore got a 5.06s clip and assemble froze the
-    # last frame for 2.5s: the "lag on every transition".
-    common.set_class(wf, "WanImageToVideo", width=480, height=832, length=length)
+
+    # FLF2V (end_image) and HD (720p + ESRGAN) are the two "spicy" paths, and both
+    # depend on the running ComfyUI having the right node features. If either is
+    # unsupported the /prompt call errors and would kill the whole reel - so we try
+    # the rich graph, and on ANY failure fall back to plain 480x832 I2V so the reel
+    # ALWAYS renders. This is the directed-motion "was failed" fix.
+    try:
+        wf = _build_wan_wf(name, prompt, length, job_tag, end_name=end_name, hd=hd)
+        outs = common.comfy_run(wf, timeout=2400)
+        if not outs:
+            raise RuntimeError("wan i2v produced no video")
+        return outs[0]
+    except Exception as e:
+        if not (end_name or hd):
+            raise
+        common.log("animate", f"wan rich path failed ({str(e)[:140]}) - "
+                              f"falling back to plain 480x832 I2V")
+        wf = _build_wan_wf(name, prompt, length, job_tag, end_name=None, hd=False)
+        outs = common.comfy_run(wf, timeout=2400)
+        if not outs:
+            raise RuntimeError("wan i2v produced no video (fallback)")
+        return outs[0]
+
+
+def _build_wan_wf(name, prompt, length, job_tag, end_name=None, hd=False):
+    """Build the Wan I2V workflow. hd -> generate at 720x1280 and inject a
+    4x-UltraSharp ESRGAN upscale (native ComfyUI nodes) between the VAEDecode
+    frames and CreateVideo, then downscale to 1080x1920 - one GPU pass, no
+    per-frame round-trips. end_name -> wire the optional FLF2V end_image."""
+    wf = common.load_tpl("tpl_wan_i2v.api.json")
+    common.set_class(wf, "LoadImage", image=name)
+    gw, gh = (720, 1280) if hd else (480, 832)
+    # `length` was computed and then NEVER PASSED before - so every clip came out
+    # at the template's default 81 frames no matter what was asked for.
+    common.set_class(wf, "WanImageToVideo", width=gw, height=gh, length=length)
     common.set_class(wf, "PrimitiveBoolean", value=True)           # turbo path
     common.set_class(wf, "SaveVideo", filename_prefix=f"video/rk_{job_tag}")
     common.set_prompts(wf, prompt, None)                            # keep template negative
-    for _, node in common.nodes_of(wf, "ComfyMathExpression"):
-        pass
-    outs = common.comfy_run(wf, timeout=2400)
-    if not outs:
-        raise RuntimeError("wan i2v produced no video")
-    return outs[0]
+    if end_name:
+        # Second image loader wired into WanImageToVideo's optional end_image
+        # slot. Fixed ids ("rk_*") cannot collide with the template's numeric ids.
+        wf["rk_endimg"] = {"class_type": "LoadImage", "inputs": {"image": end_name}}
+        for _, node in common.nodes_of(wf, "WanImageToVideo"):
+            node["inputs"]["end_image"] = ["rk_endimg", 0]
+    if hd:
+        # Inject ESRGAN upscale between the decoded frames and CreateVideo:
+        #   VAEDecode -> ImageUpscaleWithModel(4x) -> ImageScale(1080x1920) -> CreateVideo
+        for _, cnode in common.nodes_of(wf, "CreateVideo"):
+            src = cnode["inputs"].get("images")
+            if not src:
+                break
+            wf["rk_upmodel"] = {"class_type": "UpscaleModelLoader",
+                                "inputs": {"model_name": "4x-UltraSharp.pth"}}
+            wf["rk_upscale"] = {"class_type": "ImageUpscaleWithModel",
+                                "inputs": {"upscale_model": ["rk_upmodel", 0],
+                                           "image": src}}
+            wf["rk_downscale"] = {"class_type": "ImageScale",
+                                  "inputs": {"image": ["rk_upscale", 0],
+                                             "upscale_method": "lanczos",
+                                             "width": 1080, "height": 1920,
+                                             "crop": "disabled"}}
+            cnode["inputs"]["images"] = ["rk_downscale", 0]
+            break
+    return wf
 
 
 def energy_plate(energy_text, out_path, job_tag, duration, w, h):
@@ -308,7 +353,7 @@ def screen_blend(base_clip, fx_clip, out_path, duration):
 
 # ------------------------------------------------------------------ per scene
 def animate_scene(scene, still_path, source_product, job_dir, w, h, duration,
-                  guard_log=None, tracer=None, end_still=None):
+                  guard_log=None, tracer=None, end_still=None, hd=False):
     """
     Turn one scene's still into a clip of `duration` seconds.
     Returns (clip_path, guard_verdict_or_None).
@@ -369,6 +414,6 @@ def animate_scene(scene, still_path, source_product, job_dir, w, h, duration,
         tracer.model(f"i2v:{VIDEO_MODEL}", "load")
     common.log("animate", f"scene {n}: i2v '{motion[:40]}'"
                           + (" [directed start->end]" if end_still else ""))
-    clip = video_i2v(still_path, prompt, out, tag, duration, end_image=end_still)
+    clip = video_i2v(still_path, prompt, out, tag, duration, end_image=end_still, hd=hd)
     os.replace(clip, out) if clip != out else None
     return out, verdict
