@@ -730,8 +730,8 @@ def direct_from_stills(still_urls, sb, config, include_human, product_urls=None,
         f"the reference images), in order:\n"
         f'[{{"scene":1,"pass":true,"issue":"","motion":"...","vo":"...",'
         f'"fix":""}}]')
-    if len(prompt) > 9800:        # WaveSpeed hard-caps at 10000 and 400s over it
-        prompt = prompt[:9800]
+    if llm.provider() == "wavespeed" and len(prompt) > 9800:
+        prompt = prompt[:9800]    # WaveSpeed hard-caps at 10000 and 400s over it
     try:
         raw = llm.chat(prompt, system="You output ONLY strict JSON.",
                              images=refs + urls, model=brain_model(),
@@ -814,12 +814,12 @@ def storyboard(brief, config, product_images, retries=3, tracer=None,
             f"never two products in one scene.")
     if bool(config.get("directedMotion", False)):
         prompt += DIRECTED_MOTION_RULE
-    # SAFETY CLAMP: WaveSpeed hard-caps the prompt at 10000 chars and 400s the
-    # whole call if exceeded (a rich directed-motion + style prompt, or a very long
-    # user brief, can approach it). Clamp with margin so a reel can never die on
-    # prompt length - worst case we drop the tail, the brain still runs.
+    # SAFETY CLAMP - WaveSpeed only: its gateway hard-caps the prompt at 10000
+    # chars and 400s the whole call if exceeded. The direct Anthropic path has
+    # no such limit, and clamping there would silently drop the tail rules
+    # (outfit-check + directedMotion measures ~10k chars).
     MAX_PROMPT = 9800
-    if len(prompt) > MAX_PROMPT:
+    if llm.provider() == "wavespeed" and len(prompt) > MAX_PROMPT:
         common.log("brain", f"prompt {len(prompt)} chars > {MAX_PROMPT} - clamping "
                             f"(WaveSpeed caps at 10000)")
         prompt = prompt[:MAX_PROMPT]
