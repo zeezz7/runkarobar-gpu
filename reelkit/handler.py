@@ -41,10 +41,16 @@ import make_reel                                           # noqa: E402
 # Log the resolved config at worker boot so a misconfigured env var (e.g. the
 # brain model silently falling back to a thinking model) is visible immediately
 # in the logs, not discovered three failed brain calls later.
-common.log("boot", "reelkit worker up | brain="
-           f"{os.environ.get('WAVESPEED_BRAIN_MODEL', '(default) anthropic/claude-sonnet-4')}"
+import llm                                                 # noqa: E402
+
+_brain_desc = (
+    f"anthropic:{os.environ.get('ANTHROPIC_MODEL', 'claude-sonnet-4-6')}"
+    if llm.provider() == "anthropic"
+    else f"wavespeed:{os.environ.get('WAVESPEED_BRAIN_MODEL', '(default) anthropic/claude-sonnet-4')}")
+common.log("boot", f"reelkit worker up | brain={_brain_desc}"
            f" | minio={os.environ.get('MINIO_ENDPOINT', '(unset)')}"
            f" | keep_resident={os.environ.get('REELKIT_KEEP_RESIDENT', '0')}"
+           f" | anthropic_key={'set' if os.environ.get('ANTHROPIC_API_KEY') else 'unset'}"
            f" | wavespeed_key={'set' if os.environ.get('WAVESPEED_API_KEY') else 'MISSING'}")
 
 

@@ -500,13 +500,16 @@ def make_reel(request):
             if don_dir.get("motion"):
                 sc["motion"] = don_dir["motion"]
             by_scene.setdefault(sc["n"], {})["substituted"] = True
-        elif not include_human:
+        elif not include_human and not sb.get("photosShowPerson"):
             # NOTHING verified shows this product. Rebuild the scene as a
             # pixel-exact paste (compose path): flatter than an edit, but
             # provably the right product - never ship a known-wrong shot
             # (observed: a face wash whose label was gibberish in all 3 scenes
             # shipped anyway because nothing had passed). Person scenes have no
-            # faithful mechanical fallback, so they still ship flagged.
+            # faithful mechanical fallback, so they still ship flagged - and
+            # the paste is SKIPPED when the source photos contain a person
+            # (the brain reports photosShowPerson): pasting such a photo put a
+            # model's back into a ghost-mannequin reel (reel_f388301d).
             common.log("validate", f"scene {sc['n']}: no verified still shows "
                                   f"this product - compose-paste fallback")
             try:
@@ -524,6 +527,10 @@ def make_reel(request):
             except Exception as e:
                 common.log("validate", f"scene {sc['n']}: paste fallback failed "
                                       f"({e}) - shipping the flagged still")
+        else:
+            common.log("validate", f"scene {sc['n']}: no donor and no safe "
+                                  f"fallback (person reel or person in source "
+                                  f"photos) - shipping the flagged still")
     # DIRECTED-MOTION CHAIN RE-SYNC: a scene's END keyframe is the NEXT scene's
     # START still, and those start stills were just Sonnet-validated (and possibly
     # regenerated/substituted) by the gate above. Re-point each morph's end at the

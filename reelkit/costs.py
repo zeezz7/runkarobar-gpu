@@ -42,6 +42,8 @@ class Meter:
         self._lock = threading.Lock()
         self.wavespeed_usd = 0.0
         self.wavespeed_calls = 0
+        self.anthropic_usd = 0.0
+        self.anthropic_calls = 0
         self.eleven_chars = 0
         self.avatar_usd = 0.0
         self.avatar_scenes = 0
@@ -52,6 +54,16 @@ class Meter:
         with self._lock:
             self.wavespeed_usd += WAVESPEED_PRICES.get(kind, 0.0)
             self.wavespeed_calls += 1
+
+    def anthropic(self, tokens_in, tokens_out):
+        """Direct Claude API call - billed per token. Returns this call's USD.
+        Default rates = Sonnet 4.6 list price ($3/$15 per MTok)."""
+        usd = (tokens_in / 1e6) * _f("COST_ANTHROPIC_IN_PER_M", 3.0) \
+            + (tokens_out / 1e6) * _f("COST_ANTHROPIC_OUT_PER_M", 15.0)
+        with self._lock:
+            self.anthropic_usd += usd
+            self.anthropic_calls += 1
+        return usd
 
     def avatar(self, usd):
         """Talking-avatar lip-sync - billed per scene, only for ad/testimonial."""
@@ -77,13 +89,16 @@ class Meter:
         eleven_rate = _f("COST_ELEVEN_USD_PER_1K", 0.30)
         gpu = self.gpu_seconds / 3600.0 * gpu_rate
         eleven = self.eleven_chars / 1000.0 * eleven_rate
-        total = gpu + eleven + self.wavespeed_usd + self.avatar_usd
+        total = (gpu + eleven + self.wavespeed_usd + self.anthropic_usd
+                 + self.avatar_usd)
         return {
             "total_usd": round(total, 4),
             "gpu_usd": round(gpu, 4),
             "gpu_seconds": self.gpu_seconds,
             "wavespeed_usd": round(self.wavespeed_usd, 4),
             "wavespeed_calls": self.wavespeed_calls,
+            "anthropic_usd": round(self.anthropic_usd, 4),
+            "anthropic_calls": self.anthropic_calls,
             "avatar_usd": round(self.avatar_usd, 4),
             "avatar_scenes": self.avatar_scenes,
             "elevenlabs_usd": round(eleven, 4),

@@ -1,4 +1,5 @@
 # Beyond the Vast PyTorch/ComfyUI base image.
+anthropic            # direct Claude API brain/QA (llm.py, BRAIN_PROVIDER=anthropic)
 compressed-tensors   # loads the fp8 brain (Qwen2.5-14B-Instruct-FP8-dynamic)
 accelerate           # required by transformers 5.x even for a single device_map
 fastapi              # server.py

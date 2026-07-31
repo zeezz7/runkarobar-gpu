@@ -358,8 +358,10 @@ def scene_image(scene, product_path, w, h, job_dir, seed=0, cut_cache={},
                 "remove them completely - no body, no head, no face, no arms, no "
                 "hands, no skin, no legs, no one inside the garment. Present it as a "
                 "premium ghost-mannequin product shot: a hollow garment that keeps "
-                "its natural worn shape with nobody in it. Keep its exact shape, "
-                "colours, materials, prints, logos and every detail identical. "
+                "its natural worn shape with nobody in it - and NO stand, hanger, "
+                "ring, collar-support or any rig visible at the neck or anywhere "
+                "else. Keep its exact shape, colours, materials, prints, logos "
+                "and every detail identical. "
                 f"Place it in: {setting}.")
         elif shows_person and include_human:
             # includeHuman ESTABLISHING scene. The source is usually a flat-lay or
@@ -392,8 +394,10 @@ def scene_image(scene, product_path, w, h, job_dir, seed=0, cut_cache={},
             "that is blank in the photograph STAYS blank. Do not print, engrave "
             "or stamp ANY new text, lettering, branding or label anywhere. Any "
             "print or graphic on the product is reproduced stroke for stroke, "
-            "and lighting effects (glow, halo, rim light) belong to the SCENE - "
-            "never painted onto the product or its print.")
+            "and NO texture, embossing, weave or pattern is added that the "
+            "photograph does not show - plain fabric stays plain. Lighting "
+            "effects (glow, halo, rim light) belong to the SCENE - never "
+            "painted onto the product or its print.")
         instruction = ((emphasis + " ") if emphasis else "") + lead + text_rule + (
                               guards.person_guards(d, is_followon=followon)
                               if person_shot else guards.product_guards())

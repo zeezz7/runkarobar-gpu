@@ -32,6 +32,7 @@ import os
 import re
 
 import common
+import llm
 import wavespeed
 
 # The remote brain. Overridable so the model can be changed without a code edit.
@@ -80,6 +81,7 @@ Return EXACTLY this JSON shape:
 {{
   "concept": "<one-line creative concept>",
   "voice": "<voice direction, e.g. 'male energetic Hinglish'>",
+  "photosShowPerson": <true if ANY supplied photograph shows a person wearing or holding the product, else false>,
   "scenes": [
     {{
       "n": 1,
@@ -91,7 +93,7 @@ Return EXACTLY this JSON shape:
       "background": "<ONLY the setting/environment for this shot - the place, surface, light and mood. Never mention the product, clothing or any person.>",
       "motion": "<camera move, e.g. 'slow push-in', 'orbit', 'crane down'>",
       "sfx": "<SHORT natural foley for this scene, e.g. 'soft fabric movement', 'leather creak', 'gentle shimmer'. Diegetic ONLY - NO music/melody/instruments/beat. Empty for silent.>",
-      "energy": "<a visual effect such as 'water splash' or 'rising steam', or empty string for clean>",
+      "energy": "<a physically-motivated visual effect, or empty string for a clean shot>",
       "transitionIn": "cut|fade|whip|zoom",
       "durationSec": 4,
       "motionEngine": "video",
@@ -146,12 +148,13 @@ HARD REQUIREMENTS
   would actually use (e.g. "Subah ki freshness, har din - deep clean, aloe vera ke
   saath"). Do NOT fall back to plain English. If {language} is "hi" or "ur", write in
   that language. The claims rule above still applies, in that language.
-- "energy" is a real PHYSICAL effect in the shot - "drifting dust particles",
-  "fabric ripple", "light sweep", "rising steam", "swirling smoke", "water
-  splash" - not just a vague glow or shimmer. Give at least a third of the
-  scenes a non-empty energy that fits the product; "" only for a deliberately
-  clean shot, and never the same energy twice. Water effects: at most ONE
-  scene, only when they suit the product.
+- "energy" is OPT-IN and "" (a clean shot) is the DEFAULT. Use an effect ONLY
+  when it has an obvious physical reason to exist in that scene - steam belongs
+  to hot food or a fresh coffee, water to sportswear or waterproof gear, dust
+  to a workshop. A sweater does not steam and a shoe does not stand in rain.
+  At most ONE or TWO scenes per reel carry any effect, never the same one
+  twice, and an unmotivated effect looks like a rendering error - when in
+  doubt, leave it "".
 - "motion" names a concrete, confident camera move and must vary between
   scenes - include at least one bold move (fast orbit, sweeping crane,
   rise/float, whip pan); never make every scene a slow push-in.
@@ -201,17 +204,16 @@ TEMPLATES = {
     "showcase": {
         "persona": (
             "Premium, DRAMATIC product-hero showcase - a high-end TV spot, not a "
-            "catalogue packshot. Stage the product like a hero: suspended mid-air "
-            "in a dark studio under hard directional light with deep shadows, or "
-            "on a bold surface mid-action (drifting particles, smoke wisps, a "
-            "burst of motion that fits the product). "
-            "Vary the framing across scenes - a dramatic hero, a tight macro on "
-            "the key detail (texture, stitching, hardware, stones), a styled "
-            "lifestyle beat - never three of the same shot. Minimal on-screen "
-            "text; confident, aspirational tone. At least two scenes carry a "
-            "real physical 'energy' effect that fits the product, and the camera "
-            "must feel alive - mix at least one bold move (fast orbit, sweeping "
-            "crane, rise/float) with the slow ones."),
+            "catalogue packshot. The drama comes from STAGING and LIGHT, not "
+            "from added effects: the product suspended mid-air in a dark studio "
+            "under hard directional light with deep shadows, or on a bold "
+            "surface with strong rim light. Vary the framing across scenes - a "
+            "dramatic hero, a tight macro on the key detail (texture, "
+            "stitching, hardware, stones), a styled lifestyle beat - never "
+            "three of the same shot. Minimal on-screen text; confident, "
+            "aspirational tone. The camera must feel alive - mix at least one "
+            "bold move (fast orbit, sweeping crane, rise/float) with the slow "
+            "ones."),
         "defaults": {"sceneBias": 3, "wantsBadges": False, "wantsCta": False,
                      "motionStyle": "dynamic", "lengthSec": 15},
     },
@@ -597,6 +599,10 @@ def validate(sb, length, template=None, include_human=True):
                     f"PRODUCT ONLY (includeHuman is false) - rewrite it with no "
                     f"person, hands or body parts anywhere")
 
+    # Whether the SOURCE photos contain a person - consumed by make_reel's
+    # paste fallback (pasting a person-containing photo into a product-only
+    # reel put a model's back into a ghost-mannequin reel, reel_f388301d).
+    sb["photosShowPerson"] = bool(sb.get("photosShowPerson", False))
     sb.setdefault("notes", "")
     return sb
 
@@ -710,10 +716,10 @@ def direct_from_stills(still_urls, sb, config, include_human, product_urls=None,
         f"and cinematic: a camera move plus any natural motion truly present "
         f"(steam rising, particles drifting, reflections shifting, fabric "
         f"moving). Never invent people or objects not in the image, and NEVER "
-        f"describe water falling, raining or cascading unless the still "
-        f"already shows falling water - droplets sitting on a surface only "
-        f"glisten in place; the video model turns any 'droplets' mention into "
-        f"rain.\n"
+        f"describe water falling/raining/cascading, smoke, steam, fire or "
+        f"mist unless the still ALREADY clearly shows that effect - droplets "
+        f"sitting on a surface only glisten in place; the video model turns "
+        f"any such mention into the full effect.\n"
         f"3. vo - the spoken line for this scene, ~{per}s of speech. The lines "
         f"together tell ONE story and MUST keep the planned message and any exact "
         f"call to action; the last scene closes it.\n"
@@ -727,7 +733,7 @@ def direct_from_stills(still_urls, sb, config, include_human, product_urls=None,
     if len(prompt) > 9800:        # WaveSpeed hard-caps at 10000 and 400s over it
         prompt = prompt[:9800]
     try:
-        raw = wavespeed.chat(prompt, system="You output ONLY strict JSON.",
+        raw = llm.chat(prompt, system="You output ONLY strict JSON.",
                              images=refs + urls, model=brain_model(),
                              temperature=0.3, max_tokens=1600)
         data = _extract_json(raw)
@@ -842,14 +848,22 @@ def storyboard(brief, config, product_images, retries=3, tracer=None,
         if last_err:
             ask += (f"\n\nYour previous answer was rejected: {last_err}\n"
                     f"Return corrected JSON only.")
-        raw = wavespeed.chat(ask, system=SYSTEM, images=urls, model=model,
+        raw = llm.chat(ask, system=SYSTEM, images=urls, model=model,
                              temperature=0.85, max_tokens=1600)
         try:
             sb = validate(_extract_json(raw), length, template=tpl_key,
                           include_human=include_human)
             common.log("brain", f"storyboard ok on attempt {attempt}: "
                                 f"{len(sb['scenes'])} scenes, "
-                                f"{sum(s['durationSec'] for s in sb['scenes']):.0f}s")
+                                f"{sum(s['durationSec'] for s in sb['scenes']):.0f}s, "
+                                f"photosShowPerson={sb.get('photosShowPerson')}")
+            # One line per scene so bad art direction (smoke on a sweater, five
+            # slow push-ins) is visible in the worker log BEFORE the GPU spends
+            # minutes rendering it.
+            for s in sb["scenes"]:
+                common.log("brain", f"  scene {s['n']}: goal={s['goal']} "
+                                    f"motion='{s['motion'][:45]}' "
+                                    f"energy='{s.get('energy') or 'clean'}'")
             return sb
         except ValueError as e:
             last_err = str(e)
