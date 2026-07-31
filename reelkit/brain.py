@@ -646,7 +646,10 @@ def direct_from_stills(still_urls, sb, config, include_human, product_urls=None,
         elif (s.get("mode") == "scene"
               or _PERSON_RX.search(s.get("visual") or "")):
             p.append("person REQUIRED (the same person as in the other scenes, "
-                     "product worn/used on-body, never a flat empty garment);")
+                     "product worn/used on-body, never a flat empty garment; "
+                     "wearing ONLY what the reference shows - an added scarf, "
+                     "drape, shawl or accessory that is not in the reference "
+                     "is a FAIL);")
         else:
             p.append("person OPTIONAL;")
         vis = (s.get("visual") or "").strip()

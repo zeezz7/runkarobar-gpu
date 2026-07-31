@@ -390,7 +390,10 @@ def scene_image(scene, product_path, w, h, job_dir, seed=0, cut_cache={},
             " Printed text rule: any text, logo or stamp on the product stays "
             "EXACTLY as photographed, letter for letter - and every surface "
             "that is blank in the photograph STAYS blank. Do not print, engrave "
-            "or stamp ANY new text, lettering, branding or label anywhere.")
+            "or stamp ANY new text, lettering, branding or label anywhere. Any "
+            "print or graphic on the product is reproduced stroke for stroke, "
+            "and lighting effects (glow, halo, rim light) belong to the SCENE - "
+            "never painted onto the product or its print.")
         instruction = ((emphasis + " ") if emphasis else "") + lead + text_rule + (
                               guards.person_guards(d, is_followon=followon)
                               if person_shot else guards.product_guards())

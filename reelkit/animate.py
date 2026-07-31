@@ -61,11 +61,19 @@ def _label_tokens(path):
     """
     Read label text off an image with the existing Qwen2.5-VL guard.
 
-    Cached per path: the source product photo is identical for every scene, so
-    re-running the VL model on it once per scene was pure waste.
+    Cached per (path, mtime): the source product photo is identical for every
+    scene, so re-running the VL model on it once per scene was pure waste. The
+    mtime matters — a guard retry OVERWRITES the scene still at the same path,
+    and a path-only key returned the FIRST render's tokens for the new image,
+    making every retry verdict a lie (observed: identical token list on two
+    different renders while the second was actually a different garment).
     """
-    if path in _TOKEN_CACHE:
-        return _TOKEN_CACHE[path]
+    try:
+        key = (path, os.path.getmtime(path))
+    except OSError:
+        key = (path, 0)
+    if key in _TOKEN_CACHE:
+        return _TOKEN_CACHE[key]
     import validate_image
     v = validate_image.verdict(path)
     det = (v.get("branding") or {}).get("detected") or []
@@ -77,7 +85,7 @@ def _label_tokens(path):
             w = "".join(c for c in w if c.isalnum()).upper()
             if len(w) >= 3:
                 toks.add(w)
-    _TOKEN_CACHE[path] = (toks, v)
+    _TOKEN_CACHE[key] = (toks, v)
     return toks, v
 
 

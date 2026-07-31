@@ -26,17 +26,24 @@ Each constant exists because a specific failure was observed:
 """
 import re
 
+# NOTE ON EXAMPLE WORDING: these clauses ride along on EVERY person render, so
+# any concrete garment named in them becomes a seed the editor plants. The old
+# WEAR_GUARD said "with any dupatta or scarf draped naturally" and COLOR_LOCK's
+# example was "the dupatta is purple ... the dupatta stays purple" - and reel
+# after reel grew an invented PURPLE DUPATTA on sweatshirts, polos and tees
+# (reel_60ca0010, reel_b74d95e7, reel_c41a04e7). Keep examples garment-neutral.
 COLOR_LOCK = (
     " CRITICAL: every garment piece keeps its OWN exact colour from the reference "
-    "- never recolour, tint or harmonise one piece to match another (e.g. if the "
-    "trousers are black and the dupatta is purple, the trousers stay black and the "
-    "dupatta stays purple).")
+    "- never recolour, tint or harmonise one piece to match another; each piece "
+    "stays exactly the colour it is photographed in.")
 
 WEAR_GUARD = (
-    " The model WEARS the complete outfit, with any dupatta or scarf draped "
-    "naturally on the body. Show ONLY the person wearing it - absolutely no "
-    "clothing rack, coat stand, hanger, mannequin or separately-displayed garment "
-    "anywhere in the frame.")
+    " The model WEARS the complete outfit exactly as photographed - every piece "
+    "that is in the reference, and NOTHING that is not: do NOT add any scarf, "
+    "drape, shawl, stole, jacket, jewellery, headwear or any other garment or "
+    "accessory that is absent from the reference photograph. Show ONLY the person "
+    "wearing it - absolutely no clothing rack, coat stand, hanger, mannequin or "
+    "separately-displayed garment anywhere in the frame.")
 
 MODESTY_GUARD = (
     " STRICT: the person must be fully and MODESTLY dressed at all times - "
@@ -44,13 +51,20 @@ MODESTY_GUARD = (
     "revealing, tight, sheer or sexy clothing. Keep it decent, elegant and "
     "family-friendly.")
 
+# Modesty governs SKIN COVERAGE - it must never redesign the product. The old
+# wording ("wears a high-necked, fully-covering outfit") read as a garment
+# spec, so polos came back as turtlenecks and a crew-neck sweatshirt as a
+# high-collared kurta: the editor swapped the product to satisfy the guard.
 HARD_MODESTY = (
-    " ABSOLUTE REQUIREMENT - override any other wording: the person wears a "
-    "high-necked, fully-covering outfit that completely covers the chest, "
-    "cleavage, shoulders, midriff and legs. NO exposed skin below the collarbone, "
-    "NO cleavage, NO revealing, low-cut, plunging, strapless, off-shoulder or "
-    "sheer clothing. If a necklace is worn it rests on a COVERED high neckline. "
-    "Decent, elegant, family-friendly ONLY.")
+    " ABSOLUTE REQUIREMENT - override any other wording: no nudity and no "
+    "revealing clothing. NO exposed skin below the collarbone, NO cleavage, NO "
+    "low-cut, plunging, strapless, off-shoulder or sheer clothing; midriff and "
+    "legs covered. Achieve this coverage with the REFERENCE outfit reproduced "
+    "faithfully plus pose, framing and the outfit's own pieces - NEVER by "
+    "substituting a different, more covering garment for the product (a normal "
+    "crew-neck or collared garment as photographed already satisfies this rule). "
+    "If a necklace is worn it rests on a COVERED neckline. Decent, elegant, "
+    "family-friendly ONLY.")
 
 # Words that push an AI-written `visual` toward nudity. Neutralised before the
 # scene is composed - cheaper and more reliable than rejecting the render after.

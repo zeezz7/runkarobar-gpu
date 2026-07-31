@@ -302,11 +302,17 @@ def make_reel(request):
                 # the "retry" was a no-op (observed: invented 'BERTEN ROYAL'
                 # lettering survived its retry unchanged).
                 common.log("guard", f"scene {n}: re-rendering (new seed) - {detail}")
+                # anchor keeps the SAME model + outfit on a person reel - the
+                # first retry of a follow-on scene dropped it and re-dressed
+                # from the raw product photo, which drifted to a different
+                # garment entirely (observed: back-view sweatshirt scene
+                # re-rendered as an ornate kurta).
                 still = compose.scene_image(
                     sc, product, w, h, jd,
                     seed=abs(hash(f"{jid}guard{n}")) % 10000,
-                    cut_cache=cut_cache, bg_cache=bg_cache,
+                    cut_cache=cut_cache, bg_cache=bg_cache, tracer=tr,
                     height_frac=0.62, center_y=0.50, include_human=include_human,
+                    anchor=anchor_still if include_human else None,
                     emphasis=(f"CRITICAL: the previous render was WRONG "
                               f"({detail}). Match the reference photograph "
                               f"exactly - if a surface is blank in the photo it "
@@ -408,12 +414,13 @@ def make_reel(request):
                      if j % nprod == i % nprod
                      and by_scene.get(sc2["n"], {}).get("pass", True)), None)
     for _ in range(max_fix):
-        # Guard-hard-fail scenes skip the regen: another edit re-invents the
-        # text more often than not and nothing re-OCRs it here (the VL guard is
-        # already unloaded), so their cure is the donor/paste stage below.
+        # Guard-hard-fail scenes skip the regen ONLY when the paste fallback
+        # exists to cure them (product-only reels). On a person reel the paste
+        # is impossible, so the Sonnet fix pass is the only recovery there is -
+        # skipping it shipped a wrong-garment scene untouched (reel_60ca0010).
         failed = [i for i, sc in enumerate(sb["scenes"])
                   if not by_scene.get(sc["n"], {}).get("pass", True)
-                  and sc["n"] not in guard_hard_fail]
+                  and (include_human or sc["n"] not in guard_hard_fail)]
         if not failed:
             break
         common.log("validate", f"gate: regenerating {len(failed)} flagged scene(s) "
@@ -458,12 +465,16 @@ def make_reel(request):
                     sc["vo"] = d["vo"]
     # Re-assert the OCR verdicts: the fix loop re-ran Sonnet and rebound
     # by_scene, which would let a guard-hard-fail scene slip back to "pass".
-    for n_, why in guard_hard_fail.items():
-        d = by_scene.setdefault(n_, {"scene": n_})
-        if d.get("pass", True):
-            common.log("validate", f"scene {n_}: guard overrides Sonnet pass - {why}")
-            d["pass"] = False
-            d.setdefault("issue", why)
+    # Product-only reels only - there the still is unchanged (regen was
+    # skipped) and the paste fallback is the cure. On a person reel the regen
+    # REPLACED the still the OCR judged, so Sonnet's fresh verdict wins.
+    if not include_human:
+        for n_, why in guard_hard_fail.items():
+            d = by_scene.setdefault(n_, {"scene": n_})
+            if d.get("pass", True):
+                common.log("validate", f"scene {n_}: guard overrides Sonnet pass - {why}")
+                d["pass"] = False
+                d.setdefault("issue", why)
     # FALLBACK (option A): any scene STILL wrong after the fix passes is replaced
     # with a verified still OF THE SAME PRODUCT. The reel then repeats a correct
     # angle instead of shipping a wrong shot - a consistent reel always beats a
