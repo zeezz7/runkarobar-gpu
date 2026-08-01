@@ -1,31 +1,37 @@
 """
-The AI photo studio task - fully self-hosted (no WaveSpeed pixels).
+The AI photo studio - the SIMPLE version.
 
-    Haiku directs -> Qwen-Image-Edit-2511 renders -> OCR guard + Haiku QA
-    validate -> MinIO. Same worker, same models, same guard stack as reels.
+Every shot is ONE direct Qwen-Image-Edit call on the 8-step Lightning path.
+The fast path is also the path that WEARS garments correctly: the full-CFG
+28-step experiment amplified the "keep everything exactly as photographed"
+wording until jackets came out draped like capes (job photos_59d8dd89).
+And prompts are SHORT - the old pipeline stacked ~3,400 characters of guards
+around a one-line pose, and the pose drowned (job photos_9dd8313e).
 
-Two modes, mirroring StaffHQ's studio page:
-  photos - clean catalog shots (3:4). A cheap Claude call (PHOTO_DIRECTOR_MODEL,
-           default claude-haiku-4-5) looks at the product photos + the tenant's
-           style note and writes N shot specs - varied background/staging, SAME
-           product, and per-shot whether it is WORN by a model (apparel) or
-           standalone. Each shot is a compose.scene_image edit of the real
-           photo, policed by the OCR invented-text guard and one QA pass
-           (PHOTO_QA_MODEL, default claude-haiku-4-5). Failing shots get one
-           re-roll with the QA's correction; still-failing shots are DROPPED,
-           never shipped (a photo set may shrink; a wrong photo may not exist).
-  poster - 4:5 marketing creatives. The director expands the tenant's brief
-           into N full poster prompts (text/typography ALLOWED - that is the
-           point of a poster, and Qwen-Image's headline strength); rendered via
-           the same edit path with the product photos as references. No OCR
-           guard (posters legitimately carry lettering) and no QA drop - the
-           tenant judges creatives.
+What stayed, because it demonstrably worked:
+  - one Haiku pass over the uploads -> listing copy (wizard auto-fill) + a
+    camera-angle label per photo (front/back/left/right/...)
+  - angle-matched edit bases: a pose shot edits the UPLOAD closest to its
+    angle (Back edits the real back photo), never a previous render - Qwen
+    keeps image1's pose, so editing a front render returns the front pose
+  - the establishing shot rides along in a reference slot for follow-on
+    poses so ONE model persists across the set
+  - OCR invented-text guard per shot + one pose-aware QA pass, with a SHARED
+    re-roll budget so a bad job cannot silently double its own GPU bill
+
+photos - fixed catalog poses when the seller picked a model gender
+         (Front / Close-up / Right / Left / Back / ...), all worn; no gender
+         picked -> product-only preset shots. 3:4 catalog portrait.
+poster - Haiku expands the brief into N poster prompts, rendered as direct
+         edits of the first upload. Text is allowed (that is the point of a
+         poster); no OCR guard and no QA - the tenant judges creatives. 4:5.
 
 Request (RunPod input):
     {"task": "photos", "product_images": [urls], "prompt": "...",
-     "count": 1-8, "mode": "photos"|"poster", "config": {"trace": true}}
+     "count": 1-8, "mode": "photos"|"poster", "model_gender": "female"|
+     "male"|"none", "config": {"trace": true}}
 Result:
-    {"results": [{"label", "url"}], "mode", "dropped": n,
+    {"results": [{"label", "url"}], "mode", "dropped": n, "copy": {...},
      "cost_usd", "_cost", "_elapsedSec"}
 """
 import json
@@ -39,6 +45,7 @@ import llm
 MAX_COUNT = 8
 PHOTO_W, PHOTO_H = 1080, 1440    # 3:4 catalog portrait
 POSTER_W, POSTER_H = 1080, 1350  # 4:5 social creative
+MAX_REROLLS = 2                  # per JOB, shared by guard + QA corrections
 
 
 def _director_model():
@@ -51,9 +58,8 @@ def _qa_model():
 
 def _extract_json(raw, prefer_obj=False):
     """Tolerant JSON array/object extraction (models love markdown fences).
-    `prefer_obj`: try the OUTER object first. Needed when the payload is an
-    object that CONTAINS an array (e.g. copy + an "angles" list) - otherwise the
-    default array-first scan grabs the inner array and drops the object."""
+    `prefer_obj`: try the OUTER object first - needed when the payload is an
+    object that CONTAINS an array, or the array-first scan eats the object."""
     raw = (raw or "").strip()
     order = ((("{", "}"), ("[", "]")) if prefer_obj
              else (("[", "]"), ("{", "}")))
@@ -67,85 +73,57 @@ def _extract_json(raw, prefer_obj=False):
     raise ValueError(f"no JSON found in: {raw[:200]}")
 
 
-# ------------------------------------------------------------------ director
-def _direct_photos(urls, style_note, count, model_gender=None):
-    """Haiku writes the shot list: varied staging, same product, worn or not.
-    `model_gender`: 'female' | 'male' -> worn shots use that model and apparel
-    gets 2-3 of them; 'none' -> every shot is product-only; None -> the
-    director decides freely (legacy behaviour)."""
-    note = f' The seller\'s style note: "{style_note}".' if style_note else ""
-    if model_gender == "none":
-        gender_rule = ('- "worn" must be false for EVERY shot - the seller '
-                       "wants product-only photos, no model.\n")
-    elif model_gender in ("female", "male"):
-        gender_rule = (f'- If the item is apparel/wearable, make 2-3 of the '
-                       f'shots "worn": true - worn by a {model_gender} model '
-                       f"- and say so in those shots' \"visual\". Standalone "
-                       f'products stay worn=false.\n')
-    else:
-        gender_rule = ('- "worn": true ONLY if the item is apparel/wearable '
-                       "AND worn shots suit it; a standalone product gets "
-                       "worn=false.\n")
-    prompt = (
-        f"You are a catalog art director for an Indian e-commerce shop. Study "
-        f"the attached product photograph(s) and plan {count} DISTINCT catalog "
-        f"shots of this EXACT product.{note}\n"
-        f"Rules:\n"
-        f"- The product stays identical in every shot - never redesign it.\n"
-        f"{gender_rule}"
-        f'- "visual": one line describing the shot of THIS product (e.g. '
-        f'"front-facing hero of this exact cream sweater, filling the frame").\n'
-        f'- "setting": background/surface/light ONLY - never name the product '
-        f"in it. Vary settings across shots (studio white, styled surface, "
-        f"lifestyle); no two alike. No effects like smoke/steam/water unless "
-        f"the product obviously calls for it.\n"
-        f'- "label": short (Hero, Angle, Side, Lifestyle, Detail, Flat Lay...).\n'
-        f"Return ONLY a JSON array of {count} objects: "
-        f'[{{"label":"...","worn":false,"visual":"...","setting":"..."}}]')
-    raw = llm.chat(prompt, system="You output ONLY strict JSON.", images=urls,
-                   model=_director_model(), temperature=0.7, max_tokens=1200)
-    shots = [s for s in _extract_json(raw) if isinstance(s, dict)]
-    if not shots:
-        raise ValueError("director returned no shots")
-    return shots[:count]
+# ------------------------------------------------------------------ shot plans
+# Worn catalog poses, in order. Shot 1 establishes the model; later poses are
+# drawn fresh from the angle-matched upload with shot 1 as the identity ref.
+_WORN_POSES = [
+    ("Front", "Full-length front view: standing straight, facing the camera, "
+              "the whole garment visible from shoulders to hem."),
+    ("Front Close-up", "Tight waist-up front crop: the neckline, fabric and "
+              "stitching fill the frame; legs and feet are OUT of frame."),
+    ("Right Side", "Full-length right-side profile: the body turned a full "
+              "90 degrees, showing the side of the body and the garment's "
+              "side silhouette."),
+    ("Left Side", "Full-length left-side profile: the body turned a full "
+              "90 degrees the other way."),
+    ("Back", "Full-length view from directly behind: the back of the garment "
+              "fills the frame, the face is not visible."),
+    ("Angle", "Full-length three-quarter view: the body turned about "
+              "45 degrees, relaxed confident stance."),
+    ("Detail", "Very tight close-up on the garment itself - sleeve, hem or "
+              "print - showing the fabric and craftsmanship."),
+    ("Seated", "Seated editorial pose with the full outfit visible."),
+]
 
-
-# Canonical worn-model catalog poses, in order. When the seller picks a model
-# (female/male) we shoot THIS set instead of a freeform director plan - the same
-# model in the same outfit from every angle, which is what a clothing catalog
-# actually needs. Shot 1 establishes the model; the rest re-frame it via the
-# anchor carry (compose.scene_image), so the person and outfit stay identical.
-_POSES = [
-    ("Front", "full-length front view of the model wearing this exact outfit, "
-              "standing straight and facing the camera, the whole garment "
-              "visible from shoulders to hem"),
-    ("Front Close-up", "waist-up front close-up of the SAME model in the SAME "
-              "outfit, showing the neckline, fabric and detailing of this exact "
-              "garment"),
-    ("Right Side", "full-length right-side profile of the SAME model in the "
-              "SAME outfit, body turned 90 degrees to their right, showing the "
-              "side silhouette of the garment"),
-    ("Left Side", "full-length left-side profile of the SAME model in the SAME "
-              "outfit, body turned 90 degrees to their left"),
-    ("Back", "full-length back view of the SAME model in the SAME outfit, "
-              "facing away from the camera, showing the back of the garment"),
-    ("Angle", "full-length three-quarter angle of the SAME model in the SAME "
-              "outfit, body turned about 45 degrees, relaxed confident stance"),
-    ("Detail", "close-up of the SAME outfit on the SAME model - sleeve, hem or "
-              "print - showing the craftsmanship and fabric"),
-    ("Seated", "the SAME model in the SAME outfit seated in a relaxed editorial "
-              "pose, the full outfit visible"),
+# Product-only preset shots (no model picked). Product-agnostic on purpose.
+_PRODUCT_SHOTS = [
+    ("Hero", "straight-on hero shot, the product centred and filling most of "
+             "the frame"),
+    ("Angle", "three-quarter angle view of the product"),
+    ("Detail", "tight macro close-up of the product's finest detail and "
+               "texture"),
+    ("Side", "clean side-profile view of the product"),
+    ("Lifestyle", "the product staged naturally in an in-use setting"),
+    ("Top", "overhead top-down view of the product"),
+    ("Back", "the product seen from behind"),
+    ("Styled", "a second styled arrangement of the product"),
+]
+_PRODUCT_SETTINGS = [
+    "clean seamless white studio, soft even light",
+    "warm neutral surface, soft directional light",
+    "dark slate surface, moody premium light",
+    "light linen backdrop, bright morning light",
 ]
 
 
+# ----------------------------------------------------------------- upload scan
 def _analyze_uploads(urls):
     """ONE Haiku pass over the uploaded photos that returns BOTH:
-      - listing copy (name/brand/category/description/details/care/delivery/meta)
-        so the wizard fills itself from the render (no WaveSpeed text call), and
-      - an angle label per image (front/back/left/right/side/detail/other) so we
-        hand each pose the RIGHT view regardless of upload order.
-    Same images, same model, one round-trip. Returns ({}, []) on failure, so the
-    caller degrades to plain upload order + no auto-copy."""
+      - listing copy (name/brand/category/description/details/care/delivery/
+        meta) so the wizard fills itself from the render, and
+      - an angle label per image (front/back/left/right/side/detail/other) so
+        each pose is handed the RIGHT view regardless of upload order.
+    Returns ({}, []) on failure - callers degrade to plain upload order."""
     keys = ("name", "brand", "category", "description", "details", "care",
             "delivery", "metaDescription")
     prompt = (
@@ -187,15 +165,13 @@ def _pref_angle(label):
         return "left"
     if "right" in lab:
         return "right"
-    return "front"      # front / close-up / angle / seated / detail default here
+    return "front"      # front / close-up / angle / seated / detail default
 
 
 def _ordered_refs(label, products, angles):
-    """Order the uploaded angle pool so the pose-matched angle is FIRST (smart),
-    then the rest (simple). Qwen keeps only the first couple after the primary/
-    anchor are removed, so the matched view lands in a ref slot."""
+    """Order the upload pool so the pose-matched angle comes FIRST."""
     if not angles or len(angles) != len(products):
-        return list(products)      # simple: plain upload order
+        return list(products)      # plain upload order
     pref = _pref_angle(label)
 
     def score(i):
@@ -212,33 +188,80 @@ def _ordered_refs(label, products, angles):
                                         key=lambda i: (score(i), i))]
 
 
-def _shot_inputs(label, worn, products, angles, anchor_still):
-    """Edit base, extra refs, anchor and anchor mode for one shot.
-
-    A follow-on WORN shot edits the angle-matched UPLOAD with the anchor
-    passed as an identity REFERENCE - editing the anchor render itself just
-    reproduced its pose in every shot, because Qwen-Edit keeps image1's
-    subject and composition (job photos_9dd8313e: scenes 2-5 all came out as
-    the front pose). Everything else edits the (front) upload directly."""
-    xrefs = _ordered_refs(label, products, angles)
-    anc = anchor_still if worn else None
-    if anc is not None:
-        base = xrefs[0] if xrefs else products[0]
-        return base, [p for p in xrefs if p != base], anc, "identity"
-    return products[0], xrefs, anc, "edit"
+# --------------------------------------------------------------------- prompts
+_RULES = (
+    " No watermark, no signature and no invented text anywhere: any lettering "
+    "on the product stays exactly as photographed, blank surfaces stay blank. "
+    "Remove any seller watermark, price sticker or screenshot UI from the "
+    "source photo. Photorealistic, sharp detail.")
 
 
-def _pose_plan(gender, style_note, count):
-    """Fixed worn-model pose set (front, close-up, sides, back, ...), one shared
-    setting so the set is cohesive. All shots worn by the chosen model."""
-    setting = (style_note.strip() or
-               "clean seamless studio backdrop, soft even lighting")
-    shots = []
-    for k, (label, visual) in enumerate(_POSES[:count]):
-        v = f"A poised {gender} fashion model. " + visual if k == 0 else visual
-        shots.append({"label": label, "worn": True, "visual": v,
-                      "setting": setting})
-    return shots
+def _worn_prompt(gender, pose, setting, followon, is_back):
+    p = (f"A real photograph of a {gender} fashion model wearing this exact "
+         f"garment - properly worn on the body, arms through the sleeves, "
+         f"identical colours, fabric, prints and cut, nothing added, nothing "
+         f"removed. {pose} The model fills the frame. Setting: {setting}. "
+         f"A real human with natural skin texture and a relaxed expression - "
+         f"not a mannequin, not CGI. Fully and modestly dressed, "
+         f"family-friendly.")
+    if followon:
+        p += (" The model is the SAME person as the model in the reference "
+              "photograph - same face, same hair, same build, the same "
+              "photoshoot continued.")
+    if is_back:
+        p += (" The back of the garment stays exactly as photographed - do "
+              "not stamp any new lettering, logo or graphic onto it.")
+    return p + _RULES
+
+
+def _product_prompt(visual, setting):
+    return (f"Keep the product exactly as photographed - identical shape, "
+            f"colours, materials and every detail. {visual.capitalize()}. "
+            f"Setting: {setting}. No person in the frame." + _RULES)
+
+
+# -------------------------------------------------------------------------- QA
+def _qa_shots(ref_urls, shot_urls, labels, worn_flags=None):
+    """One vision pass over the whole set: per-shot pass/issue/fix. Judges
+    product fidelity for every shot, and camera angle/framing for worn shots."""
+    worn_flags = worn_flags or [False] * len(shot_urls)
+    lines = "\n".join(
+        f"  shot {i + 1} ({labels[i]})"
+        + (" - INTENTIONALLY worn by a model; the person is correct. Judge "
+           "the product's fidelity AND that the shot matches its label's "
+           "camera angle/framing" if worn_flags[i] else
+           " - product only; a person here is a FAIL")
+        for i in range(len(shot_urls)))
+    prompt = (
+        f"IMAGES 1-{len(ref_urls)} are the REFERENCE product photographs. "
+        f"IMAGES {len(ref_urls) + 1}-{len(ref_urls) + len(shot_urls)} are "
+        f"generated catalog shots, IN ORDER:\n{lines}\n"
+        f"For EACH generated shot, in order, return pass=true ONLY if it shows "
+        f"the SAME product as the references (same type, colours, design, "
+        f"prints), with NOTHING added that the references do not show (no "
+        f"scarf/drape/jewellery/accessory - and no person UNLESS that shot is "
+        f"marked intentionally worn, no invented lettering, labels or "
+        f"embossing - blank surfaces stay blank), and the product clearly "
+        f"FILLS the frame. "
+        f"A worn shot must ALSO match its label: Back = the model seen from "
+        f"BEHIND (face away), Left/Right Side = a side PROFILE, "
+        f"Close-up/Detail = a TIGHT crop (NOT full-length), Front = "
+        f"full-length facing the camera. Wrong angle or framing FAILS. "
+        f'On fail, give a short "issue" and a one-line corrected "fix" visual. '
+        f"Return ONLY a JSON array: "
+        f'[{{"shot":1,"pass":true,"issue":"","fix":""}}]')
+    raw = llm.chat(prompt, system="You output ONLY strict JSON.",
+                   images=list(ref_urls) + list(shot_urls),
+                   model=_qa_model(), temperature=0.2, max_tokens=1200)
+    out = {}
+    for i, item in enumerate(_extract_json(raw), 1):
+        if isinstance(item, dict):
+            out[item.get("shot", i)] = {
+                "pass": bool(item.get("pass", True)),
+                "issue": str(item.get("issue") or "")[:150],
+                "fix": str(item.get("fix") or "")[:300],
+            }
+    return out
 
 
 def _direct_posters(urls, brief, count):
@@ -267,134 +290,26 @@ def _direct_posters(urls, brief, count):
     return posters[:count]
 
 
-# ------------------------------------------------------------------------ QA
-def _qa_shots(ref_urls, shot_urls, labels, worn_flags=None):
-    """One vision pass over the whole set: per-shot pass/issue/fix.
-    `worn_flags[i]` tells the judge shot i is INTENTIONALLY worn by a model,
-    so a person there is correct - without it the QA flagged every worn
-    lifestyle shot as "added person" and burned a pointless re-roll."""
-    worn_flags = worn_flags or [False] * len(shot_urls)
-    lines = "\n".join(
-        f"  shot {i + 1} ({labels[i]})"
-        + (" - INTENTIONALLY worn by a model; the person is correct. Judge "
-           "the product's fidelity AND that the shot matches its label's "
-           "camera angle/framing" if worn_flags[i] else
-           " - product only; a person here is a FAIL")
-        for i in range(len(shot_urls)))
-    prompt = (
-        f"IMAGES 1-{len(ref_urls)} are the REFERENCE product photographs. "
-        f"IMAGES {len(ref_urls) + 1}-{len(ref_urls) + len(shot_urls)} are "
-        f"generated catalog shots, IN ORDER:\n{lines}\n"
-        f"For EACH generated shot, in order, return pass=true ONLY if it shows "
-        f"the SAME product as the references (same type, colours, design, "
-        f"prints), with NOTHING added that the references do not show (no "
-        f"scarf/drape/jewellery/accessory - and no person UNLESS that shot is "
-        f"marked intentionally worn, no invented lettering, labels or "
-        f"embossing - blank surfaces stay blank), and the product clearly "
-        f"FILLS the frame (never a small object floating in empty space). "
-        f"A worn shot must ALSO match its label: Back = the model seen from "
-        f"BEHIND (back of the garment, face away), Left/Right Side = a side "
-        f"PROFILE, Close-up/Detail = a TIGHT crop (NOT full-length), Front = "
-        f"full-length facing the camera. A worn shot at the wrong angle or "
-        f"framing for its label FAILS - describe the correct angle in the "
-        f'"fix". '
-        f'On fail, give a short "issue" and a one-line corrected "fix" visual. '
-        f"Return ONLY a JSON array: "
-        f'[{{"shot":1,"pass":true,"issue":"","fix":""}}]')
-    raw = llm.chat(prompt, system="You output ONLY strict JSON.",
-                   images=list(ref_urls) + list(shot_urls),
-                   model=_qa_model(), temperature=0.2, max_tokens=1200)
-    out = {}
-    for i, item in enumerate(_extract_json(raw), 1):
-        if isinstance(item, dict):
-            out[item.get("shot", i)] = {
-                "pass": bool(item.get("pass", True)),
-                "issue": str(item.get("issue") or "")[:150],
-                "fix": str(item.get("fix") or "")[:300],
-            }
-    return out
-
-
-# ------------------------------------------------------------------- helpers
-def _scene(i, shot):
-    """Minimal storyboard-shaped dict so compose.scene_image just works."""
-    return {
-        "n": i,
-        "method": "edit_animate",
-        "mode": "product",
-        "visual": (shot.get("visual") or "this exact product, catalog shot"),
-        "background": (shot.get("setting")
-                       or "clean seamless studio, soft directional light"),
-        "energy": "",
-    }
-
-
-FILL_FRAME = (
-    " FRAMING: the product is the unmistakable subject and FILLS the frame - "
-    "roughly 75-90% of frame height when worn and 65-85% standalone, tight "
-    "confident cropping; NEVER a small object floating in empty space.")
-
-
-# Human-realism cues for worn shots - the 8-step edit model tends to render a
-# waxy, mannequin-like person, so steer it toward a real photograph. (Prompt
-# only; the deeper fix is more sampling steps, which we're not paying for here.)
-_REALISM = (
-    " REALISM: a REAL photograph of a real human, shot on an 85mm portrait lens "
-    "in soft natural daylight - authentic skin with visible pores and natural "
-    "texture and subtle imperfections, natural catchlights in the eyes, real "
-    "hair strands, lifelike proportions and a relaxed natural expression. NOT a "
-    "3D render, NOT CGI, NOT a video-game character, NOT a mannequin or "
-    "dummy - no plastic, waxy, airbrushed or smoothed-over skin, no dead eyes.")
-
-
-def _worn_emphasis(gender, label):
-    """Prepended (via `emphasis`) to every worn pose shot. compose.py's worn
-    lead never carries the gender or the camera angle, so we inject both here:
-    the establishing shot was defaulting to a female model, and the side/back
-    re-frames were coming out front-facing because the 'keep everything
-    identical' lead drowned the small pose line."""
-    g = (f" The model is a {gender} person - clearly and unmistakably {gender}, "
-         f"a {gender} fashion model." + _REALISM
-         if gender in ("male", "female") else "")
-    lab = (label or "").lower()
-    if "close" in lab or "detail" in lab:
-        # Without this the close-up got NO framing steering, so it re-framed from
-        # the full-length front anchor and just reproduced the front - it never
-        # zoomed in. Force an explicit tight crop.
-        pose = (" CAMERA MOVED IN CLOSE: a TIGHT waist-up crop - ONLY the upper "
-                "body and the garment's detail (neckline, fabric, texture, print, "
-                "stitching) fill the frame. This is NOT a full-length shot: the "
-                "legs and feet are OUT of frame. Same person and outfit, MUCH "
-                "closer framing than the full-length shots.")
-    elif "back" in lab:
-        pose = (" CAMERA ANGLE: the model has turned ALL THE WAY AROUND, BACK to "
-                "the camera - we see the back of the head, the shoulders and the "
-                "GARMENT'S BACK; the face is NOT visible. This is a different "
-                "camera angle of the same person and outfit, NOT a front view."
-                # Big blank denim backs make the edit model stamp gibberish
-                # brand text; the OCR guard then drops the whole shot. Forbid it.
-                " The back of the garment is PLAIN fabric - do NOT print, stamp, "
-                "emboss or add ANY brand name, logo, letters, numbers, words or "
-                "graphic anywhere on the back; blank fabric stays completely "
-                "blank.")
-    elif "left" in lab:
-        pose = (" CAMERA ANGLE: the model has physically rotated to face their "
-                "LEFT - photograph the LEFT-SIDE PROFILE (the side of the body "
-                "and face), NOT a front view. Same person and outfit, new "
-                "orientation.")
-    elif "right" in lab:
-        pose = (" CAMERA ANGLE: the model has physically rotated to face their "
-                "RIGHT - photograph the RIGHT-SIDE PROFILE (the side of the body "
-                "and face), NOT a front view. Same person and outfit, new "
-                "orientation.")
-    else:
-        pose = ""
-    return FILL_FRAME + g + pose
+# ------------------------------------------------------------------- rendering
+def _render(jid, jd, i, base, refs, text, worn, tag):
+    """One direct 8-step Lightning edit -> jd/scene_i.png."""
+    import compose
+    from PIL import Image
+    neg = (compose.NEG_EDIT if worn else
+           compose.NEG_PRODUCT + ", person, model, human, face, hands")
+    out = compose.edit_scene(
+        base, text, f"rk_{jid}_s{i}{tag}",
+        seed=abs(hash(f"{jid}{tag}{i}")) % 10000,
+        ref_paths=[r for r in refs if r][:2], negative=neg,
+        target_wh=(PHOTO_W, PHOTO_H) if worn else None)
+    dst = os.path.join(jd, f"scene_{i}.png")
+    Image.open(out).convert("RGB").save(dst)
+    return dst
 
 
 def _fit(path, w, h):
-    """Cover-crop to the target aspect and resize - the edit model outputs at
-    its own resolution, but a catalog shot must be a true 3:4 (poster 4:5)."""
+    """Cover-crop to the target aspect and resize - a catalog shot must be a
+    true 3:4 (poster 4:5) whatever resolution the edit model produced."""
     from PIL import Image
     img = Image.open(path).convert("RGB")
     want = w / h
@@ -415,18 +330,18 @@ def _fit(path, w, h):
     return out
 
 
-# ---------------------------------------------------------------------- main
+# ------------------------------------------------------------------------ main
 def make_photos(request):
     t0 = time.time()
     common.load_env()
     import animate      # local imports keep handler boot light
-    import compose
+    import guards
     from make_reel import _free_comfy_vram, _upload
 
     urls = [u for u in (request.get("product_images") or []) if u][:8]
     if not urls:
         raise ValueError("product_images is required")
-    prompt = (request.get("prompt") or "").strip()
+    style = guards.desexualise((request.get("prompt") or "").strip())
     mode = "poster" if request.get("mode") == "poster" else "photos"
     gender = (request.get("model_gender") or "").strip().lower() or None
     count = max(1, min(MAX_COUNT, int(request.get("count") or 5)))
@@ -435,11 +350,12 @@ def make_photos(request):
     jid, jd = common.new_job("photos")
     import tracer as _tracer
     tr = _tracer.Tracer(jid, enabled=bool(cfg.get("trace", True)))
-    tr.write_json("request.json", {"product_images": urls, "prompt": prompt,
-                                   "mode": mode, "count": count})
+    tr.write_json("request.json", {"product_images": urls, "prompt": style,
+                                   "mode": mode, "count": count,
+                                   "gender": gender})
     costs.reset()
     common.log("job", f"{jid} photos task: mode={mode} count={count} "
-                      f"refs={len(urls)} gender={gender or 'auto'}")
+                      f"refs={len(urls)} gender={gender or 'none'}")
 
     products = []
     for i, u in enumerate(urls, 1):
@@ -451,7 +367,8 @@ def make_photos(request):
     results, dropped, copy = [], 0, {}
 
     if mode == "poster":
-        posters = _direct_posters(urls, prompt, count)
+        import compose
+        posters = _direct_posters(urls, style, count)
         tr.write_json("director.json", posters)
         for i, p in enumerate(posters, 1):
             label = str(p.get("label") or f"Poster {i}")[:40]
@@ -473,21 +390,9 @@ def make_photos(request):
                 dropped += 1
                 common.log("photos", f"poster {i} failed ({e}) - dropped")
     else:
-        # Picking a model (female/male) means "shoot this apparel on a model" -
-        # use the fixed catalog pose set + anchor carry for ONE consistent
-        # model. No model (none) / unspecified keeps the freeform director.
-        worn_poses = gender in ("female", "male")
-        shots = (_pose_plan(gender, prompt, count) if worn_poses
-                 else _direct_photos(urls, prompt, count, model_gender=gender))
-        tr.write_json("director.json", shots)
-
-        # ONE Haiku pass over the uploads gives us BOTH the listing copy and an
-        # angle label per photo, so each pose can be handed the RIGHT view (back
-        # shot -> the back photo) no matter the upload order. Falls back to plain
-        # order if labeling fails. Put a front-labelled photo first so it's the
-        # establishing base + guard reference.
         copy, angles = _analyze_uploads(urls)
         if angles:
+            # A front-labelled photo leads: establishing base + guard reference.
             fronts = [k for k, a in enumerate(angles) if a == "front"]
             if fronts and fronts[0] != 0:
                 j = fronts[0]
@@ -495,103 +400,112 @@ def make_photos(request):
                 angles[0], angles[j] = angles[j], angles[0]
             tr.write_json("angles.json",
                           [{"i": k, "angle": a} for k, a in enumerate(angles)])
-        stills, shot_urls, labels = [], [], []
-        # The first worn still becomes the anchor every later worn shot re-frames
-        # from, so the same person + outfit appears in every angle.
-        anchor_still = None
-        for i, shot in enumerate(shots, 1):
-            worn = bool(shot.get("worn"))
-            sc = _scene(i, shot)
-            # Worn pose shots need gender + camera-angle steering injected;
-            # product-only / freeform shots just get the framing rule.
-            emph = (_worn_emphasis(gender, shot.get("label"))
-                    if worn_poses else FILL_FRAME)
-            base, xrefs, anc, amode = _shot_inputs(
-                shot.get("label"), worn, products, angles, anchor_still)
+
+        worn = gender in ("female", "male")
+        if worn:
+            setting = style or "clean seamless studio backdrop, soft even light"
+            plan = [{"label": l, "visual": v, "worn": True, "setting": setting}
+                    for l, v in _WORN_POSES[:count]]
+        else:
+            plan = [{"label": l, "visual": v, "worn": False,
+                     "setting": style or _PRODUCT_SETTINGS[k % len(_PRODUCT_SETTINGS)]}
+                    for k, (l, v) in enumerate(_PRODUCT_SHOTS[:count])]
+        tr.write_json("director.json", plan)
+
+        rerolls = MAX_REROLLS
+        anchor = None       # the establishing worn still (identity reference)
+        stills = []         # (i, shot, still_path, base, refs, prompt)
+        for i, shot in enumerate(plan, 1):
+            followon = shot["worn"] and anchor is not None
+            xrefs = _ordered_refs(shot["label"], products, angles)
+            if shot["worn"]:
+                base = (xrefs[0] if followon and xrefs else products[0])
+                refs = (([anchor] if followon else [])
+                        + [p for p in xrefs if p != base])
+                text = _worn_prompt(gender, shot["visual"], shot["setting"],
+                                    followon,
+                                    is_back="back" in shot["label"].lower())
+            else:
+                base = products[0]
+                refs = [p for p in xrefs if p != base]
+                text = _product_prompt(shot["visual"], shot["setting"])
+            tr.write_json(f"scene_{i}_compose.json", {
+                "label": shot["label"], "worn": shot["worn"],
+                "base": os.path.basename(base),
+                "refs": [os.path.basename(r) for r in refs[:2]],
+                "followon": followon, "prompt": text})
             try:
-                still = compose.scene_image(
-                    sc, base, PHOTO_W, PHOTO_H, jd,
-                    seed=abs(hash(f"{jid}s{i}")) % 10000, tracer=tr,
-                    anchor=anc, anchor_mode=amode, include_human=worn,
-                    emphasis=emph, force_size=worn, extra_refs=xrefs,
-                    quality=True)
+                still = _render(jid, jd, i, base, refs, text, shot["worn"], "a")
                 ok, detail = animate.guard_composite(still, products[0])
                 tr.write_json(f"shot_{i}_guard.json", {"pass": ok,
                                                        "detail": detail})
-                if not ok:     # invented/changed lettering: one fresh re-roll
+                if not ok and rerolls > 0:      # invented text: one re-roll
+                    rerolls -= 1
                     common.log("photos", f"shot {i} guard fail - re-roll "
                                          f"({detail[:80]})")
-                    still = compose.scene_image(
-                        sc, base, PHOTO_W, PHOTO_H, jd,
-                        seed=abs(hash(f"{jid}retry{i}")) % 10000, tracer=tr,
-                        anchor=anc, anchor_mode=amode, include_human=worn,
-                        force_size=worn, extra_refs=xrefs, quality=True,
-                        emphasis=emph + f" CRITICAL: the previous render "
-                                 f"was WRONG ({detail}). Blank surfaces stay "
-                                 f"blank; printed text stays exact.")
-                    ok2, _ = animate.guard_composite(still, products[0])
-                    if not ok2:
-                        dropped += 1
-                        common.log("photos", f"shot {i} still failing OCR "
-                                             f"guard - dropped")
-                        continue
-                stills.append((i, shot, still))
-                if worn and anchor_still is None:
-                    anchor_still = still     # establish the model for the rest
+                    still = _render(jid, jd, i, base, refs,
+                                    text + f" CRITICAL: the previous render "
+                                           f"was WRONG ({detail}). Blank "
+                                           f"surfaces stay blank; printed "
+                                           f"text stays exact.",
+                                    shot["worn"], "b")
+                    ok, _ = animate.guard_composite(still, products[0])
+                if not ok:
+                    dropped += 1
+                    common.log("photos", f"shot {i} failing OCR guard - "
+                                         f"dropped")
+                    continue
+                stills.append((i, shot, still, base, refs, text))
+                if shot["worn"] and anchor is None:
+                    anchor = still   # establish the model for the rest
             except Exception as e:
                 dropped += 1
                 common.log("photos", f"shot {i} render failed ({e}) - dropped")
         animate.unload_guard()
 
-        # Upload, then ONE QA pass over the whole set.
-        for i, shot, still in stills:
-            u = _upload(_fit(still, PHOTO_W, PHOTO_H), "products/ai",
-                        f"{jid}-{i}-{str(shot.get('label') or i).lower().replace(' ', '-')[:24]}.jpg")
-            shot_urls.append(u)
-            labels.append(str(shot.get("label") or f"Shot {i}"))
+        # Upload all shots, then ONE QA pass over the whole set.
+        shot_urls, labels = [], []
+        for i, shot, still, *_ in stills:
+            slug = str(shot["label"]).lower().replace(" ", "-")[:24]
+            shot_urls.append(_upload(_fit(still, PHOTO_W, PHOTO_H),
+                                     "products/ai", f"{jid}-{i}-{slug}.jpg"))
+            labels.append(str(shot["label"]))
         verdicts = {}
         try:
             verdicts = _qa_shots(urls, shot_urls, labels,
-                                 [bool(s.get("worn")) for _, s, _ in stills])
+                                 [s["worn"] for _, s, *_ in stills])
             tr.write_json("qa.json", verdicts)
         except Exception as e:
             common.log("photos", f"QA pass failed (non-fatal, keeping all "
                                  f"shots): {e}")
-        for k, ((i, shot, still), u, label) in enumerate(
+        for k, (entry, u, label) in enumerate(
                 zip(stills, shot_urls, labels), 1):
+            i, shot, still, base, refs, text = entry
             v = verdicts.get(k, {"pass": True})
-            if v.get("pass", True):
+            if v.get("pass", True) or rerolls <= 0:
+                # Out of budget -> ship the original; fidelity was OCR-guarded,
+                # a framing miss is not worth an unbounded GPU bill.
                 results.append({"label": label, "url": u})
                 continue
-            # One corrected re-roll from the QA's fix; still bad -> drop.
+            rerolls -= 1
             common.log("photos", f"shot {i} QA fail ({v.get('issue')}) - "
                                  f"corrected re-roll")
-            sc = _scene(i, {"visual": v.get("fix") or shot.get("visual"),
-                            "setting": shot.get("setting")})
-            worn = bool(shot.get("worn"))
-            emph = (_worn_emphasis(gender, shot.get("label"))
-                    if worn_poses else FILL_FRAME)
-            base, xrefs, anc, amode = _shot_inputs(
-                shot.get("label"), worn, products, angles, anchor_still)
             try:
-                still2 = compose.scene_image(
-                    sc, base, PHOTO_W, PHOTO_H, jd,
-                    seed=abs(hash(f"{jid}fix{i}")) % 10000, tracer=tr,
-                    anchor=anc, anchor_mode=amode, quality=True,
-                    include_human=worn, force_size=worn, extra_refs=xrefs,
-                    emphasis=emph + f" CRITICAL: a previous attempt was "
-                             f"WRONG ({v.get('issue')}). Match the reference "
-                             f"product EXACTLY.")
-                u2 = _upload(_fit(still2, PHOTO_W, PHOTO_H),
-                             "products/ai", f"{jid}-{i}-fixed.jpg")
-                results.append({"label": label, "url": u2})
+                still2 = _render(jid, jd, i, base, refs,
+                                 text + f" CRITICAL: a previous attempt was "
+                                        f"WRONG ({v.get('issue')}). "
+                                        f"{v.get('fix') or ''}",
+                                 shot["worn"], "c")
+                results.append({"label": label,
+                                "url": _upload(_fit(still2, PHOTO_W, PHOTO_H),
+                                               "products/ai",
+                                               f"{jid}-{i}-fixed.jpg")})
             except Exception as e:
-                dropped += 1
-                common.log("photos", f"shot {i} corrected re-roll failed "
-                                     f"({e}) - dropped")
+                common.log("photos", f"shot {i} re-roll failed ({e}) - "
+                                     f"keeping original")
+                results.append({"label": label, "url": u})
 
-    # `copy` came from the same _analyze_uploads pass that labeled the angles
-    # (photos mode, pre-render) - drop it if nothing rendered.
+    # copy came from the same pre-render pass that labeled the angles.
     if not results:
         copy = {}
     if copy:

@@ -111,14 +111,6 @@ EDIT_LORA = "Qwen-Image-Edit-2511-Lightning-8steps.safetensors"
 # stays for that path; with Lightning it must be 1.0.
 EDIT_DENOISE_PRODUCT = float(os.environ.get("REELKIT_EDIT_DENOISE", "1.0"))
 
-# Real-quality edit path for CATALOG PHOTOS (make_photos): full model, no
-# Lightning LoRA, real classifier-free guidance. CFG 1.0 ignores the negative
-# prompt entirely and barely steers on the positive - the waxy mannequin skin
-# and weak pose adherence live there. Reels keep the fast path (30+ frames);
-# a photo set renders 4-8 stills, so it can afford ~7x the sampling.
-QUALITY_STEPS = int(os.environ.get("PHOTO_QUALITY_STEPS", "28"))
-QUALITY_CFG = float(os.environ.get("PHOTO_QUALITY_CFG", "3.5"))
-
 
 def _add_lora(wf, lora_name, after_node, sampler_node="17"):
     wf["900"] = {"class_type": "LoraLoaderModelOnly",
@@ -148,8 +140,7 @@ def generate_scene(prompt, w, h, out_prefix, seed=0, steps=None, cfg=None,
 
 
 def edit_scene(product_path, instruction, out_prefix, seed=0, steps=None, cfg=None,
-               ref_paths=None, negative=None, denoise=1.0, target_wh=None,
-               quality=False):
+               ref_paths=None, negative=None, denoise=1.0, target_wh=None):
     """
     Qwen-Image-Edit-2511: keep the supplied photograph's subject, change its
     world. This is the right tool when the product is photographed IN CONTEXT -
@@ -209,13 +200,7 @@ def edit_scene(product_path, instruction, out_prefix, seed=0, steps=None, cfg=No
             node["inputs"][f"image{slot}"] = [scale_id, 0]
         common.log("compose", f"  + reference image{slot}: {os.path.basename(extra)}")
 
-    if quality:
-        # Full model, Lightning OFF, real CFG - negatives finally count.
-        for _, node in common.nodes_of(wf, "PrimitiveBoolean"):
-            node["inputs"]["value"] = False
-        steps = steps or QUALITY_STEPS
-        cfg = cfg if cfg is not None else QUALITY_CFG
-    elif FAST:
+    if FAST:
         for _, node in common.nodes_of(wf, "PrimitiveBoolean"):
             node["inputs"]["value"] = True          # template's Lightning switch
         steps, cfg = steps or FAST_STEPS, cfg if cfg is not None else 1.0
@@ -329,7 +314,7 @@ def scene_image(scene, product_path, w, h, job_dir, seed=0, cut_cache={},
                 bg_cache=None, height_frac=PRODUCT_HEIGHT_FRAC,
                 center_y=PRODUCT_CENTER_Y, tracer=None, tpl_defaults=None,
                 anchor=None, include_human=True, emphasis="", force_size=False,
-                extra_refs=None, anchor_mode="edit", quality=False):
+                extra_refs=None):
     """
     Produce the still for one storyboard scene. Returns its path.
 
@@ -369,21 +354,10 @@ def scene_image(scene, product_path, w, h, job_dir, seed=0, cut_cache={},
         # angle - without it, each scene re-dresses a fresh model from the
         # flat-lay and drifts to a different outfit (the kurti-reel failure).
         primary, refs = product_path, []
-        followon = False        # anchor IS the edit base (re-frame its pixels)
-        identity_carry = False  # anchor rides along as an identity ref only
+        followon = False
         want_anchor = bool(d.get("anchorModel")) or include_human
         if want_anchor and anchor and anchor != product_path:
-            # anchor_mode="identity": do NOT make the anchor render image1.
-            # Qwen-Edit preserves image1's subject AND pose (at CFG 1.0 the
-            # rotate/re-frame text cannot overpower it), so editing the front
-            # render returned the front pose for every angle (photos_9dd8313e
-            # scenes 2-5). Keep the caller's angle-matched UPLOAD as image1 -
-            # the person is drawn fresh, so the pose instruction lands - and
-            # carry the anchor in a ref slot so the SAME model persists.
-            if anchor_mode == "identity":
-                refs, identity_carry = [anchor], True
-            else:
-                primary, refs, followon = anchor, [product_path], True
+            primary, refs, followon = anchor, [product_path], True
         # Show Qwen the OTHER uploaded angles too, not just one photo - so a
         # back/side shot has the REAL garment from that view to copy instead of
         # inventing it. Qwen-Edit takes image1 + 2 refs, so we fill the two ref
@@ -403,21 +377,6 @@ def scene_image(scene, product_path, w, h, job_dir, seed=0, cut_cache={},
                     f"identical garment: same colours, same embroidery and prints, "
                     f"same fabric, every detail unchanged. Do NOT change the outfit. "
                     f"Re-frame them for this new shot: {shot}. Setting: {setting}.")
-        elif identity_carry:
-            # Follow-on worn shot rebuilt FROM the garment photo: dress-the-model
-            # establishing language (so the new pose is drawn, not inherited) plus
-            # a same-person clause pointing at the anchor in the ref slot. No
-            # "full-body" here - close-up shots must stay free to crop tight.
-            lead = (
-                "Show this EXACT outfit worn by a model. Take the garment(s) in "
-                "the photograph and dress the model in them, keeping the "
-                "identical fabric, colours, prints, embroidery, lace and cut of "
-                "EVERY piece completely unchanged - do NOT restyle, recolour, "
-                "simplify or swap it for a different garment. The model is the "
-                "SAME person as the model in the other reference photograph - "
-                "identical face, identical hairstyle, identical skin tone and "
-                "build, the same photoshoot continued. "
-                f"The shot: {shot}. Setting: {setting}.")
         elif not include_human:
             # PRODUCT-ONLY reel from a photo that may show a model wearing the
             # item. "Keep the product, change the background" would keep the
@@ -456,7 +415,7 @@ def scene_image(scene, product_path, w, h, job_dir, seed=0, cut_cache={},
         # A followon shot is always a person shot (it re-frames the worn outfit),
         # so it must get the person/wear guards even if the brain tagged the
         # scene mode 'product'.
-        person_shot = shows_person or followon or identity_carry
+        person_shot = shows_person or followon
         # The negative prompt alone does not stop the 8-step Lightning edit from
         # stamping invented brand text on blank surfaces (observed: mirrored
         # gibberish printed on the blank insoles of a pump). State it as a
@@ -483,23 +442,15 @@ def scene_image(scene, product_path, w, h, job_dir, seed=0, cut_cache={},
         if tracer:
             tracer.write_json(f"scene_{n}_compose.json", {
                 "path": scene["method"], "model": "Qwen-Image-Edit-2511-fp8mixed",
-                "fast_lightning_4step": FAST and not quality,
-                "quality_mode": quality,
-                "steps": QUALITY_STEPS if quality else (FAST_STEPS if FAST else 40),
-                "cfg": QUALITY_CFG if quality else (1.0 if FAST else 4.0),
-                "seed": seed + n,
+                "fast_lightning_4step": FAST, "seed": seed + n,
                 "positive_prompt": instruction, "negative_prompt": negative,
-                "source_photo": primary,
-                "anchor_used": followon or identity_carry,
-                "anchor_mode": ("identity" if identity_carry
-                                else "edit" if followon else "none"),
+                "source_photo": primary, "anchor_used": followon,
                 "extra_refs": refs, "shows_person": shows_person})
         # Log the EXACT edit request so it shows in the worker logs - this is
         # where outfit drift is born, so we want it visible, not buried.
         common.log("compose", f"scene {n} EDIT primary={os.path.basename(primary)} "
                               f"refs={[os.path.basename(r) for r in refs]} "
-                              f"followon={followon} identity={identity_carry} "
-                              f"shows_person={shows_person}")
+                              f"followon={followon} shows_person={shows_person}")
         common.log("compose", f"scene {n} INSTRUCTION: {instruction[:500]}")
         # Product-only: preserve the real product as the img2img base (denoise
         # < 1). Worn/human scenes keep full denoise so the model can re-pose.
@@ -507,8 +458,7 @@ def scene_image(scene, product_path, w, h, job_dir, seed=0, cut_cache={},
         out_edit = edit_scene(primary, instruction, prefix + "_edit",
                               seed=seed + n, ref_paths=refs, negative=negative,
                               denoise=edit_denoise,
-                              target_wh=(w, h) if force_size else None,
-                              quality=quality)
+                              target_wh=(w, h) if force_size else None)
         out = os.path.join(job_dir, f"scene_{n}.png")
         Image.open(out_edit).convert("RGB").save(out)
         common.log("compose", f"scene {n}: edited real photo -> {os.path.basename(out)}")
