@@ -329,7 +329,16 @@ def _worn_emphasis(gender, label):
          f"a {gender} fashion model." + _REALISM
          if gender in ("male", "female") else "")
     lab = (label or "").lower()
-    if "back" in lab:
+    if "close" in lab or "detail" in lab:
+        # Without this the close-up got NO framing steering, so it re-framed from
+        # the full-length front anchor and just reproduced the front - it never
+        # zoomed in. Force an explicit tight crop.
+        pose = (" CAMERA MOVED IN CLOSE: a TIGHT waist-up crop - ONLY the upper "
+                "body and the garment's detail (neckline, fabric, texture, print, "
+                "stitching) fill the frame. This is NOT a full-length shot: the "
+                "legs and feet are OUT of frame. Same person and outfit, MUCH "
+                "closer framing than the full-length shots.")
+    elif "back" in lab:
         pose = (" CAMERA ANGLE: the model has turned ALL THE WAY AROUND, BACK to "
                 "the camera - we see the back of the head, the shoulders and the "
                 "GARMENT'S BACK; the face is NOT visible. This is a different "
