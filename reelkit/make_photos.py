@@ -212,6 +212,22 @@ def _ordered_refs(label, products, angles):
                                         key=lambda i: (score(i), i))]
 
 
+def _shot_inputs(label, worn, products, angles, anchor_still):
+    """Edit base, extra refs, anchor and anchor mode for one shot.
+
+    A follow-on WORN shot edits the angle-matched UPLOAD with the anchor
+    passed as an identity REFERENCE - editing the anchor render itself just
+    reproduced its pose in every shot, because Qwen-Edit keeps image1's
+    subject and composition (job photos_9dd8313e: scenes 2-5 all came out as
+    the front pose). Everything else edits the (front) upload directly."""
+    xrefs = _ordered_refs(label, products, angles)
+    anc = anchor_still if worn else None
+    if anc is not None:
+        base = xrefs[0] if xrefs else products[0]
+        return base, [p for p in xrefs if p != base], anc, "identity"
+    return products[0], xrefs, anc, "edit"
+
+
 def _pose_plan(gender, style_note, count):
     """Fixed worn-model pose set (front, close-up, sides, back, ...), one shared
     setting so the set is cohesive. All shots worn by the chosen model."""
@@ -260,8 +276,9 @@ def _qa_shots(ref_urls, shot_urls, labels, worn_flags=None):
     worn_flags = worn_flags or [False] * len(shot_urls)
     lines = "\n".join(
         f"  shot {i + 1} ({labels[i]})"
-        + (" - INTENTIONALLY worn by a model; the person is correct, judge "
-           "only the product's fidelity" if worn_flags[i] else
+        + (" - INTENTIONALLY worn by a model; the person is correct. Judge "
+           "the product's fidelity AND that the shot matches its label's "
+           "camera angle/framing" if worn_flags[i] else
            " - product only; a person here is a FAIL")
         for i in range(len(shot_urls)))
     prompt = (
@@ -275,6 +292,12 @@ def _qa_shots(ref_urls, shot_urls, labels, worn_flags=None):
         f"marked intentionally worn, no invented lettering, labels or "
         f"embossing - blank surfaces stay blank), and the product clearly "
         f"FILLS the frame (never a small object floating in empty space). "
+        f"A worn shot must ALSO match its label: Back = the model seen from "
+        f"BEHIND (back of the garment, face away), Left/Right Side = a side "
+        f"PROFILE, Close-up/Detail = a TIGHT crop (NOT full-length), Front = "
+        f"full-length facing the camera. A worn shot at the wrong angle or "
+        f"framing for its label FAILS - describe the correct angle in the "
+        f'"fix". '
         f'On fail, give a short "issue" and a one-line corrected "fix" visual. '
         f"Return ONLY a JSON array: "
         f'[{{"shot":1,"pass":true,"issue":"","fix":""}}]')
@@ -479,18 +502,18 @@ def make_photos(request):
         for i, shot in enumerate(shots, 1):
             worn = bool(shot.get("worn"))
             sc = _scene(i, shot)
-            anc = anchor_still if worn else None
             # Worn pose shots need gender + camera-angle steering injected;
             # product-only / freeform shots just get the framing rule.
             emph = (_worn_emphasis(gender, shot.get("label"))
                     if worn_poses else FILL_FRAME)
-            xrefs = _ordered_refs(shot.get("label"), products, angles)
+            base, xrefs, anc, amode = _shot_inputs(
+                shot.get("label"), worn, products, angles, anchor_still)
             try:
                 still = compose.scene_image(
-                    sc, products[0], PHOTO_W, PHOTO_H, jd,
+                    sc, base, PHOTO_W, PHOTO_H, jd,
                     seed=abs(hash(f"{jid}s{i}")) % 10000, tracer=tr,
-                    anchor=anc, include_human=worn, emphasis=emph,
-                    force_size=worn, extra_refs=xrefs)
+                    anchor=anc, anchor_mode=amode, include_human=worn,
+                    emphasis=emph, force_size=worn, extra_refs=xrefs)
                 ok, detail = animate.guard_composite(still, products[0])
                 tr.write_json(f"shot_{i}_guard.json", {"pass": ok,
                                                        "detail": detail})
@@ -498,10 +521,10 @@ def make_photos(request):
                     common.log("photos", f"shot {i} guard fail - re-roll "
                                          f"({detail[:80]})")
                     still = compose.scene_image(
-                        sc, products[0], PHOTO_W, PHOTO_H, jd,
+                        sc, base, PHOTO_W, PHOTO_H, jd,
                         seed=abs(hash(f"{jid}retry{i}")) % 10000, tracer=tr,
-                        anchor=anc, include_human=worn, force_size=worn,
-                        extra_refs=xrefs,
+                        anchor=anc, anchor_mode=amode, include_human=worn,
+                        force_size=worn, extra_refs=xrefs,
                         emphasis=emph + f" CRITICAL: the previous render "
                                  f"was WRONG ({detail}). Blank surfaces stay "
                                  f"blank; printed text stays exact.")
@@ -547,12 +570,13 @@ def make_photos(request):
             worn = bool(shot.get("worn"))
             emph = (_worn_emphasis(gender, shot.get("label"))
                     if worn_poses else FILL_FRAME)
-            xrefs = _ordered_refs(shot.get("label"), products, angles)
+            base, xrefs, anc, amode = _shot_inputs(
+                shot.get("label"), worn, products, angles, anchor_still)
             try:
                 still2 = compose.scene_image(
-                    sc, products[0], PHOTO_W, PHOTO_H, jd,
+                    sc, base, PHOTO_W, PHOTO_H, jd,
                     seed=abs(hash(f"{jid}fix{i}")) % 10000, tracer=tr,
-                    anchor=(anchor_still if worn else None),
+                    anchor=anc, anchor_mode=amode,
                     include_human=worn, force_size=worn, extra_refs=xrefs,
                     emphasis=emph + f" CRITICAL: a previous attempt was "
                              f"WRONG ({v.get('issue')}). Match the reference "
