@@ -63,17 +63,31 @@ def _extract_json(raw):
 
 
 # ------------------------------------------------------------------ director
-def _direct_photos(urls, style_note, count):
-    """Haiku writes the shot list: varied staging, same product, worn or not."""
+def _direct_photos(urls, style_note, count, model_gender=None):
+    """Haiku writes the shot list: varied staging, same product, worn or not.
+    `model_gender`: 'female' | 'male' -> worn shots use that model and apparel
+    gets 2-3 of them; 'none' -> every shot is product-only; None -> the
+    director decides freely (legacy behaviour)."""
     note = f' The seller\'s style note: "{style_note}".' if style_note else ""
+    if model_gender == "none":
+        gender_rule = ('- "worn" must be false for EVERY shot - the seller '
+                       "wants product-only photos, no model.\n")
+    elif model_gender in ("female", "male"):
+        gender_rule = (f'- If the item is apparel/wearable, make 2-3 of the '
+                       f'shots "worn": true - worn by a {model_gender} model '
+                       f"- and say so in those shots' \"visual\". Standalone "
+                       f'products stay worn=false.\n')
+    else:
+        gender_rule = ('- "worn": true ONLY if the item is apparel/wearable '
+                       "AND worn shots suit it; a standalone product gets "
+                       "worn=false.\n")
     prompt = (
         f"You are a catalog art director for an Indian e-commerce shop. Study "
         f"the attached product photograph(s) and plan {count} DISTINCT catalog "
         f"shots of this EXACT product.{note}\n"
         f"Rules:\n"
         f"- The product stays identical in every shot - never redesign it.\n"
-        f'- "worn": true ONLY if the item is apparel/wearable AND worn shots '
-        f"suit it; a standalone product gets worn=false.\n"
+        f"{gender_rule}"
         f'- "visual": one line describing the shot of THIS product (e.g. '
         f'"front-facing hero of this exact cream sweater, filling the frame").\n'
         f'- "setting": background/surface/light ONLY - never name the product '
@@ -118,10 +132,18 @@ def _direct_posters(urls, brief, count):
 
 
 # ------------------------------------------------------------------------ QA
-def _qa_shots(ref_urls, shot_urls, labels):
-    """One vision pass over the whole set: per-shot pass/issue/fix."""
-    lines = "\n".join(f"  shot {i + 1} ({labels[i]})"
-                      for i in range(len(shot_urls)))
+def _qa_shots(ref_urls, shot_urls, labels, worn_flags=None):
+    """One vision pass over the whole set: per-shot pass/issue/fix.
+    `worn_flags[i]` tells the judge shot i is INTENTIONALLY worn by a model,
+    so a person there is correct - without it the QA flagged every worn
+    lifestyle shot as "added person" and burned a pointless re-roll."""
+    worn_flags = worn_flags or [False] * len(shot_urls)
+    lines = "\n".join(
+        f"  shot {i + 1} ({labels[i]})"
+        + (" - INTENTIONALLY worn by a model; the person is correct, judge "
+           "only the product's fidelity" if worn_flags[i] else
+           " - product only; a person here is a FAIL")
+        for i in range(len(shot_urls)))
     prompt = (
         f"IMAGES 1-{len(ref_urls)} are the REFERENCE product photographs. "
         f"IMAGES {len(ref_urls) + 1}-{len(ref_urls) + len(shot_urls)} are "
@@ -129,7 +151,8 @@ def _qa_shots(ref_urls, shot_urls, labels):
         f"For EACH generated shot, in order, return pass=true ONLY if it shows "
         f"the SAME product as the references (same type, colours, design, "
         f"prints), with NOTHING added that the references do not show (no "
-        f"scarf/drape/jewellery/accessory, no invented lettering, labels or "
+        f"scarf/drape/jewellery/accessory - and no person UNLESS that shot is "
+        f"marked intentionally worn, no invented lettering, labels or "
         f"embossing - blank surfaces stay blank), and the product clearly "
         f"FILLS the frame (never a small object floating in empty space). "
         f'On fail, give a short "issue" and a one-line corrected "fix" visual. '
@@ -205,6 +228,7 @@ def make_photos(request):
         raise ValueError("product_images is required")
     prompt = (request.get("prompt") or "").strip()
     mode = "poster" if request.get("mode") == "poster" else "photos"
+    gender = (request.get("model_gender") or "").strip().lower() or None
     count = max(1, min(MAX_COUNT, int(request.get("count") or 5)))
     cfg = request.get("config") or {}
 
@@ -215,7 +239,7 @@ def make_photos(request):
                                    "mode": mode, "count": count})
     costs.reset()
     common.log("job", f"{jid} photos task: mode={mode} count={count} "
-                      f"refs={len(urls)}")
+                      f"refs={len(urls)} gender={gender or 'auto'}")
 
     products = []
     for i, u in enumerate(urls, 1):
@@ -249,7 +273,7 @@ def make_photos(request):
                 dropped += 1
                 common.log("photos", f"poster {i} failed ({e}) - dropped")
     else:
-        shots = _direct_photos(urls, prompt, count)
+        shots = _direct_photos(urls, prompt, count, model_gender=gender)
         tr.write_json("director.json", shots)
         stills, shot_urls, labels = [], [], []
         for i, shot in enumerate(shots, 1):
@@ -293,7 +317,8 @@ def make_photos(request):
             labels.append(str(shot.get("label") or f"Shot {i}"))
         verdicts = {}
         try:
-            verdicts = _qa_shots(urls, shot_urls, labels)
+            verdicts = _qa_shots(urls, shot_urls, labels,
+                                 [bool(s.get("worn")) for _, s, _ in stills])
             tr.write_json("qa.json", verdicts)
         except Exception as e:
             common.log("photos", f"QA pass failed (non-fatal, keeping all "
