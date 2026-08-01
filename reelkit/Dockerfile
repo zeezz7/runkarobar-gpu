@@ -80,11 +80,15 @@ RUN printf '%s\n' \
 WORKDIR /opt/reelkit
 #  NOTE: sources are repo-root-relative (prefixed reelkit/) because RunPod's
 #  GitHub build uses the REPOSITORY ROOT as the build context, not this folder.
-COPY reelkit/handler.py reelkit/make_reel.py reelkit/brain.py reelkit/compose.py \
-     reelkit/animate.py reelkit/voiceover.py reelkit/assemble.py \
+#  EVERY new .py module MUST be added here or the build succeeds and the worker
+#  crash-loops at boot with ModuleNotFoundError (llm.py taught us: 2026-08-01,
+#  all workers unhealthy).
+COPY reelkit/handler.py reelkit/make_reel.py reelkit/make_photos.py \
+     reelkit/brain.py reelkit/llm.py reelkit/compose.py \
+     reelkit/animate.py reelkit/voiceover.py reelkit/assemble.py reelkit/sfx.py \
      reelkit/minio_upload.py reelkit/validate_image.py reelkit/common.py \
      reelkit/costs.py reelkit/wavespeed.py reelkit/guards.py reelkit/avatar.py \
-     reelkit/tracer.py ./
+     reelkit/tracer.py reelkit/trace_run.py ./
 COPY reelkit/workflows/ ./workflows/
 
 # --- runtime wiring ----------------------------------------------------------
