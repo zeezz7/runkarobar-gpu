@@ -133,31 +133,45 @@ _POSES = [
 ]
 
 
-def _label_angles(urls):
-    """Ask Haiku which camera angle each uploaded photo is (front/back/left/
-    right/side/detail/other), aligned to `urls`. Lets us hand the RIGHT view to
-    each pose shot regardless of upload order. Returns [] on any failure -> the
-    caller then falls back to plain upload order (the 'simple' behaviour)."""
-    if len(urls) < 2:
-        return []
+def _analyze_uploads(urls):
+    """ONE Haiku pass over the uploaded photos that returns BOTH:
+      - listing copy (name/brand/category/description/details/care/delivery/meta)
+        so the wizard fills itself from the render (no WaveSpeed text call), and
+      - an angle label per image (front/back/left/right/side/detail/other) so we
+        hand each pose the RIGHT view regardless of upload order.
+    Same images, same model, one round-trip. Returns ({}, []) on failure, so the
+    caller degrades to plain upload order + no auto-copy."""
+    keys = ("name", "brand", "category", "description", "details", "care",
+            "delivery", "metaDescription")
     prompt = (
-        "Label each product reference photo by CAMERA ANGLE, in order. For "
-        "EVERY image return exactly one of: front, back, left, right, side, "
-        "detail, other. front=facing the camera; back=rear view; left/right=that "
-        "side profile; side=a profile where you cannot tell left from right; "
-        "detail=close-up of a part; other=flat-lay/packaging/unclear. Return "
-        "ONLY a JSON array of that many lowercase strings, e.g. "
-        '["front","back","left"].')
+        "Study the product photo(s) and return STRICT JSON with these keys:\n"
+        '"name": short catchy product title, max 8 words;\n'
+        '"brand": brand ONLY if clearly visible on the product, else "";\n'
+        '"category": one or two word category;\n'
+        '"description": 2-3 sentence marketing description;\n'
+        '"details": 3-5 short feature lines separated by newlines;\n'
+        '"care": 1-2 care instructions;\n'
+        '"delivery": a generic delivery line;\n'
+        '"metaDescription": <=150 char SEO description;\n'
+        '"angles": a JSON array labeling EACH image IN ORDER by camera angle - '
+        "one of front, back, left, right, side, detail, other (front=facing "
+        "camera, back=rear, left/right=that profile, side=profile you cannot "
+        "tell L/R, detail=close-up of a part, other=flat-lay/unclear).\n"
+        "Plain text values, no emojis, no markdown.")
     try:
         raw = llm.chat(prompt, system="You output ONLY strict JSON.",
                        images=urls, model=_director_model(),
-                       temperature=0.1, max_tokens=200)
-        arr = _extract_json(raw)
-        if isinstance(arr, list) and len(arr) == len(urls):
-            return [str(a).strip().lower() for a in arr]
+                       temperature=0.5, max_tokens=1000)
+        obj = _extract_json(raw)
+        if isinstance(obj, dict):
+            copy = {k: str(obj.get(k) or "")[:2000] for k in keys}
+            ang = obj.get("angles")
+            angles = ([str(a).strip().lower() for a in ang]
+                      if isinstance(ang, list) and len(ang) == len(urls) else [])
+            return copy, angles
     except Exception as e:
-        common.log("photos", f"angle labeling failed (non-fatal): {e}")
-    return []
+        common.log("photos", f"upload analysis failed (non-fatal): {e}")
+    return {}, []
 
 
 def _pref_angle(label):
@@ -341,37 +355,6 @@ def _worn_emphasis(gender, label):
     return FILL_FRAME + g + pose
 
 
-def _write_copy(urls):
-    """One Haiku pass over the product photos -> e-commerce listing copy,
-    returned WITH the photos so the wizard fills itself straight from the
-    render (Claude Haiku on the endpoint, no WaveSpeed text call)."""
-    keys = ("name", "brand", "category", "description", "details", "care",
-            "delivery", "metaDescription")
-    prompt = (
-        "You are an expert e-commerce copywriter for an Indian shop. Study the "
-        "product photograph(s) and write listing copy for THIS exact product. "
-        "Return STRICT JSON with exactly these keys: "
-        '{"name":"short catchy product title, max 8 words",'
-        '"brand":"brand ONLY if clearly visible on the product, else empty",'
-        '"category":"one or two word category",'
-        '"description":"2-3 sentence marketing description",'
-        '"details":"3-5 short feature lines separated by newlines",'
-        '"care":"1-2 care instructions",'
-        '"delivery":"a generic delivery line",'
-        '"metaDescription":"<=150 char SEO description"}. '
-        "Plain text values, no emojis, no markdown.")
-    try:
-        raw = llm.chat(prompt, system="You output ONLY strict JSON.",
-                       images=urls[:4], model=_director_model(),
-                       temperature=0.6, max_tokens=800)
-        obj = _extract_json(raw)
-        if isinstance(obj, dict):
-            return {k: str(obj.get(k) or "")[:2000] for k in keys}
-    except Exception as e:
-        common.log("photos", f"copy write failed (non-fatal): {e}")
-    return {}
-
-
 def _fit(path, w, h):
     """Cover-crop to the target aspect and resize - the edit model outputs at
     its own resolution, but a catalog shot must be a true 3:4 (poster 4:5)."""
@@ -428,7 +411,7 @@ def make_photos(request):
         products.append(dst)
 
     _free_comfy_vram()      # clean GPU regardless of the previous job
-    results, dropped = [], 0
+    results, dropped, copy = [], 0, {}
 
     if mode == "poster":
         posters = _direct_posters(urls, prompt, count)
@@ -461,11 +444,12 @@ def make_photos(request):
                  else _direct_photos(urls, prompt, count, model_gender=gender))
         tr.write_json("director.json", shots)
 
-        # Smart references: label each upload by angle so each pose can be handed
-        # the RIGHT view (back shot -> the back photo) no matter the upload order.
-        # Falls back to plain order if labeling fails. Put a front-labelled photo
-        # first so it's the establishing base + guard reference.
-        angles = _label_angles(urls)
+        # ONE Haiku pass over the uploads gives us BOTH the listing copy and an
+        # angle label per photo, so each pose can be handed the RIGHT view (back
+        # shot -> the back photo) no matter the upload order. Falls back to plain
+        # order if labeling fails. Put a front-labelled photo first so it's the
+        # establishing base + guard reference.
+        copy, angles = _analyze_uploads(urls)
         if angles:
             fronts = [k for k, a in enumerate(angles) if a == "front"]
             if fronts and fronts[0] != 0:
@@ -567,9 +551,10 @@ def make_photos(request):
                 common.log("photos", f"shot {i} corrected re-roll failed "
                                      f"({e}) - dropped")
 
-    # Listing copy from the SAME Haiku that directed the shots (photos mode) -
-    # the wizard fills its Basics/SEO from this, no separate WaveSpeed call.
-    copy = _write_copy(urls) if mode == "photos" and results else {}
+    # `copy` came from the same _analyze_uploads pass that labeled the angles
+    # (photos mode, pre-render) - drop it if nothing rendered.
+    if not results:
+        copy = {}
     if copy:
         tr.write_json("copy.json", copy)
 
