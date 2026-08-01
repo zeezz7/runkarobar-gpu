@@ -140,7 +140,7 @@ def generate_scene(prompt, w, h, out_prefix, seed=0, steps=None, cfg=None,
 
 
 def edit_scene(product_path, instruction, out_prefix, seed=0, steps=None, cfg=None,
-               ref_paths=None, negative=None, denoise=1.0):
+               ref_paths=None, negative=None, denoise=1.0, target_wh=None):
     """
     Qwen-Image-Edit-2511: keep the supplied photograph's subject, change its
     world. This is the right tool when the product is photographed IN CONTEXT -
@@ -163,6 +163,27 @@ def edit_scene(product_path, instruction, out_prefix, seed=0, steps=None, cfg=No
     wf = common.load_tpl("tpl_qwen_edit.api.json")
     common.set_class(wf, "LoadImage", image=name)
 
+    # Resolution control. By default FluxKontextImageScale copies the SOURCE
+    # photo's aspect (~1MP), so a landscape/square product screenshot makes Qwen
+    # render a full-body model squished into that shape - the face comes out
+    # tiny and plastic, and _fit then upscales the whole thing. `target_wh`
+    # forces a native canvas (a tall portrait for worn model shots) so the same
+    # 8-step model draws a proper HD human at the right aspect and no upscale is
+    # needed. We swap the Kontext auto-scaler for a direct centre-crop scale,
+    # keeping the node's wiring intact.
+    def _scaler(image_ref):
+        if target_wh:
+            return {"class_type": "ImageScale",
+                    "inputs": {"image": image_ref, "width": int(target_wh[0]),
+                               "height": int(target_wh[1]),
+                               "upscale_method": "lanczos", "crop": "center"}}
+        return {"class_type": "FluxKontextImageScale", "inputs": {"image": image_ref}}
+
+    if target_wh:
+        for nid, node in list(wf.items()):
+            if node.get("class_type") == "FluxKontextImageScale":
+                wf[nid] = _scaler(node["inputs"].get("image"))
+
     for slot, extra in enumerate(( ref_paths or [])[:2], start=2):
         if not extra or not os.path.isfile(extra):
             continue
@@ -174,8 +195,7 @@ def edit_scene(product_path, instruction, out_prefix, seed=0, steps=None, cfg=No
                        "inputs": {"image": rname, "upload": "image"}}
         # Same scaling the template applies to image1 - an unscaled reference at
         # a different resolution shifts the latent and washes the edit out.
-        wf[scale_id] = {"class_type": "FluxKontextImageScale",
-                        "inputs": {"image": [load_id, 0]}}
+        wf[scale_id] = _scaler([load_id, 0])
         for _, node in common.nodes_of(wf, "TextEncodeQwenImageEditPlus"):
             node["inputs"][f"image{slot}"] = [scale_id, 0]
         common.log("compose", f"  + reference image{slot}: {os.path.basename(extra)}")
@@ -293,7 +313,7 @@ def scene_shows_person(scene, tpl_defaults=None):
 def scene_image(scene, product_path, w, h, job_dir, seed=0, cut_cache={},
                 bg_cache=None, height_frac=PRODUCT_HEIGHT_FRAC,
                 center_y=PRODUCT_CENTER_Y, tracer=None, tpl_defaults=None,
-                anchor=None, include_human=True, emphasis=""):
+                anchor=None, include_human=True, emphasis="", force_size=False):
     """
     Produce the still for one storyboard scene. Returns its path.
 
@@ -425,7 +445,8 @@ def scene_image(scene, product_path, w, h, job_dir, seed=0, cut_cache={},
         edit_denoise = EDIT_DENOISE_PRODUCT if not include_human else 1.0
         out_edit = edit_scene(primary, instruction, prefix + "_edit",
                               seed=seed + n, ref_paths=refs, negative=negative,
-                              denoise=edit_denoise)
+                              denoise=edit_denoise,
+                              target_wh=(w, h) if force_size else None)
         out = os.path.join(job_dir, f"scene_{n}.png")
         Image.open(out_edit).convert("RGB").save(out)
         common.log("compose", f"scene {n}: edited real photo -> {os.path.basename(out)}")
