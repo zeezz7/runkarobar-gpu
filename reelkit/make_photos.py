@@ -49,10 +49,15 @@ def _qa_model():
     return os.environ.get("PHOTO_QA_MODEL", "claude-haiku-4-5")
 
 
-def _extract_json(raw):
-    """Tolerant JSON array/object extraction (models love markdown fences)."""
+def _extract_json(raw, prefer_obj=False):
+    """Tolerant JSON array/object extraction (models love markdown fences).
+    `prefer_obj`: try the OUTER object first. Needed when the payload is an
+    object that CONTAINS an array (e.g. copy + an "angles" list) - otherwise the
+    default array-first scan grabs the inner array and drops the object."""
     raw = (raw or "").strip()
-    for start, end in (("[", "]"), ("{", "}")):
+    order = ((("{", "}"), ("[", "]")) if prefer_obj
+             else (("[", "]"), ("{", "}")))
+    for start, end in order:
         i, j = raw.find(start), raw.rfind(end)
         if i != -1 and j > i:
             try:
@@ -162,7 +167,7 @@ def _analyze_uploads(urls):
         raw = llm.chat(prompt, system="You output ONLY strict JSON.",
                        images=urls, model=_director_model(),
                        temperature=0.5, max_tokens=1000)
-        obj = _extract_json(raw)
+        obj = _extract_json(raw, prefer_obj=True)
         if isinstance(obj, dict):
             copy = {k: str(obj.get(k) or "")[:2000] for k in keys}
             ang = obj.get("angles")
