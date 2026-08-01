@@ -25,7 +25,8 @@ import threading
 import time
 
 # WaveSpeed catalogue prices (GET /api/v3/models, base_price).
-WAVESPEED_PRICES = {"vision": 0.05, "text": 0.01}
+# "image" = bytedance/seedream-v4 (edit + t2i) - every still the pipeline draws.
+WAVESPEED_PRICES = {"vision": 0.05, "text": 0.01, "image": 0.028}
 
 
 def _f(name, default):

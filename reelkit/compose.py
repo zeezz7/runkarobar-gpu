@@ -89,146 +89,49 @@ def segment(product_path, job_dir, tag):
 
 
 # ------------------------------------------------------------------ generation
-# FAST path uses the 8-step Lightning LoRAs, run at their proper 8 sampler steps.
-# HISTORY: f005245 swapped 4-step->8-step LoRAs but the workflow's KSampler steps
-# stay wired to the template's Lightning switch, which hardwires the fast branch to
-# 4 steps - so the 8-step LoRA was starved at 4 steps (soft, under-denoised). The
-# code below now OVERRIDES the sampler to run the LoRA's real step count, so 8-step
-# renders at 8 steps (sharper, the config it was distilled for). Both LoRAs are on
-# the volume. The non-FAST base path (40/50 steps) stays for text-critical frames.
-FAST = os.environ.get("REELKIT_FAST", "1") != "0"
-# The Lightning LoRAs are distilled for a fixed step count - keep FAST_STEPS in
-# lockstep with the LoRA name (8-step LoRA -> 8 steps) or the output degrades.
-FAST_STEPS = int(os.environ.get("REELKIT_FAST_STEPS", "8"))
-T2I_LORA = "Qwen-Image-2512-Lightning-8steps.safetensors"
-EDIT_LORA = "Qwen-Image-Edit-2511-Lightning-8steps.safetensors"
-# Product-only img2img denoise. TESTED: denoise<1.0 with the LIGHTNING LoRA makes
-# fidelity WORSE, not better (0/3 vs 1/3 on the Nike shoe) - the distilled LoRA is
-# trained for full denoise and can't do a partial schedule, so at 0.82 it neither
-# preserves the product nor follows the prompt and drifts harder. So this DEFAULTS
-# to 1.0 (off). Partial-denoise img2img preservation only works on the full
-# non-Lightning model (REELKIT_FAST=0) - use REELKIT_EDIT_DENOISE there. The plumbing
-# stays for that path; with Lightning it must be 1.0.
-EDIT_DENOISE_PRODUCT = float(os.environ.get("REELKIT_EDIT_DENOISE", "1.0"))
-
-
-def _add_lora(wf, lora_name, after_node, sampler_node="17"):
-    wf["900"] = {"class_type": "LoraLoaderModelOnly",
-                 "inputs": {"lora_name": lora_name, "strength_model": 1.0,
-                            "model": [after_node, 0]}}
-    wf[sampler_node]["inputs"]["model"] = ["900", 0]
-    return wf
+# All STILLS are rendered remotely by seedream-v4 via WaveSpeed (ws_image.py).
+# The local Qwen image models are GONE: the 8-step Lightning path produced waxy
+# humans, stamped invented lettering on plain fabric and could not re-pose a
+# person baked into image1 - one suit reel burned two days of retries on those
+# failures while the stills themselves cost Rs 9 of a Rs 90 reel. seedream-v4
+# fixes all three for $0.028/image (photo-studio bake-off, 2026-08-01). The
+# GPU now does video (Wan/Hunyuan), BiRefNet masks and the OCR guard only.
+# NOTE: seedream takes no negative prompt and no seed - the `negative`,
+# `seed`, `steps`, `cfg` and `denoise` parameters below are kept so call
+# sites (make_reel, make_photos, guard retries) stay untouched, but only the
+# positive instruction steers the render. Every retry is a fresh roll, which
+# is what the guard retry wanted from a new seed anyway.
 
 
 def generate_scene(prompt, w, h, out_prefix, seed=0, steps=None, cfg=None,
                    negative=None):
-    wf = common.load_tpl("tpl_t2i_qwen.api.json")
-    if FAST:
-        _add_lora(wf, T2I_LORA, "11")
-        steps, cfg = steps or FAST_STEPS, cfg if cfg is not None else 1.0
-    else:
-        steps, cfg = steps or 50, cfg if cfg is not None else 4.0
-    common.set_class(wf, "EmptySD3LatentImage", width=w, height=h, batch_size=1)
-    common.set_prompts(wf, prompt, negative or NEG_GEN)
-    common.set_class(wf, "KSampler", seed=seed or 1, steps=steps, cfg=cfg,
-                     sampler_name="euler", scheduler="simple", denoise=1.0)
-    common.set_class(wf, "SaveImage", filename_prefix=out_prefix)
-    outs = common.comfy_run(wf)
-    if not outs:
-        raise RuntimeError("scene generation produced no image")
-    return outs[0]
+    import ws_image
+    return ws_image.generate(prompt, f"/tmp/{out_prefix}.png",
+                             f"{int(w)}*{int(h)}")
 
 
 def edit_scene(product_path, instruction, out_prefix, seed=0, steps=None, cfg=None,
                ref_paths=None, negative=None, denoise=1.0, target_wh=None):
     """
-    Qwen-Image-Edit-2511: keep the supplied photograph's subject, change its
-    world. This is the right tool when the product is photographed IN CONTEXT -
-    worn by a model, held in a hand, staged on a set.
+    seedream-v4 edit via WaveSpeed: keep the referenced subject, draw the
+    world (and the pose) the instruction asks for. The right tool when the
+    product is photographed IN CONTEXT - worn by a model, held in a hand,
+    staged on a set. Compositing cannot handle those: segmenting a model shot
+    yields the whole PERSON pasted over a scene that also contains a person.
 
-    Compositing cannot handle those: segmenting a model shot yields the whole
-    PERSON, which then gets pasted over a generated scene that also contains a
-    person, producing two overlapping faces (observed on the Snitch run).
-
-    `ref_paths` are EXTRA reference images wired into the encoder's spare
-    `image2`/`image3` slots. That is how same-model anchoring works: a follow-on
-    scene passes the ANCHOR frame as `product_path` (so it is `image1`, the
-    thing being re-framed, which is what the SAME_MODEL guard calls "the FIRST
-    reference image") and the original product photo as a ref, so the garment
-    stays honest while the face carries over. Without this every edit re-rolled
-    the person and the model's face changed between scenes.
+    Image ORDER is the contract: `product_path` goes first, so same-model
+    anchoring works exactly as before - a follow-on scene passes the ANCHOR
+    frame first (the "first reference image" the SAME_MODEL guard talks
+    about) and the real product photo in `ref_paths`, so the garment stays
+    honest while the face carries over. Unlike the old Qwen edit, seedream
+    actually CAN re-pose the anchored person instead of cloning image1's
+    composition - that failure is why Qwen is gone.
     """
-    name = f"rk_edit_{os.path.basename(out_prefix)}{os.path.splitext(product_path)[1] or '.png'}"
-    common.stage_input(product_path, name)
-    wf = common.load_tpl("tpl_qwen_edit.api.json")
-    common.set_class(wf, "LoadImage", image=name)
-
-    # Resolution control. By default FluxKontextImageScale copies the SOURCE
-    # photo's aspect (~1MP), so a landscape/square product screenshot makes Qwen
-    # render a full-body model squished into that shape - the face comes out
-    # tiny and plastic, and _fit then upscales the whole thing. `target_wh`
-    # forces a native canvas (a tall portrait for worn model shots) so the same
-    # 8-step model draws a proper HD human at the right aspect and no upscale is
-    # needed. We swap the Kontext auto-scaler for a direct centre-crop scale,
-    # keeping the node's wiring intact.
-    def _scaler(image_ref):
-        if target_wh:
-            return {"class_type": "ImageScale",
-                    "inputs": {"image": image_ref, "width": int(target_wh[0]),
-                               "height": int(target_wh[1]),
-                               "upscale_method": "lanczos", "crop": "center"}}
-        return {"class_type": "FluxKontextImageScale", "inputs": {"image": image_ref}}
-
-    if target_wh:
-        for nid, node in list(wf.items()):
-            if node.get("class_type") == "FluxKontextImageScale":
-                wf[nid] = _scaler(node["inputs"].get("image"))
-
-    for slot, extra in enumerate(( ref_paths or [])[:2], start=2):
-        if not extra or not os.path.isfile(extra):
-            continue
-        rname = f"rk_ref{slot}_{os.path.basename(out_prefix)}.png"
-        Image.open(extra).convert("RGB").save(
-            os.path.join(common.COMFY_INPUT, rname))
-        load_id, scale_id = f"9{slot}0", f"9{slot}1"
-        wf[load_id] = {"class_type": "LoadImage",
-                       "inputs": {"image": rname, "upload": "image"}}
-        # Same scaling the template applies to image1 - an unscaled reference at
-        # a different resolution shifts the latent and washes the edit out.
-        wf[scale_id] = _scaler([load_id, 0])
-        for _, node in common.nodes_of(wf, "TextEncodeQwenImageEditPlus"):
-            node["inputs"][f"image{slot}"] = [scale_id, 0]
-        common.log("compose", f"  + reference image{slot}: {os.path.basename(extra)}")
-
-    if FAST:
-        for _, node in common.nodes_of(wf, "PrimitiveBoolean"):
-            node["inputs"]["value"] = True          # template's Lightning switch
-        steps, cfg = steps or FAST_STEPS, cfg if cfg is not None else 1.0
-    else:
-        for _, node in common.nodes_of(wf, "PrimitiveBoolean"):
-            node["inputs"]["value"] = False
-        steps, cfg = steps or 40, cfg if cfg is not None else 4.0
-    for _, node in common.nodes_of(wf, "LoraLoaderModelOnly"):
-        node["inputs"]["lora_name"] = EDIT_LORA
-    common.set_prompts(wf, instruction, negative or NEG_EDIT,
-                       cls="TextEncodeQwenImageEditPlus", field="prompt")
-    # THE FIX: the template's KSampler steps/cfg are wired to the Lightning switch,
-    # which hardwires the fast branch to 4 steps - so edit_scene (unlike
-    # generate_scene) was NOT honouring `steps` and the 8-step LoRA ran starved at
-    # 4. Set steps/cfg as scalars so they override the switch and the LoRA runs at
-    # its real step count.
-    # denoise < 1.0 keeps the product's OWN VAEEncode'd pixels as the img2img base
-    # (KSampler.latent_image = VAEEncode of the source) instead of noising them
-    # fully away - so the real shape/colour/logo survive rather than being redrawn
-    # from the reference conditioning alone. 1.0 = full regeneration (worn/human
-    # scenes that need re-posing freedom).
-    common.set_class(wf, "KSampler", seed=seed or 1, steps=steps, cfg=cfg,
-                     denoise=denoise)
-    common.set_class(wf, "SaveImage", filename_prefix=out_prefix)
-    outs = common.comfy_run(wf)
-    if not outs:
-        raise RuntimeError("scene edit produced no image")
-    return outs[0]
+    import ws_image
+    size = (f"{int(target_wh[0])}*{int(target_wh[1])}" if target_wh
+            else "1080*1920")
+    return ws_image.edit(instruction, [product_path] + list(ref_paths or []),
+                         f"/tmp/{out_prefix}.png", size)
 
 
 # ----------------------------------------------------------------- harmonising
@@ -440,10 +343,10 @@ def scene_image(scene, product_path, w, h, job_dir, seed=0, cut_cache={},
                          "head, arms, hands, fingers, skin, legs, portrait")
         instruction += " Photorealistic editorial photograph, sharp detail."
         if tracer:
+            import ws_image
             tracer.write_json(f"scene_{n}_compose.json", {
-                "path": scene["method"], "model": "Qwen-Image-Edit-2511-fp8mixed",
-                "fast_lightning_4step": FAST, "seed": seed + n,
-                "positive_prompt": instruction, "negative_prompt": negative,
+                "path": scene["method"], "model": ws_image.EDIT_MODEL,
+                "positive_prompt": instruction,
                 "source_photo": primary, "anchor_used": followon,
                 "extra_refs": refs, "shows_person": shows_person})
         # Log the EXACT edit request so it shows in the worker logs - this is
@@ -452,13 +355,11 @@ def scene_image(scene, product_path, w, h, job_dir, seed=0, cut_cache={},
                               f"refs={[os.path.basename(r) for r in refs]} "
                               f"followon={followon} shows_person={shows_person}")
         common.log("compose", f"scene {n} INSTRUCTION: {instruction[:500]}")
-        # Product-only: preserve the real product as the img2img base (denoise
-        # < 1). Worn/human scenes keep full denoise so the model can re-pose.
-        edit_denoise = EDIT_DENOISE_PRODUCT if not include_human else 1.0
+        # Always render on the reel's native canvas - seedream draws the right
+        # aspect directly, no post-hoc crop/upscale.
         out_edit = edit_scene(primary, instruction, prefix + "_edit",
                               seed=seed + n, ref_paths=refs, negative=negative,
-                              denoise=edit_denoise,
-                              target_wh=(w, h) if force_size else None)
+                              target_wh=(w, h))
         out = os.path.join(job_dir, f"scene_{n}.png")
         Image.open(out_edit).convert("RGB").save(out)
         common.log("compose", f"scene {n}: edited real photo -> {os.path.basename(out)}")
@@ -484,10 +385,10 @@ def scene_image(scene, product_path, w, h, job_dir, seed=0, cut_cache={},
                          f"nothing in the centre of frame. Photorealistic, "
                          f"cinematic lighting, professional product photography backdrop.")
             if tracer:
+                import ws_image
                 tracer.write_json(f"scene_{n}_compose.json", {
-                    "path": "compose_animate", "model": "Qwen-Image-2512-fp8",
-                    "fast_lightning_4step": FAST, "seed": seed + n,
-                    "positive_prompt": bg_prompt, "negative_prompt": NEG_BG,
+                    "path": "compose_animate", "model": ws_image.T2I_MODEL,
+                    "positive_prompt": bg_prompt,
                     "segmentation_model": "BiRefNet", "cutout": cut,
                     "source_photo": product_path,
                     "placement": {"height_frac": height_frac, "center_y": center_y}})
@@ -500,10 +401,10 @@ def scene_image(scene, product_path, w, h, job_dir, seed=0, cut_cache={},
 
     gen_prompt = f"{scene['visual'].rstrip('.')}. Photorealistic, cinematic lighting."
     if tracer:
+        import ws_image
         tracer.write_json(f"scene_{n}_compose.json", {
-            "path": "generate_animate", "model": "Qwen-Image-2512-fp8",
-            "fast_lightning_4step": FAST, "seed": seed + n,
-            "positive_prompt": gen_prompt, "negative_prompt": NEG_GEN})
+            "path": "generate_animate", "model": ws_image.T2I_MODEL,
+            "positive_prompt": gen_prompt})
     out_gen = generate_scene(
         gen_prompt,
         w, h, prefix + "_gen", seed=seed + n, negative=NEG_GEN)

@@ -7,7 +7,7 @@ One call in, one finished vertical reel out. Everything runs on this box:
 STAGES
   0  brain.py      Qwen2.5-32B-Instruct-FP8 writes the storyboard (sees the
                    product via Qwen2.5-VL captions). Unloaded before stage 1.
-  1  compose.py    BiRefNet segment + Qwen-Image-2512 scene + PIL composite.
+  1  compose.py    BiRefNet segment + seedream-v4 stills (WaveSpeed) + PIL composite.
                    Product pixels are never passed through a sampler.
   2  animate.py    Ken-Burns over sharp composites (label cannot warp) or
                    Wan 2.2 I2V + LightX2V for non-product scenes. Optional

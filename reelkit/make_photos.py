@@ -1,11 +1,12 @@
 """
 The AI photo studio - the SIMPLE version.
 
-Every shot is ONE direct Qwen-Image-Edit call on the 8-step Lightning path.
-The fast path is also the path that WEARS garments correctly: the full-CFG
-28-step experiment amplified the "keep everything exactly as photographed"
-wording until jackets came out draped like capes (job photos_59d8dd89).
-And prompts are SHORT - the old pipeline stacked ~3,400 characters of guards
+NOTE: the primary photo studio now lives in the staffhq API
+(PhotoStudioService, seedream-v4 + Haiku). This worker task stays alive
+because PRODUCTION's API still dispatches task:"photos" here until its next
+deploy - and it renders through the same seedream-v4 path now
+(compose.edit_scene -> ws_image; the local Qwen models are gone).
+Prompts are SHORT - the old pipeline stacked ~3,400 characters of guards
 around a one-line pose, and the pose drowned (job photos_9dd8313e).
 
 What stayed, because it demonstrably worked:
@@ -311,7 +312,7 @@ def _render(jid, jd, i, base, refs, text, worn, tag):
         base, text, f"rk_{jid}_s{i}{tag}",
         seed=abs(hash(f"{jid}{tag}{i}")) % 10000,
         ref_paths=[r for r in refs if r][:2], negative=neg,
-        target_wh=(PHOTO_W, PHOTO_H) if worn else None)
+        target_wh=(PHOTO_W, PHOTO_H))
     dst = os.path.join(jd, f"scene_{i}.png")
     Image.open(out).convert("RGB").save(dst)
     return dst
@@ -390,7 +391,8 @@ def make_photos(request):
                 img = compose.edit_scene(
                     products[0], text, f"{jid}_p{i}",
                     seed=abs(hash(f"{jid}poster{i}")) % 10000,
-                    ref_paths=products[1:3])
+                    ref_paths=products[1:3],
+                    target_wh=(POSTER_W, POSTER_H))
                 url = _upload(_fit(img, POSTER_W, POSTER_H),
                               "products/ai", f"{jid}-{i}-poster.jpg")
                 results.append({"label": label, "url": url})
