@@ -233,6 +233,66 @@ FILL_FRAME = (
     "confident cropping; NEVER a small object floating in empty space.")
 
 
+def _worn_emphasis(gender, label):
+    """Prepended (via `emphasis`) to every worn pose shot. compose.py's worn
+    lead never carries the gender or the camera angle, so we inject both here:
+    the establishing shot was defaulting to a female model, and the side/back
+    re-frames were coming out front-facing because the 'keep everything
+    identical' lead drowned the small pose line."""
+    g = (f" The model is a {gender} person - clearly and unmistakably {gender}, "
+         f"a {gender} fashion model." if gender in ("male", "female") else "")
+    lab = (label or "").lower()
+    if "back" in lab:
+        pose = (" CAMERA ANGLE: the model has turned ALL THE WAY AROUND, BACK to "
+                "the camera - we see the back of the head, the shoulders and the "
+                "GARMENT'S BACK; the face is NOT visible. This is a different "
+                "camera angle of the same person and outfit, NOT a front view.")
+    elif "left" in lab:
+        pose = (" CAMERA ANGLE: the model has physically rotated to face their "
+                "LEFT - photograph the LEFT-SIDE PROFILE (the side of the body "
+                "and face), NOT a front view. Same person and outfit, new "
+                "orientation.")
+    elif "right" in lab:
+        pose = (" CAMERA ANGLE: the model has physically rotated to face their "
+                "RIGHT - photograph the RIGHT-SIDE PROFILE (the side of the body "
+                "and face), NOT a front view. Same person and outfit, new "
+                "orientation.")
+    else:
+        pose = ""
+    return FILL_FRAME + g + pose
+
+
+def _write_copy(urls):
+    """One Haiku pass over the product photos -> e-commerce listing copy,
+    returned WITH the photos so the wizard fills itself straight from the
+    render (Claude Haiku on the endpoint, no WaveSpeed text call)."""
+    keys = ("name", "brand", "category", "description", "details", "care",
+            "delivery", "metaDescription")
+    prompt = (
+        "You are an expert e-commerce copywriter for an Indian shop. Study the "
+        "product photograph(s) and write listing copy for THIS exact product. "
+        "Return STRICT JSON with exactly these keys: "
+        '{"name":"short catchy product title, max 8 words",'
+        '"brand":"brand ONLY if clearly visible on the product, else empty",'
+        '"category":"one or two word category",'
+        '"description":"2-3 sentence marketing description",'
+        '"details":"3-5 short feature lines separated by newlines",'
+        '"care":"1-2 care instructions",'
+        '"delivery":"a generic delivery line",'
+        '"metaDescription":"<=150 char SEO description"}. '
+        "Plain text values, no emojis, no markdown.")
+    try:
+        raw = llm.chat(prompt, system="You output ONLY strict JSON.",
+                       images=urls[:4], model=_director_model(),
+                       temperature=0.6, max_tokens=800)
+        obj = _extract_json(raw)
+        if isinstance(obj, dict):
+            return {k: str(obj.get(k) or "")[:2000] for k in keys}
+    except Exception as e:
+        common.log("photos", f"copy write failed (non-fatal): {e}")
+    return {}
+
+
 def _fit(path, w, h):
     """Cover-crop to the target aspect and resize - the edit model outputs at
     its own resolution, but a catalog shot must be a true 3:4 (poster 4:5)."""
@@ -329,11 +389,15 @@ def make_photos(request):
             worn = bool(shot.get("worn"))
             sc = _scene(i, shot)
             anc = anchor_still if worn else None
+            # Worn pose shots need gender + camera-angle steering injected;
+            # product-only / freeform shots just get the framing rule.
+            emph = (_worn_emphasis(gender, shot.get("label"))
+                    if worn_poses else FILL_FRAME)
             try:
                 still = compose.scene_image(
                     sc, products[0], PHOTO_W, PHOTO_H, jd,
                     seed=abs(hash(f"{jid}s{i}")) % 10000, tracer=tr,
-                    anchor=anc, include_human=worn, emphasis=FILL_FRAME)
+                    anchor=anc, include_human=worn, emphasis=emph)
                 ok, detail = animate.guard_composite(still, products[0])
                 tr.write_json(f"shot_{i}_guard.json", {"pass": ok,
                                                        "detail": detail})
@@ -344,7 +408,7 @@ def make_photos(request):
                         sc, products[0], PHOTO_W, PHOTO_H, jd,
                         seed=abs(hash(f"{jid}retry{i}")) % 10000, tracer=tr,
                         anchor=anc, include_human=worn,
-                        emphasis=FILL_FRAME + f" CRITICAL: the previous render "
+                        emphasis=emph + f" CRITICAL: the previous render "
                                  f"was WRONG ({detail}). Blank surfaces stay "
                                  f"blank; printed text stays exact.")
                     ok2, _ = animate.guard_composite(still, products[0])
@@ -387,13 +451,15 @@ def make_photos(request):
             sc = _scene(i, {"visual": v.get("fix") or shot.get("visual"),
                             "setting": shot.get("setting")})
             worn = bool(shot.get("worn"))
+            emph = (_worn_emphasis(gender, shot.get("label"))
+                    if worn_poses else FILL_FRAME)
             try:
                 still2 = compose.scene_image(
                     sc, products[0], PHOTO_W, PHOTO_H, jd,
                     seed=abs(hash(f"{jid}fix{i}")) % 10000, tracer=tr,
                     anchor=(anchor_still if worn else None),
                     include_human=worn,
-                    emphasis=FILL_FRAME + f" CRITICAL: a previous attempt was "
+                    emphasis=emph + f" CRITICAL: a previous attempt was "
                              f"WRONG ({v.get('issue')}). Match the reference "
                              f"product EXACTLY.")
                 u2 = _upload(_fit(still2, PHOTO_W, PHOTO_H),
@@ -404,6 +470,12 @@ def make_photos(request):
                 common.log("photos", f"shot {i} corrected re-roll failed "
                                      f"({e}) - dropped")
 
+    # Listing copy from the SAME Haiku that directed the shots (photos mode) -
+    # the wizard fills its Basics/SEO from this, no separate WaveSpeed call.
+    copy = _write_copy(urls) if mode == "photos" and results else {}
+    if copy:
+        tr.write_json("copy.json", copy)
+
     _free_comfy_vram()      # leave a clean GPU for the next (reel) job
     costs.current().stop_clock()
     _cost = costs.current().summary()
@@ -411,6 +483,7 @@ def make_photos(request):
         "results": results,
         "mode": mode,
         "dropped": dropped,
+        "copy": copy,
         "cost_usd": _cost["total_usd"],
         "_cost": _cost,
         "_elapsedSec": round(time.time() - t0, 1),
