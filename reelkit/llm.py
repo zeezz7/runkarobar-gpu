@@ -33,11 +33,16 @@ def provider():
     return "anthropic" if os.environ.get("ANTHROPIC_API_KEY", "").strip() else "wavespeed"
 
 
-def _anthropic_chat(prompt, system, images, temperature, max_tokens):
+def _anthropic_chat(prompt, system, images, temperature, max_tokens,
+                    model=None):
     # Imported lazily so the wavespeed path never needs the SDK installed.
     import anthropic
 
-    model = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-6").strip()
+    # A caller-supplied claude-* model wins (the photo director/QA run Haiku
+    # while the reel brain runs Sonnet); WaveSpeed-style ids ("anthropic/...")
+    # are that gateway's namespace and fall through to the env default.
+    if not (model and model.startswith("claude-")):
+        model = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-6").strip()
     client = anthropic.Anthropic()          # reads ANTHROPIC_API_KEY
     content = [{"type": "image", "source": {"type": "url", "url": u}}
                for u in (images or [])]
@@ -66,7 +71,7 @@ def chat(prompt, system=None, images=None, model=None, temperature=None,
     if provider() == "anthropic":
         try:
             return _anthropic_chat(prompt, system, images, temperature,
-                                   max_tokens)
+                                   max_tokens, model=model)
         except Exception as e:
             # A dead key/model must degrade to the gateway, not kill the reel.
             common.log("llm", f"anthropic call failed ({e}) - falling back "

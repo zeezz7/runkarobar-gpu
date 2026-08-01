@@ -55,11 +55,16 @@ common.log("boot", f"reelkit worker up | brain={_brain_desc}"
 
 
 def handler(job):
-    """One reel per job. Returns the result dict, or {"error": ...}."""
+    """One job per invocation. `input.task` routes: "photos" -> the AI photo
+    studio (Haiku directs, Qwen-edit renders); anything else -> a reel."""
     payload = (job or {}).get("input") or {}
     try:
         common.load_env()
-        result = make_reel.make_reel(payload)
+        if payload.get("task") == "photos":
+            import make_photos
+            result = make_photos.make_photos(payload)
+        else:
+            result = make_reel.make_reel(payload)
         # Returned verbatim - renaming or nesting any of these keys silently
         # breaks the caller, which reads reel_1080p_url off the top level.
         return result
