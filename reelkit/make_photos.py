@@ -189,11 +189,21 @@ def _ordered_refs(label, products, angles):
 
 
 # --------------------------------------------------------------------- prompts
+# The "blank stays blank" wording is battle-tested: the Lightning edit stamps
+# invented brand text and embossed gibberish onto plain fabric unless told,
+# POSITIVELY and at length, not to - the negative prompt does nothing at
+# CFG 1.0. The rewrite trimmed this to one sentence and the sleeve-gibberish
+# came straight back (job photos_044e0350). Do not shorten it again.
 _RULES = (
-    " No watermark, no signature and no invented text anywhere: any lettering "
-    "on the product stays exactly as photographed, blank surfaces stay blank. "
-    "Remove any seller watermark, price sticker or screenshot UI from the "
-    "source photo. Photorealistic, sharp detail.")
+    " Printed text rule: any lettering, logo or stamp that IS on the product "
+    "stays exactly as photographed, letter for letter - and every surface "
+    "that is blank in the photograph STAYS blank. Do not print, engrave, "
+    "emboss or stamp ANY new text, brand name, logo, patch or graphic "
+    "anywhere - not on the product, not on any other clothing in the frame, "
+    "not in the background. Add NO texture, embossing, weave or pattern that "
+    "the photograph does not show - plain fabric stays plain and smooth. "
+    "No watermark, no signature; remove any seller watermark, price sticker "
+    "or screenshot UI from the source photo. Photorealistic, sharp detail.")
 
 
 def _worn_prompt(gender, pose, setting, followon, is_back):
