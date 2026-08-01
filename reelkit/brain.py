@@ -655,7 +655,14 @@ def direct_from_stills(still_urls, sb, config, include_human, product_urls=None,
                      "product worn/used on-body, never a flat empty garment; "
                      "wearing ONLY what the reference shows - an added scarf, "
                      "drape, shawl or accessory that is not in the reference "
-                     "is a FAIL);")
+                     "is a FAIL. CAREFUL: if the reference photograph shows a "
+                     "SET of pieces - e.g. a kurta WITH trousers AND a dupatta "
+                     "laid out together - every piece of that set belongs to "
+                     "the product, and wearing ALL of them is CORRECT, not an "
+                     "addition; a dupatta visible in the reference flat-lay is "
+                     "part of the outfit. Plain unbranded styling basics like "
+                     "trousers, an inner tee or shoes are normal catalog "
+                     "styling and NOT a fail);")
         else:
             p.append("person OPTIONAL;")
         vis = (s.get("visual") or "").strip()
