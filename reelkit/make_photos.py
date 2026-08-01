@@ -105,6 +105,47 @@ def _direct_photos(urls, style_note, count, model_gender=None):
     return shots[:count]
 
 
+# Canonical worn-model catalog poses, in order. When the seller picks a model
+# (female/male) we shoot THIS set instead of a freeform director plan - the same
+# model in the same outfit from every angle, which is what a clothing catalog
+# actually needs. Shot 1 establishes the model; the rest re-frame it via the
+# anchor carry (compose.scene_image), so the person and outfit stay identical.
+_POSES = [
+    ("Front", "full-length front view of the model wearing this exact outfit, "
+              "standing straight and facing the camera, the whole garment "
+              "visible from shoulders to hem"),
+    ("Front Close-up", "waist-up front close-up of the SAME model in the SAME "
+              "outfit, showing the neckline, fabric and detailing of this exact "
+              "garment"),
+    ("Right Side", "full-length right-side profile of the SAME model in the "
+              "SAME outfit, body turned 90 degrees to their right, showing the "
+              "side silhouette of the garment"),
+    ("Left Side", "full-length left-side profile of the SAME model in the SAME "
+              "outfit, body turned 90 degrees to their left"),
+    ("Back", "full-length back view of the SAME model in the SAME outfit, "
+              "facing away from the camera, showing the back of the garment"),
+    ("Angle", "full-length three-quarter angle of the SAME model in the SAME "
+              "outfit, body turned about 45 degrees, relaxed confident stance"),
+    ("Detail", "close-up of the SAME outfit on the SAME model - sleeve, hem or "
+              "print - showing the craftsmanship and fabric"),
+    ("Seated", "the SAME model in the SAME outfit seated in a relaxed editorial "
+              "pose, the full outfit visible"),
+]
+
+
+def _pose_plan(gender, style_note, count):
+    """Fixed worn-model pose set (front, close-up, sides, back, ...), one shared
+    setting so the set is cohesive. All shots worn by the chosen model."""
+    setting = (style_note.strip() or
+               "clean seamless studio backdrop, soft even lighting")
+    shots = []
+    for k, (label, visual) in enumerate(_POSES[:count]):
+        v = f"A poised {gender} fashion model. " + visual if k == 0 else visual
+        shots.append({"label": label, "worn": True, "visual": v,
+                      "setting": setting})
+    return shots
+
+
 def _direct_posters(urls, brief, count):
     """Haiku expands the tenant's brief into N full poster prompts."""
     base = brief.strip() or (
@@ -273,17 +314,26 @@ def make_photos(request):
                 dropped += 1
                 common.log("photos", f"poster {i} failed ({e}) - dropped")
     else:
-        shots = _direct_photos(urls, prompt, count, model_gender=gender)
+        # Picking a model (female/male) means "shoot this apparel on a model" -
+        # use the fixed catalog pose set + anchor carry for ONE consistent
+        # model. No model (none) / unspecified keeps the freeform director.
+        worn_poses = gender in ("female", "male")
+        shots = (_pose_plan(gender, prompt, count) if worn_poses
+                 else _direct_photos(urls, prompt, count, model_gender=gender))
         tr.write_json("director.json", shots)
         stills, shot_urls, labels = [], [], []
+        # The first worn still becomes the anchor every later worn shot re-frames
+        # from, so the same person + outfit appears in every angle.
+        anchor_still = None
         for i, shot in enumerate(shots, 1):
             worn = bool(shot.get("worn"))
             sc = _scene(i, shot)
+            anc = anchor_still if worn else None
             try:
                 still = compose.scene_image(
                     sc, products[0], PHOTO_W, PHOTO_H, jd,
                     seed=abs(hash(f"{jid}s{i}")) % 10000, tracer=tr,
-                    include_human=worn, emphasis=FILL_FRAME)
+                    anchor=anc, include_human=worn, emphasis=FILL_FRAME)
                 ok, detail = animate.guard_composite(still, products[0])
                 tr.write_json(f"shot_{i}_guard.json", {"pass": ok,
                                                        "detail": detail})
@@ -293,7 +343,7 @@ def make_photos(request):
                     still = compose.scene_image(
                         sc, products[0], PHOTO_W, PHOTO_H, jd,
                         seed=abs(hash(f"{jid}retry{i}")) % 10000, tracer=tr,
-                        include_human=worn,
+                        anchor=anc, include_human=worn,
                         emphasis=FILL_FRAME + f" CRITICAL: the previous render "
                                  f"was WRONG ({detail}). Blank surfaces stay "
                                  f"blank; printed text stays exact.")
@@ -304,6 +354,8 @@ def make_photos(request):
                                              f"guard - dropped")
                         continue
                 stills.append((i, shot, still))
+                if worn and anchor_still is None:
+                    anchor_still = still     # establish the model for the rest
             except Exception as e:
                 dropped += 1
                 common.log("photos", f"shot {i} render failed ({e}) - dropped")
@@ -334,11 +386,13 @@ def make_photos(request):
                                  f"corrected re-roll")
             sc = _scene(i, {"visual": v.get("fix") or shot.get("visual"),
                             "setting": shot.get("setting")})
+            worn = bool(shot.get("worn"))
             try:
                 still2 = compose.scene_image(
                     sc, products[0], PHOTO_W, PHOTO_H, jd,
                     seed=abs(hash(f"{jid}fix{i}")) % 10000, tracer=tr,
-                    include_human=bool(shot.get("worn")),
+                    anchor=(anchor_still if worn else None),
+                    include_human=worn,
                     emphasis=FILL_FRAME + f" CRITICAL: a previous attempt was "
                              f"WRONG ({v.get('issue')}). Match the reference "
                              f"product EXACTLY.")
