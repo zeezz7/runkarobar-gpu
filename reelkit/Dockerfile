@@ -44,8 +44,13 @@ RUN git clone --filter=blob:none https://github.com/comfyanonymous/ComfyUI.git /
 # --- reelkit dependencies ----------------------------------------------------
 #  runpod            the serverless SDK
 #  compressed-tensors / accelerate  transformers needs both for the VL guard
+#  Like the COPY list above, this is an EXPLICIT list - reelkit/requirements.txt
+#  is NOT installed here. A dep added only there ships a build whose import
+#  fails at call time (anthropic taught us: "No module named 'anthropic'",
+#  silently falling back to wavespeed).
 RUN pip install \
         runpod \
+        anthropic \
         compressed-tensors \
         accelerate \
         fastapi \
