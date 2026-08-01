@@ -133,6 +133,66 @@ _POSES = [
 ]
 
 
+def _label_angles(urls):
+    """Ask Haiku which camera angle each uploaded photo is (front/back/left/
+    right/side/detail/other), aligned to `urls`. Lets us hand the RIGHT view to
+    each pose shot regardless of upload order. Returns [] on any failure -> the
+    caller then falls back to plain upload order (the 'simple' behaviour)."""
+    if len(urls) < 2:
+        return []
+    prompt = (
+        "Label each product reference photo by CAMERA ANGLE, in order. For "
+        "EVERY image return exactly one of: front, back, left, right, side, "
+        "detail, other. front=facing the camera; back=rear view; left/right=that "
+        "side profile; side=a profile where you cannot tell left from right; "
+        "detail=close-up of a part; other=flat-lay/packaging/unclear. Return "
+        "ONLY a JSON array of that many lowercase strings, e.g. "
+        '["front","back","left"].')
+    try:
+        raw = llm.chat(prompt, system="You output ONLY strict JSON.",
+                       images=urls, model=_director_model(),
+                       temperature=0.1, max_tokens=200)
+        arr = _extract_json(raw)
+        if isinstance(arr, list) and len(arr) == len(urls):
+            return [str(a).strip().lower() for a in arr]
+    except Exception as e:
+        common.log("photos", f"angle labeling failed (non-fatal): {e}")
+    return []
+
+
+def _pref_angle(label):
+    lab = (label or "").lower()
+    if "back" in lab:
+        return "back"
+    if "left" in lab:
+        return "left"
+    if "right" in lab:
+        return "right"
+    return "front"      # front / close-up / angle / seated / detail default here
+
+
+def _ordered_refs(label, products, angles):
+    """Order the uploaded angle pool so the pose-matched angle is FIRST (smart),
+    then the rest (simple). Qwen keeps only the first couple after the primary/
+    anchor are removed, so the matched view lands in a ref slot."""
+    if not angles or len(angles) != len(products):
+        return list(products)      # simple: plain upload order
+    pref = _pref_angle(label)
+
+    def score(i):
+        a = angles[i] or ""
+        if a == pref:
+            return 0
+        if pref in ("left", "right") and a == "side":
+            return 1               # a generic side beats nothing for L/R
+        if a == "front":
+            return 2               # the front is a decent all-purpose ref
+        return 3
+
+    return [products[i] for i in sorted(range(len(products)),
+                                        key=lambda i: (score(i), i))]
+
+
 def _pose_plan(gender, style_note, count):
     """Fixed worn-model pose set (front, close-up, sides, back, ...), one shared
     setting so the set is cohesive. All shots worn by the chosen model."""
@@ -400,6 +460,20 @@ def make_photos(request):
         shots = (_pose_plan(gender, prompt, count) if worn_poses
                  else _direct_photos(urls, prompt, count, model_gender=gender))
         tr.write_json("director.json", shots)
+
+        # Smart references: label each upload by angle so each pose can be handed
+        # the RIGHT view (back shot -> the back photo) no matter the upload order.
+        # Falls back to plain order if labeling fails. Put a front-labelled photo
+        # first so it's the establishing base + guard reference.
+        angles = _label_angles(urls)
+        if angles:
+            fronts = [k for k, a in enumerate(angles) if a == "front"]
+            if fronts and fronts[0] != 0:
+                j = fronts[0]
+                products[0], products[j] = products[j], products[0]
+                angles[0], angles[j] = angles[j], angles[0]
+            tr.write_json("angles.json",
+                          [{"i": k, "angle": a} for k, a in enumerate(angles)])
         stills, shot_urls, labels = [], [], []
         # The first worn still becomes the anchor every later worn shot re-frames
         # from, so the same person + outfit appears in every angle.
@@ -412,12 +486,13 @@ def make_photos(request):
             # product-only / freeform shots just get the framing rule.
             emph = (_worn_emphasis(gender, shot.get("label"))
                     if worn_poses else FILL_FRAME)
+            xrefs = _ordered_refs(shot.get("label"), products, angles)
             try:
                 still = compose.scene_image(
                     sc, products[0], PHOTO_W, PHOTO_H, jd,
                     seed=abs(hash(f"{jid}s{i}")) % 10000, tracer=tr,
                     anchor=anc, include_human=worn, emphasis=emph,
-                    force_size=worn, extra_refs=products)
+                    force_size=worn, extra_refs=xrefs)
                 ok, detail = animate.guard_composite(still, products[0])
                 tr.write_json(f"shot_{i}_guard.json", {"pass": ok,
                                                        "detail": detail})
@@ -428,7 +503,7 @@ def make_photos(request):
                         sc, products[0], PHOTO_W, PHOTO_H, jd,
                         seed=abs(hash(f"{jid}retry{i}")) % 10000, tracer=tr,
                         anchor=anc, include_human=worn, force_size=worn,
-                        extra_refs=products,
+                        extra_refs=xrefs,
                         emphasis=emph + f" CRITICAL: the previous render "
                                  f"was WRONG ({detail}). Blank surfaces stay "
                                  f"blank; printed text stays exact.")
@@ -474,12 +549,13 @@ def make_photos(request):
             worn = bool(shot.get("worn"))
             emph = (_worn_emphasis(gender, shot.get("label"))
                     if worn_poses else FILL_FRAME)
+            xrefs = _ordered_refs(shot.get("label"), products, angles)
             try:
                 still2 = compose.scene_image(
                     sc, products[0], PHOTO_W, PHOTO_H, jd,
                     seed=abs(hash(f"{jid}fix{i}")) % 10000, tracer=tr,
                     anchor=(anchor_still if worn else None),
-                    include_human=worn, force_size=worn, extra_refs=products,
+                    include_human=worn, force_size=worn, extra_refs=xrefs,
                     emphasis=emph + f" CRITICAL: a previous attempt was "
                              f"WRONG ({v.get('issue')}). Match the reference "
                              f"product EXACTLY.")
