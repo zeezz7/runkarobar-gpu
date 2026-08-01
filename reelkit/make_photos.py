@@ -233,6 +233,18 @@ FILL_FRAME = (
     "confident cropping; NEVER a small object floating in empty space.")
 
 
+# Human-realism cues for worn shots - the 8-step edit model tends to render a
+# waxy, mannequin-like person, so steer it toward a real photograph. (Prompt
+# only; the deeper fix is more sampling steps, which we're not paying for here.)
+_REALISM = (
+    " REALISM: a REAL photograph of a real human, shot on an 85mm portrait lens "
+    "in soft natural daylight - authentic skin with visible pores and natural "
+    "texture and subtle imperfections, natural catchlights in the eyes, real "
+    "hair strands, lifelike proportions and a relaxed natural expression. NOT a "
+    "3D render, NOT CGI, NOT a video-game character, NOT a mannequin or "
+    "dummy - no plastic, waxy, airbrushed or smoothed-over skin, no dead eyes.")
+
+
 def _worn_emphasis(gender, label):
     """Prepended (via `emphasis`) to every worn pose shot. compose.py's worn
     lead never carries the gender or the camera angle, so we inject both here:
@@ -240,7 +252,8 @@ def _worn_emphasis(gender, label):
     re-frames were coming out front-facing because the 'keep everything
     identical' lead drowned the small pose line."""
     g = (f" The model is a {gender} person - clearly and unmistakably {gender}, "
-         f"a {gender} fashion model." if gender in ("male", "female") else "")
+         f"a {gender} fashion model." + _REALISM
+         if gender in ("male", "female") else "")
     lab = (label or "").lower()
     if "back" in lab:
         pose = (" CAMERA ANGLE: the model has turned ALL THE WAY AROUND, BACK to "
