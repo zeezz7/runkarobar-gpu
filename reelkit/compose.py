@@ -111,6 +111,14 @@ EDIT_LORA = "Qwen-Image-Edit-2511-Lightning-8steps.safetensors"
 # stays for that path; with Lightning it must be 1.0.
 EDIT_DENOISE_PRODUCT = float(os.environ.get("REELKIT_EDIT_DENOISE", "1.0"))
 
+# Real-quality edit path for CATALOG PHOTOS (make_photos): full model, no
+# Lightning LoRA, real classifier-free guidance. CFG 1.0 ignores the negative
+# prompt entirely and barely steers on the positive - the waxy mannequin skin
+# and weak pose adherence live there. Reels keep the fast path (30+ frames);
+# a photo set renders 4-8 stills, so it can afford ~7x the sampling.
+QUALITY_STEPS = int(os.environ.get("PHOTO_QUALITY_STEPS", "28"))
+QUALITY_CFG = float(os.environ.get("PHOTO_QUALITY_CFG", "3.5"))
+
 
 def _add_lora(wf, lora_name, after_node, sampler_node="17"):
     wf["900"] = {"class_type": "LoraLoaderModelOnly",
@@ -140,7 +148,8 @@ def generate_scene(prompt, w, h, out_prefix, seed=0, steps=None, cfg=None,
 
 
 def edit_scene(product_path, instruction, out_prefix, seed=0, steps=None, cfg=None,
-               ref_paths=None, negative=None, denoise=1.0, target_wh=None):
+               ref_paths=None, negative=None, denoise=1.0, target_wh=None,
+               quality=False):
     """
     Qwen-Image-Edit-2511: keep the supplied photograph's subject, change its
     world. This is the right tool when the product is photographed IN CONTEXT -
@@ -200,7 +209,13 @@ def edit_scene(product_path, instruction, out_prefix, seed=0, steps=None, cfg=No
             node["inputs"][f"image{slot}"] = [scale_id, 0]
         common.log("compose", f"  + reference image{slot}: {os.path.basename(extra)}")
 
-    if FAST:
+    if quality:
+        # Full model, Lightning OFF, real CFG - negatives finally count.
+        for _, node in common.nodes_of(wf, "PrimitiveBoolean"):
+            node["inputs"]["value"] = False
+        steps = steps or QUALITY_STEPS
+        cfg = cfg if cfg is not None else QUALITY_CFG
+    elif FAST:
         for _, node in common.nodes_of(wf, "PrimitiveBoolean"):
             node["inputs"]["value"] = True          # template's Lightning switch
         steps, cfg = steps or FAST_STEPS, cfg if cfg is not None else 1.0
@@ -314,7 +329,7 @@ def scene_image(scene, product_path, w, h, job_dir, seed=0, cut_cache={},
                 bg_cache=None, height_frac=PRODUCT_HEIGHT_FRAC,
                 center_y=PRODUCT_CENTER_Y, tracer=None, tpl_defaults=None,
                 anchor=None, include_human=True, emphasis="", force_size=False,
-                extra_refs=None, anchor_mode="edit"):
+                extra_refs=None, anchor_mode="edit", quality=False):
     """
     Produce the still for one storyboard scene. Returns its path.
 
@@ -468,7 +483,11 @@ def scene_image(scene, product_path, w, h, job_dir, seed=0, cut_cache={},
         if tracer:
             tracer.write_json(f"scene_{n}_compose.json", {
                 "path": scene["method"], "model": "Qwen-Image-Edit-2511-fp8mixed",
-                "fast_lightning_4step": FAST, "seed": seed + n,
+                "fast_lightning_4step": FAST and not quality,
+                "quality_mode": quality,
+                "steps": QUALITY_STEPS if quality else (FAST_STEPS if FAST else 40),
+                "cfg": QUALITY_CFG if quality else (1.0 if FAST else 4.0),
+                "seed": seed + n,
                 "positive_prompt": instruction, "negative_prompt": negative,
                 "source_photo": primary,
                 "anchor_used": followon or identity_carry,
@@ -488,7 +507,8 @@ def scene_image(scene, product_path, w, h, job_dir, seed=0, cut_cache={},
         out_edit = edit_scene(primary, instruction, prefix + "_edit",
                               seed=seed + n, ref_paths=refs, negative=negative,
                               denoise=edit_denoise,
-                              target_wh=(w, h) if force_size else None)
+                              target_wh=(w, h) if force_size else None,
+                              quality=quality)
         out = os.path.join(job_dir, f"scene_{n}.png")
         Image.open(out_edit).convert("RGB").save(out)
         common.log("compose", f"scene {n}: edited real photo -> {os.path.basename(out)}")

@@ -513,7 +513,8 @@ def make_photos(request):
                     sc, base, PHOTO_W, PHOTO_H, jd,
                     seed=abs(hash(f"{jid}s{i}")) % 10000, tracer=tr,
                     anchor=anc, anchor_mode=amode, include_human=worn,
-                    emphasis=emph, force_size=worn, extra_refs=xrefs)
+                    emphasis=emph, force_size=worn, extra_refs=xrefs,
+                    quality=True)
                 ok, detail = animate.guard_composite(still, products[0])
                 tr.write_json(f"shot_{i}_guard.json", {"pass": ok,
                                                        "detail": detail})
@@ -524,7 +525,7 @@ def make_photos(request):
                         sc, base, PHOTO_W, PHOTO_H, jd,
                         seed=abs(hash(f"{jid}retry{i}")) % 10000, tracer=tr,
                         anchor=anc, anchor_mode=amode, include_human=worn,
-                        force_size=worn, extra_refs=xrefs,
+                        force_size=worn, extra_refs=xrefs, quality=True,
                         emphasis=emph + f" CRITICAL: the previous render "
                                  f"was WRONG ({detail}). Blank surfaces stay "
                                  f"blank; printed text stays exact.")
@@ -576,7 +577,7 @@ def make_photos(request):
                 still2 = compose.scene_image(
                     sc, base, PHOTO_W, PHOTO_H, jd,
                     seed=abs(hash(f"{jid}fix{i}")) % 10000, tracer=tr,
-                    anchor=anc, anchor_mode=amode,
+                    anchor=anc, anchor_mode=amode, quality=True,
                     include_human=worn, force_size=worn, extra_refs=xrefs,
                     emphasis=emph + f" CRITICAL: a previous attempt was "
                              f"WRONG ({v.get('issue')}). Match the reference "
