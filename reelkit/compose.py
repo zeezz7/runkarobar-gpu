@@ -313,7 +313,8 @@ def scene_shows_person(scene, tpl_defaults=None):
 def scene_image(scene, product_path, w, h, job_dir, seed=0, cut_cache={},
                 bg_cache=None, height_frac=PRODUCT_HEIGHT_FRAC,
                 center_y=PRODUCT_CENTER_Y, tracer=None, tpl_defaults=None,
-                anchor=None, include_human=True, emphasis="", force_size=False):
+                anchor=None, include_human=True, emphasis="", force_size=False,
+                extra_refs=None):
     """
     Produce the still for one storyboard scene. Returns its path.
 
@@ -357,6 +358,17 @@ def scene_image(scene, product_path, w, h, job_dir, seed=0, cut_cache={},
         want_anchor = bool(d.get("anchorModel")) or include_human
         if want_anchor and anchor and anchor != product_path:
             primary, refs, followon = anchor, [product_path], True
+        # Show Qwen the OTHER uploaded angles too, not just one photo - so a
+        # back/side shot has the REAL garment from that view to copy instead of
+        # inventing it. Qwen-Edit takes image1 + 2 refs, so we fill the two ref
+        # slots from (existing refs + the uploaded angle pool), deduped and
+        # never repeating the primary/anchor.
+        pool, seen, merged = list(refs) + list(extra_refs or []), set(), []
+        for p in pool:
+            if p and p != primary and p not in seen:
+                seen.add(p)
+                merged.append(p)
+        refs = merged[:2]
 
         shot = guards.desexualise((scene.get("visual") or "").strip().rstrip("."))
         if followon:

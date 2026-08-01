@@ -417,7 +417,7 @@ def make_photos(request):
                     sc, products[0], PHOTO_W, PHOTO_H, jd,
                     seed=abs(hash(f"{jid}s{i}")) % 10000, tracer=tr,
                     anchor=anc, include_human=worn, emphasis=emph,
-                    force_size=worn)
+                    force_size=worn, extra_refs=products)
                 ok, detail = animate.guard_composite(still, products[0])
                 tr.write_json(f"shot_{i}_guard.json", {"pass": ok,
                                                        "detail": detail})
@@ -428,6 +428,7 @@ def make_photos(request):
                         sc, products[0], PHOTO_W, PHOTO_H, jd,
                         seed=abs(hash(f"{jid}retry{i}")) % 10000, tracer=tr,
                         anchor=anc, include_human=worn, force_size=worn,
+                        extra_refs=products,
                         emphasis=emph + f" CRITICAL: the previous render "
                                  f"was WRONG ({detail}). Blank surfaces stay "
                                  f"blank; printed text stays exact.")
@@ -478,7 +479,7 @@ def make_photos(request):
                     sc, products[0], PHOTO_W, PHOTO_H, jd,
                     seed=abs(hash(f"{jid}fix{i}")) % 10000, tracer=tr,
                     anchor=(anchor_still if worn else None),
-                    include_human=worn, force_size=worn,
+                    include_human=worn, force_size=worn, extra_refs=products,
                     emphasis=emph + f" CRITICAL: a previous attempt was "
                              f"WRONG ({v.get('issue')}). Match the reference "
                              f"product EXACTLY.")
