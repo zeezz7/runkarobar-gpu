@@ -246,7 +246,13 @@ def _worn_emphasis(gender, label):
         pose = (" CAMERA ANGLE: the model has turned ALL THE WAY AROUND, BACK to "
                 "the camera - we see the back of the head, the shoulders and the "
                 "GARMENT'S BACK; the face is NOT visible. This is a different "
-                "camera angle of the same person and outfit, NOT a front view.")
+                "camera angle of the same person and outfit, NOT a front view."
+                # Big blank denim backs make the edit model stamp gibberish
+                # brand text; the OCR guard then drops the whole shot. Forbid it.
+                " The back of the garment is PLAIN fabric - do NOT print, stamp, "
+                "emboss or add ANY brand name, logo, letters, numbers, words or "
+                "graphic anywhere on the back; blank fabric stays completely "
+                "blank.")
     elif "left" in lab:
         pose = (" CAMERA ANGLE: the model has physically rotated to face their "
                 "LEFT - photograph the LEFT-SIDE PROFILE (the side of the body "
