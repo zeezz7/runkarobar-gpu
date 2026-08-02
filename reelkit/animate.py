@@ -456,7 +456,16 @@ def animate_scene(scene, still_path, source_product, job_dir, w, h, duration,
 
     motion = scene.get("motion") or "slow cinematic camera move"
     energy = (scene.get("energy") or "").strip()
-    prompt = f"{motion}. {scene['visual']}." + (f" {energy}." if energy else "")
+    # NO-TEXT clause for the VIDEO prompt. The still guards kept scene_4.png
+    # clean, but the scene's `visual` rides into this prompt verbatim - a
+    # storyboard that asked for "brand name fades in" made Wan hallucinate a
+    # fake monogram + gibberish end-card over a clean still (reel_6d0f494c).
+    # The rule lives here as well as in the storyboard rulebook: belt and
+    # braces, because this is the last prompt any text request can hide in.
+    prompt = (f"{motion}. {scene['visual']}."
+              + (f" {energy}." if energy else "")
+              + " No text, lettering, logo, watermark, brand name or emblem "
+                "appears, fades in or is overlaid anywhere in the shot.")
     if tracer:
         tracer.write_json(f"scene_{n}_animate.json", {
             "engine": VIDEO_MODEL, "path": "video_i2v",

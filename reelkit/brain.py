@@ -179,6 +179,11 @@ HARD REQUIREMENTS
   failure this rule exists to stop), and never contradict a piece between
   "visual" and "motion". Only a deliberate DETAIL close-up may frame a single
   piece, and then the other pieces are simply out of frame, not removed.
+- NEVER ask for on-screen words inside a shot: "visual", "visualEnd" and
+  "motion" must not request any text, lettering, logo, brand name, monogram,
+  watermark, title card or end-card ("brand name fades in" made the video
+  model hallucinate a fake gibberish emblem). Written words belong ONLY to
+  "vo" (spoken) and "badges" (burned over the reel by the assembler).
 - "badges" are short on-screen text chips burned over the reel (a price, an offer,
   a one-word benefit). Return an EMPTY array unless the STYLE DIRECTIVE asks for
   them. Max 6, each at most 16 characters, colour as #RRGGBB or omitted.
