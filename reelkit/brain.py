@@ -45,6 +45,19 @@ def brain_model():
     return os.environ.get("WAVESPEED_BRAIN_MODEL") or DEFAULT_BRAIN_MODEL
 
 
+def gate_model():
+    """The validation/direction gate is compare-and-describe work, not
+    creative direction - Haiku does it for ~1/4 the price (the photo studio's
+    QA proves the pattern). The storyboard BRAIN stays on the big model.
+    Falls back to the brain model on the WaveSpeed provider path, whose
+    catalogue may not carry Haiku."""
+    env = (os.environ.get("REEL_GATE_MODEL") or "").strip()
+    if env:
+        return env
+    import llm
+    return "claude-haiku-4-5" if llm.provider() == "anthropic" else brain_model()
+
+
 VL_DIR = os.environ.get(
     "QWEN_VL_DIR", "/workspace/models/qwen2.5-vl/Qwen2.5-VL-7B-Instruct")
 
@@ -82,6 +95,7 @@ Return EXACTLY this JSON shape:
   "concept": "<one-line creative concept>",
   "voice": "<voice direction, e.g. 'male energetic Hinglish'>",
   "photosShowPerson": <true if ANY supplied photograph shows a person wearing or holding the product, else false>,
+ "pieces": ["<EVERY separate piece of the product the photographs actually show, named from the PHOTOS - e.g. a suit laid out with its trousers and dupatta is three pieces; a bottle photographed with its box is two. Never guess pieces the photos do not show.>"],
   "scenes": [
     {{
       "n": 1,
@@ -158,6 +172,13 @@ HARD REQUIREMENTS
 - "motion" names a concrete, confident camera move and must vary between
   scenes - include at least one bold move (fast orbit, sweeping crane,
   rise/float, whip pan); never make every scene a slow push-in.
+- "pieces" is the product INVENTORY, read from the photographs at generation
+  time. Every scene that shows the product worn or in use shows ALL of its
+  pieces - never exclude, forbid or drop a photographed piece in any "visual"
+  (writing "no dupatta" for a set whose photo includes one is the exact
+  failure this rule exists to stop), and never contradict a piece between
+  "visual" and "motion". Only a deliberate DETAIL close-up may frame a single
+  piece, and then the other pieces are simply out of frame, not removed.
 - "badges" are short on-screen text chips burned over the reel (a price, an offer,
   a one-word benefit). Return an EMPTY array unless the STYLE DIRECTIVE asks for
   them. Max 6, each at most 16 characters, colour as #RRGGBB or omitted.
@@ -682,7 +703,9 @@ def direct_from_stills(still_urls, sb, config, include_human, product_urls=None,
                  f"stills, IN ORDER.\n")
         qa = ("the SAME product as ITS reference - same type and the SAME "
               "colours, same design, prints and details; no warping or "
-              "gibberish text")
+              "gibberish text. If a reference lays out a SET of pieces, EVERY "
+              "piece belongs to that product - wearing or showing all of them "
+              "is CORRECT, never an addition")
     elif nref == 1:
         intro = (f"IMAGE 1 is the REFERENCE PRODUCT - the exact item that MUST "
                  f"appear in every scene. IMAGES 2-{len(urls) + 1} are the "
@@ -690,7 +713,12 @@ def direct_from_stills(still_urls, sb, config, include_human, product_urls=None,
         qa = ("the SAME product as IMAGE 1 - same garment type and the SAME "
               "colours (e.g. if the reference is a magenta kurti, an all-grey "
               "outfit or a different dress or a suit is WRONG), same embroidery, "
-              "prints and design; no warping or gibberish text")
+              "prints and design; no warping or gibberish text. If IMAGE 1 "
+              "lays out a SET of pieces - e.g. a kurta WITH trousers AND a "
+              "dupatta - EVERY piece belongs to the product: wearing or "
+              "showing ALL of them is CORRECT and expected, never an "
+              "'addition' (a dupatta visible in the reference flat-lay is "
+              "part of the outfit)")
     else:
         intro = f"Below are the {len(urls)} generated scene stills IN ORDER.\n"
         qa = ("the product intact - correct shape, colours, logos and text; no "
@@ -699,10 +727,18 @@ def direct_from_stills(still_urls, sb, config, include_human, product_urls=None,
              " A ghost-mannequin / hollow-garment / flat product shot is "
              "correct; any person, face, hands or body parts appearing is "
              "WRONG.")
+    pieces = [str(p) for p in ((sb or {}).get("pieces") or []) if p]
+    # The brain's runtime piece inventory (read from the photos, never
+    # hardcoded) - the gate must treat every listed piece as the product.
+    pieces_line = (f"The product is a SET of {len(pieces)} pieces, all part "
+                   f"of ONE product: {', '.join(pieces)}. A scene showing any "
+                   f"or all of these pieces shows the CORRECT product.\n"
+                   if pieces else "")
     prompt = (
         f"You are QA + director for a {length}s {config.get('language', 'en')} "
         f"product video for {config.get('brandName') or 'the brand'}. "
         f"Concept: {(sb or {}).get('concept', '')}.\n"
+        f"{pieces_line}"
         f"{intro}Scene expectations, one per still, IN ORDER:\n{draft}\n\n"
         f"For EACH generated scene still, IN ORDER, return:\n"
         f"1. pass/issue - QA. pass=true ONLY if the still shows {qa}, AND the "
@@ -741,7 +777,7 @@ def direct_from_stills(still_urls, sb, config, include_human, product_urls=None,
         prompt = prompt[:9800]    # WaveSpeed hard-caps at 10000 and 400s over it
     try:
         raw = llm.chat(prompt, system="You output ONLY strict JSON.",
-                             images=refs + urls, model=brain_model(),
+                             images=refs + urls, model=gate_model(),
                              temperature=0.3, max_tokens=1600)
         data = _extract_json(raw)
         if isinstance(data, dict):

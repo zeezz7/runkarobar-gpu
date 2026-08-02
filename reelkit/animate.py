@@ -427,13 +427,6 @@ def animate_scene(scene, still_path, source_product, job_dir, w, h, duration,
     out = os.path.join(job_dir, f"clip_{n}.mp4")
     verdict = None
 
-    if scene["method"] == "compose_animate" and source_product:
-        ok, detail = guard_composite(still_path, source_product)
-        verdict = {"scene": n, "ok": ok, "detail": detail}
-        common.log("guard", f"scene {n}: {'PASS' if ok else 'FAIL'} - {detail}")
-        if guard_log is not None:
-            guard_log.append(verdict)
-
     # Ken-Burns is retained only for an explicit opt-in; every storyboard now
     # asks for real motion, because a reel of zooming stills reads as a slideshow.
     engine = (scene.get("motionEngine") or "video").lower()

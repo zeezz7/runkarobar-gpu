@@ -12,7 +12,10 @@ STAGES
   2  animate.py    Ken-Burns over sharp composites (label cannot warp) or
                    Wan 2.2 I2V + LightX2V for non-product scenes. Optional
                    energy plate rendered on black and screen-blended.
-  2b animate.guard_composite  Qwen2.5-VL OCR-diff against the source product.
+  2b brain.direct_from_stills  ONE vision gate (Haiku) per still-set: product
+                   + set fidelity, printed text, person rules - then grounded
+                   motion + VO. (The old per-still Qwen2.5-VL OCR guard is
+                   gone; it was a Qwen-Lightning-era bandage.)
   3  voiceover.py  ElevenLabs TTS. Real durations drive clip lengths.
   4  assemble.py   ffmpeg fit + fade + VO mux + captions -> 1080p and 720p.
   5  minio_upload  upload, return public URLs (no bucket segment).
@@ -216,7 +219,6 @@ def make_reel(request):
                       + ("a person may feature" if include_human
                          else "PRODUCT ONLY, no person in any scene"))
     guard_log, clips, stills = [], [], []
-    guard_hard_fail = {}     # scene n -> OCR-proven defect the gate must honour
     cut_cache, bg_cache = {}, {}
     anchor_still = None          # B1: the frame that fixes the model's identity
     # Default: free the edit models ONCE before motion (Stage 2 peak = just Wan,
@@ -251,103 +253,64 @@ def make_reel(request):
     # ONCE, between images and motion, and not at all when REELKIT_KEEP_RESIDENT
     # is set (a >=80GB card holds edit+Wan together, ~48GB of weights).
     t_img = time.time()
-    for si, sc in enumerate(sb["scenes"]):
-        n = sc["n"]
-        # includeHuman must EDIT the real garment, never generate a model from
-        # text. The brain often picks generate_animate (pure text-to-image), which
-        # ignores the product photo entirely and invents a random outfit - the
-        # real cause of the drift. Force edit_animate so scene 1 dresses a model
-        # in the actual flat-lay and later scenes re-frame from the anchor.
-        if include_human:
+    # includeHuman must EDIT the real garment, never generate a model from
+    # text. The brain often picks generate_animate (pure text-to-image), which
+    # ignores the product photo entirely and invents a random outfit - the
+    # real cause of the drift. Force edit_animate so scene 1 dresses a model
+    # in the actual flat-lay and later scenes re-frame from the anchor.
+    if include_human:
+        for sc in sb["scenes"]:
             sc["method"] = "edit_animate"
-        product = products[si % len(products)]
-        seed = abs(hash(jid)) % 10000
-        t_s = time.time()
-        # Directed-motion CHAIN: this scene starts on the PREVIOUS scene's end
-        # keyframe, so the boundary frame is shared and the reel flows with no
-        # jump. Only scene 1 (and any scene whose predecessor had no end frame)
-        # is generated fresh.
-        if directed_motion and si > 0 and end_stills[si - 1]:
-            still = end_stills[si - 1]
-            common.log("compose", f"scene {n}: start = scene {n-1} end keyframe "
-                                  f"(shared boundary)")
-        else:
-            still = compose.scene_image(sc, product, w, h, jd, seed=seed,
-                                        cut_cache=cut_cache, bg_cache=bg_cache,
-                                        tracer=tr, tpl_defaults=tpl_defaults,
-                                        anchor=anchor_still, include_human=include_human)
-        stills.append(still)
-        common.log("time", f"image scene {n}: {time.time() - t_s:.1f}s  {_gpu_str()}")
-        # The FIRST scene becomes the anchor; later scenes re-frame from it so ONE
-        # model in the EXACT SAME outfit carries the whole reel. Set it for anchor
-        # templates AND for ANY includeHuman reel (the first still is the model
-        # wearing the item; every later angle must match it, not re-dress afresh).
-        if anchor_still is None and (
-                include_human
-                or (tpl_defaults.get("anchorModel")
-                    and compose.scene_shows_person(sc, tpl_defaults))):
-            anchor_still = still
-            common.log("compose", f"scene {n}: ANCHOR set - later scenes re-frame "
-                                  f"this SAME model + outfit")
-        if sc["method"] in ("compose_animate", "edit_animate"):
-            ok, detail = animate.guard_composite(still, product)
-            guard_log.append({"scene": n, "ok": ok, "detail": detail})
-            tr.write_json(f"scene_{n}_guard.json", {
-                "scene": n, "pass": ok, "detail": detail, "retries": 0})
-            common.log("guard", f"scene {n}: {'PASS' if ok else 'FAIL'} - {detail}")
-            if not ok:
-                # Retry with a DIFFERENT seed and the guard's complaint as
-                # emphasis. The old retry reused the original seed formula, so
-                # an edit scene re-rendered the byte-identical wrong image and
-                # the "retry" was a no-op (observed: invented 'BERTEN ROYAL'
-                # lettering survived its retry unchanged).
-                common.log("guard", f"scene {n}: re-rendering (new seed) - {detail}")
-                # anchor keeps the SAME model + outfit on a person reel - the
-                # first retry of a follow-on scene dropped it and re-dressed
-                # from the raw product photo, which drifted to a different
-                # garment entirely (observed: back-view sweatshirt scene
-                # re-rendered as an ornate kurta).
-                still = compose.scene_image(
-                    sc, product, w, h, jd,
-                    seed=abs(hash(f"{jid}guard{n}")) % 10000,
-                    cut_cache=cut_cache, bg_cache=bg_cache, tracer=tr,
-                    height_frac=0.62, center_y=0.50, include_human=include_human,
-                    anchor=anchor_still if include_human else None,
-                    emphasis=(f"CRITICAL: the previous render was WRONG "
-                              f"({detail}). Match the reference photograph "
-                              f"exactly - if a surface is blank in the photo it "
-                              f"must stay blank, with NO invented text or "
-                              f"logos."))
-                ok2, detail2 = animate.guard_composite(still, product)
-                guard_log.append({"scene": n, "ok": ok2, "detail": detail2,
-                                  "retry": True})
-                tr.write_json(f"scene_{n}_guard.json", {
-                    "scene": n, "pass": ok2, "detail": detail2, "retries": 1,
-                    "first_attempt": {"pass": ok, "detail": detail}})
-                common.log("guard", f"scene {n} retry: "
-                                    f"{'PASS' if ok2 else 'STILL FAIL'} - {detail2}")
-                stills[-1] = still
-                if not ok2:
-                    # The OCR verdict is objective (a blank product grew text /
-                    # lost its label) - remember it so the Sonnet gate cannot
-                    # wave this scene through: small neat lettering photographs
-                    # plausibly and Sonnet passed exactly that (trace
-                    # reel_8c56f34e scene 1).
-                    guard_hard_fail[n] = detail2
 
-        # DIRECTED MOTION: generate this scene's END keyframe by editing the
-        # START still to the brain's visualEnd - the SAME model in the SAME
-        # outfit / the SAME product, only the pose or framing moves. Wan then
-        # morphs start->end (FLF2V) instead of inventing motion. This end frame
-        # becomes the NEXT scene's start (shared boundary, handled at the top of
-        # the loop), so the reel flows continuously.
-        if directed_motion:
+    def _render_still(si, sc):
+        """One scene still via compose - a remote seedream render these days."""
+        return compose.scene_image(sc, products[si % len(products)], w, h, jd,
+                                   seed=abs(hash(jid)) % 10000,
+                                   cut_cache=cut_cache, bg_cache=bg_cache,
+                                   tracer=tr, tpl_defaults=tpl_defaults,
+                                   anchor=anchor_still,
+                                   include_human=include_human)
+
+    def _wants_anchor(sc):
+        # The first qualifying still fixes the model's identity; later scenes
+        # re-frame from it so ONE model in the EXACT SAME outfit carries the
+        # whole reel. Anchor templates AND any includeHuman reel qualify.
+        return (include_human
+                or (tpl_defaults.get("anchorModel")
+                    and compose.scene_shows_person(sc, tpl_defaults)))
+
+    # NOTE (single gate): the per-still OCR guard that used to run here was a
+    # Qwen-Lightning bandage (invented-lettering disease). The validation gate
+    # below judges every still - text fidelity included - in ONE vision call,
+    # so stills go straight through and nothing loads the 16GB VL model.
+    if directed_motion:
+        # FLF2V keyframe CHAIN: every scene starts on the previous scene's end
+        # keyframe - inherently sequential, so no fan-out here.
+        for si, sc in enumerate(sb["scenes"]):
+            n = sc["n"]
+            product = products[si % len(products)]
+            t_s = time.time()
+            if si > 0 and end_stills[si - 1]:
+                still = end_stills[si - 1]
+                common.log("compose", f"scene {n}: start = scene {n-1} end "
+                                      f"keyframe (shared boundary)")
+            else:
+                still = _render_still(si, sc)
+            stills.append(still)
+            if anchor_still is None and _wants_anchor(sc):
+                anchor_still = still
+                common.log("compose", f"scene {n}: ANCHOR set - later scenes "
+                                      f"re-frame this SAME model + outfit")
+            # END keyframe: edit the START still to the brain's visualEnd - the
+            # SAME subject, only pose/framing moves. Wan morphs start->end
+            # (FLF2V) and this frame becomes the NEXT scene's start.
             end_desc = (sc.get("visualEnd") or "").strip()
             if end_desc:
                 end_scene = dict(sc)
                 end_scene["visual"] = end_desc
                 ek = compose.scene_image(
-                    end_scene, product, w, h, jd, seed=(seed + 7) % 10000,
+                    end_scene, product, w, h, jd,
+                    seed=(abs(hash(jid)) + 7) % 10000,
                     cut_cache=cut_cache, bg_cache=bg_cache, tracer=tr,
                     tpl_defaults=tpl_defaults, anchor=still,
                     include_human=include_human)
@@ -357,9 +320,36 @@ def make_reel(request):
             else:
                 end_stills.append(None)
                 common.log("compose", f"scene {n}: no visualEnd - classic I2V")
+            common.log("time", f"image scene {n}: {time.time() - t_s:.1f}s")
+    else:
+        # PARALLEL stills. Each still is a remote seedream render - the box
+        # just WAITS on HTTP while its billing clock runs, and waiting on five
+        # at once costs the same as waiting on one. Only the anchor scene
+        # renders alone first, because later scenes re-frame from its output.
+        from concurrent.futures import ThreadPoolExecutor
+        scenes = sb["scenes"]
+        done = {}
+        anchor_idx = next((i for i, sc in enumerate(scenes)
+                           if _wants_anchor(sc)), None)
+        if anchor_idx is not None:
+            t_s = time.time()
+            anchor_still = _render_still(anchor_idx, scenes[anchor_idx])
+            done[anchor_idx] = anchor_still
+            common.log("compose", f"scene {scenes[anchor_idx]['n']}: ANCHOR "
+                                  f"set ({time.time() - t_s:.1f}s) - remaining "
+                                  f"scenes render in parallel from it")
+        todo = [i for i in range(len(scenes)) if i not in done]
+        if todo:
+            t_s = time.time()
+            with ThreadPoolExecutor(max_workers=min(4, len(todo))) as ex:
+                futs = {i: ex.submit(_render_still, i, scenes[i]) for i in todo}
+                for i in todo:
+                    done[i] = futs[i].result()  # a failed still fails the job
+            common.log("time", f"{len(todo)} parallel still(s) in "
+                               f"{time.time() - t_s:.1f}s")
+        stills = [done[i] for i in range(len(scenes))]
     common.log("time", f"ALL {len(stills)} images in {time.time() - t_img:.1f}s  "
                        f"{_gpu_str()}")
-    animate.unload_guard()      # release the 16GB VL guard before motion
 
     # ===== STAGE 1b: Sonnet validation gate (remote vision) =================
     # Upload the stills now - these URLs are the final ones too, so nothing is
@@ -387,17 +377,6 @@ def make_reel(request):
             sc["motion"] = d["motion"]
         if d.get("vo"):
             sc["vo"] = d["vo"]
-    # An OCR-proven defect (blank product grew lettering / label changed and the
-    # re-render didn't cure it) overrides a Sonnet pass: small neat lettering
-    # photographs plausibly, and Sonnet waved exactly that through. Marking the
-    # scene failed here routes it through the normal regen -> substitute ->
-    # paste machinery below.
-    for n_, why in guard_hard_fail.items():
-        d = by_scene.setdefault(n_, {"scene": n_})
-        if d.get("pass", True):
-            common.log("validate", f"scene {n_}: guard overrides Sonnet pass - {why}")
-            d["pass"] = False
-            d.setdefault("issue", why)
     # BLOCKING GATE: act on Sonnet's verdicts instead of shipping them. Any scene
     # it rejects (e.g. "wrong outfit") is regenerated - re-framed from the anchor
     # so it matches the exact outfit - and re-checked, up to REELKIT_MAX_FIX
@@ -414,13 +393,8 @@ def make_reel(request):
                      if j % nprod == i % nprod
                      and by_scene.get(sc2["n"], {}).get("pass", True)), None)
     for _ in range(max_fix):
-        # Guard-hard-fail scenes skip the regen ONLY when the paste fallback
-        # exists to cure them (product-only reels). On a person reel the paste
-        # is impossible, so the Sonnet fix pass is the only recovery there is -
-        # skipping it shipped a wrong-garment scene untouched (reel_60ca0010).
         failed = [i for i, sc in enumerate(sb["scenes"])
-                  if not by_scene.get(sc["n"], {}).get("pass", True)
-                  and (include_human or sc["n"] not in guard_hard_fail)]
+                  if not by_scene.get(sc["n"], {}).get("pass", True)]
         if not failed:
             break
         common.log("validate", f"gate: regenerating {len(failed)} flagged scene(s) "
@@ -463,18 +437,6 @@ def make_reel(request):
                     sc["motion"] = d["motion"]
                 if d.get("vo"):
                     sc["vo"] = d["vo"]
-    # Re-assert the OCR verdicts: the fix loop re-ran Sonnet and rebound
-    # by_scene, which would let a guard-hard-fail scene slip back to "pass".
-    # Product-only reels only - there the still is unchanged (regen was
-    # skipped) and the paste fallback is the cure. On a person reel the regen
-    # REPLACED the still the OCR judged, so Sonnet's fresh verdict wins.
-    if not include_human:
-        for n_, why in guard_hard_fail.items():
-            d = by_scene.setdefault(n_, {"scene": n_})
-            if d.get("pass", True):
-                common.log("validate", f"scene {n_}: guard overrides Sonnet pass - {why}")
-                d["pass"] = False
-                d.setdefault("issue", why)
     # FALLBACK (option A): any scene STILL wrong after the fix passes is replaced
     # with a verified still OF THE SAME PRODUCT. The reel then repeats a correct
     # angle instead of shipping a wrong shot - a consistent reel always beats a

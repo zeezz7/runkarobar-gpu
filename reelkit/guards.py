@@ -43,7 +43,17 @@ WEAR_GUARD = (
     "drape, shawl, stole, jacket, jewellery, headwear or any other garment or "
     "accessory that is absent from the reference photograph. Show ONLY the person "
     "wearing it - absolutely no clothing rack, coat stand, hanger, mannequin or "
-    "separately-displayed garment anywhere in the frame.")
+    "separately-displayed garment anywhere in the frame."
+    # Cut-lock (product-agnostic, 2026-08-02): seedream re-cut a kurta to
+    # elbow sleeves and crop length, swapped trousers for leggings and invented
+    # pearl beading - the fidelity rule must pin the CUT, not just the colours.
+    " Every piece keeps its OWN photographed CUT exactly: the same sleeve "
+    "length, the same garment length, the same neckline and the same "
+    "silhouette as the photograph - never shorten, lengthen, crop or restyle "
+    "any piece. Add NO embellishment the photograph does not show - no "
+    "invented beads, pearls, sequins, extra embroidery or trims. Any brand "
+    "mark or logo appears ONLY in the exact place the photograph shows it - "
+    "never repeated or moved onto sleeves, the back or anywhere else.")
 
 MODESTY_GUARD = (
     " STRICT: the person must be fully and MODESTLY dressed at all times - "

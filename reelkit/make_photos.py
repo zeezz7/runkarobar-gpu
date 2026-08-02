@@ -345,8 +345,7 @@ def _fit(path, w, h):
 def make_photos(request):
     t0 = time.time()
     common.load_env()
-    import animate      # local imports keep handler boot light
-    import guards
+    import guards       # local imports keep handler boot light
     from make_reel import _free_comfy_vram, _upload
 
     urls = [u for u in (request.get("product_images") or []) if u][:8]
@@ -447,33 +446,16 @@ def make_photos(request):
                 "refs": [os.path.basename(r) for r in refs[:2]],
                 "followon": followon, "prompt": text})
             try:
+                # No per-shot OCR guard anymore - it was a Qwen-Lightning
+                # bandage and needed the 16GB VL model. The Haiku QA pass
+                # below judges invented lettering along with everything else.
                 still = _render(jid, jd, i, base, refs, text, shot["worn"], "a")
-                ok, detail = animate.guard_composite(still, products[0])
-                tr.write_json(f"shot_{i}_guard.json", {"pass": ok,
-                                                       "detail": detail})
-                if not ok and rerolls > 0:      # invented text: one re-roll
-                    rerolls -= 1
-                    common.log("photos", f"shot {i} guard fail - re-roll "
-                                         f"({detail[:80]})")
-                    still = _render(jid, jd, i, base, refs,
-                                    text + f" CRITICAL: the previous render "
-                                           f"was WRONG ({detail}). Blank "
-                                           f"surfaces stay blank; printed "
-                                           f"text stays exact.",
-                                    shot["worn"], "b")
-                    ok, _ = animate.guard_composite(still, products[0])
-                if not ok:
-                    dropped += 1
-                    common.log("photos", f"shot {i} failing OCR guard - "
-                                         f"dropped")
-                    continue
                 stills.append((i, shot, still, base, refs, text))
                 if shot["worn"] and anchor is None:
                     anchor = still   # establish the model for the rest
             except Exception as e:
                 dropped += 1
                 common.log("photos", f"shot {i} render failed ({e}) - dropped")
-        animate.unload_guard()
 
         # Upload all shots, then ONE QA pass over the whole set.
         shot_urls, labels = [], []
